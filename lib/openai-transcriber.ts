@@ -8,16 +8,13 @@ export class OpenAITranscriber {
   private mediaStream: MediaStream | null = null
   private processor: ScriptProcessorNode | null = null
   private isConnected = false
-  private onTranscriptionCallback: ((text: string, isFinal: boolean) => void) | null = null
   private sequenceNumber = 0
 
   constructor(
     private apiKey: string,
     private onTranscription: (text: string, isFinal: boolean, sequence: number) => void,
     private onError: (error: string) => void,
-  ) {
-    this.onTranscriptionCallback = onTranscription
-  }
+  ) {}
 
   async start() {
     try {
@@ -140,17 +137,14 @@ export class OpenAITranscriber {
 
   private handleServerMessage(message: AnyEvent) {
     switch (message.type) {
-      // Transcription events (what you want)
       case "conversation.item.input_audio_transcription.delta": {
         if (typeof message.delta === "string") {
-          this.onTranscriptionCallback?.(message.delta, false)
-          this.onTranscription(message.delta, false, this.sequenceNumber++)
+          this.onTranscription(message.delta, false, this.sequenceNumber)
         }
         break
       }
       case "conversation.item.input_audio_transcription.completed": {
         if (typeof message.transcript === "string") {
-          this.onTranscriptionCallback?.(message.transcript, true)
           this.onTranscription(message.transcript, true, this.sequenceNumber++)
         }
         break

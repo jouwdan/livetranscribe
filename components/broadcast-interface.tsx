@@ -73,6 +73,10 @@ export function BroadcastInterface({ slug, eventName }: BroadcastInterfaceProps)
       setCurrentInterim(text)
     }
 
+    if (!isFinal) {
+      return
+    }
+
     try {
       const response = await fetch(`/api/stream/${slug}`, {
         method: "POST",
@@ -86,7 +90,7 @@ export function BroadcastInterface({ slug, eventName }: BroadcastInterfaceProps)
       })
 
       if (!response.ok) {
-        console.error("[v0] Failed to broadcast transcription")
+        console.error("[v0] Failed to broadcast transcription:", response.status)
       } else {
         const data = await response.json()
         console.log("[v0] Broadcasted to", data.viewerCount, "viewers")
