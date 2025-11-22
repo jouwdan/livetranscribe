@@ -30,12 +30,12 @@ export default function Home() {
           <Card>
             <CardHeader>
               <Mic className="h-8 w-8 text-blue-600 mb-2" />
-              <CardTitle>Stream Audio</CardTitle>
-              <CardDescription>Broadcast live audio from your event using WebRTC</CardDescription>
+              <CardTitle>Live Audio Capture</CardTitle>
+              <CardDescription>Capture live audio directly from your microphone</CardDescription>
             </CardHeader>
             <CardContent>
               <p className="text-sm text-slate-600">
-                Connect your microphone and start streaming high-quality audio to attendees in real-time.
+                Use your browser's microphone to capture event audio for real-time AI transcription.
               </p>
             </CardContent>
           </Card>
@@ -43,12 +43,12 @@ export default function Home() {
           <Card>
             <CardHeader>
               <Zap className="h-8 w-8 text-blue-600 mb-2" />
-              <CardTitle>AI Transcription</CardTitle>
-              <CardDescription>Powered by OpenAI Realtime API for accurate transcriptions</CardDescription>
+              <CardTitle>Real-Time Transcription</CardTitle>
+              <CardDescription>Powered by OpenAI Realtime API with instant results</CardDescription>
             </CardHeader>
             <CardContent>
               <p className="text-sm text-slate-600">
-                Get instant, accurate transcriptions with speaker identification and punctuation.
+                Get word-by-word transcriptions as you speak with minimal latency using advanced AI.
               </p>
             </CardContent>
           </Card>
@@ -56,12 +56,12 @@ export default function Home() {
           <Card>
             <CardHeader>
               <Users className="h-8 w-8 text-blue-600 mb-2" />
-              <CardTitle>Live Viewing</CardTitle>
-              <CardDescription>Attendees follow along with live text updates</CardDescription>
+              <CardTitle>Live Subtitles</CardTitle>
+              <CardDescription>Attendees read live captions in their browser</CardDescription>
             </CardHeader>
             <CardContent>
               <p className="text-sm text-slate-600">
-                Share a simple URL with attendees so they can read transcriptions as they happen.
+                Share a URL with attendees to view live transcriptions as continuous subtitles.
               </p>
             </CardContent>
           </Card>
