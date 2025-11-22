@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Radio, Volume2, VolumeX, Download } from "lucide-react"
+import { createClient } from "@/lib/supabase/client"
 
 interface Transcription {
   text: string
@@ -22,64 +23,113 @@ export function ViewerInterface({ slug, eventName }: ViewerInterfaceProps) {
   const [transcriptions, setTranscriptions] = useState<Transcription[]>([])
   const [isConnected, setIsConnected] = useState(false)
   const [autoScroll, setAutoScroll] = useState(true)
+  const [latestSequence, setLatestSequence] = useState(0)
   const transcriptionEndRef = useRef<HTMLDivElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
-  const eventSourceRef = useRef<EventSource | null>(null)
+  const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null)
 
   useEffect(() => {
-    console.log("[v0] Setting up EventSource for slug:", slug)
-    const eventSource = new EventSource(`/api/stream/${slug}`)
-    eventSourceRef.current = eventSource
+    console.log("[v0] Setting up Supabase real-time subscription for slug:", slug)
 
-    eventSource.onopen = () => {
-      console.log("[v0] Connected to transcription stream")
-      setIsConnected(true)
-    }
+    const setupRealtimeSubscription = async () => {
+      const supabase = createClient()
 
-    eventSource.onmessage = (event) => {
-      try {
-        const data = JSON.parse(event.data)
-        console.log("[v0] Received message:", data)
+      console.log("[v0] Querying for event with slug:", slug)
+      const { data: event, error: eventError } = await supabase.from("events").select("id").eq("slug", slug).single()
 
-        if (data.type === "transcription") {
-          setTranscriptions((prev) => {
-            // Check if we already have this transcription
-            const exists = prev.some((t) => t.sequenceNumber === data.sequenceNumber)
-            if (exists) {
-              // Update existing transcription if it became final
-              return prev.map((t) =>
-                t.sequenceNumber === data.sequenceNumber && !t.isFinal && data.isFinal ? { ...data } : t,
-              )
-            }
-            // Add new transcription
-            return [...prev, data].sort((a, b) => a.sequenceNumber - b.sequenceNumber)
-          })
-        }
-      } catch (error) {
-        console.error("[v0] Failed to parse message:", error)
+      if (eventError) {
+        console.error("[v0] Error fetching event:", eventError)
+      }
+
+      if (!event) {
+        console.error("[v0] Event not found for slug:", slug)
+        setIsConnected(false)
+        return
+      }
+
+      console.log("[v0] Found event:", event)
+
+      console.log("[v0] Fetching initial transcriptions for event_id:", event.id)
+      const { data: initialTranscriptions, error: transcriptionsError } = await supabase
+        .from("transcriptions")
+        .select("*")
+        .eq("event_id", event.id)
+        .order("sequence_number", { ascending: true })
+
+      if (transcriptionsError) {
+        console.error("[v0] Error fetching transcriptions:", transcriptionsError)
+      }
+
+      console.log("[v0] Initial transcriptions count:", initialTranscriptions?.length || 0)
+
+      if (initialTranscriptions) {
+        setTranscriptions(
+          initialTranscriptions.map((t) => ({
+            text: t.text,
+            isFinal: t.is_final,
+            sequenceNumber: t.sequence_number,
+            timestamp: t.created_at,
+          })),
+        )
+        const maxSeq = Math.max(...initialTranscriptions.map((t) => t.sequence_number), 0)
+        setLatestSequence(maxSeq)
+      }
+
+      const channel = supabase
+        .channel(`transcriptions:${event.id}`)
+        .on(
+          "postgres_changes",
+          {
+            event: "INSERT",
+            schema: "public",
+            table: "transcriptions",
+            filter: `event_id=eq.${event.id}`,
+          },
+          (payload) => {
+            console.log("[v0] Real-time transcription INSERT received:", payload.new)
+            const newTranscription = payload.new as any
+
+            setTranscriptions((prev) => {
+              // Avoid duplicates
+              if (prev.some((t) => t.sequenceNumber === newTranscription.sequence_number)) {
+                return prev
+              }
+
+              return [
+                ...prev,
+                {
+                  text: newTranscription.text,
+                  isFinal: newTranscription.is_final,
+                  sequenceNumber: newTranscription.sequence_number,
+                  timestamp: newTranscription.created_at,
+                },
+              ].sort((a, b) => a.sequenceNumber - b.sequenceNumber)
+            })
+
+            setLatestSequence(newTranscription.sequence_number)
+            setIsConnected(true)
+          },
+        )
+        .subscribe((status) => {
+          console.log("[v0] Supabase subscription status:", status)
+          setIsConnected(status === "SUBSCRIBED")
+        })
+
+      return () => {
+        console.log("[v0] Cleaning up Supabase subscription")
+        supabase.removeChannel(channel)
       }
     }
 
-    eventSource.onerror = (error) => {
-      console.error("[v0] EventSource error:", error)
-      console.error("[v0] EventSource readyState:", eventSource.readyState)
-      setIsConnected(false)
-    }
-
-    return () => {
-      console.log("[v0] Closing EventSource connection")
-      eventSource.close()
-    }
+    setupRealtimeSubscription()
   }, [slug])
 
-  // Auto-scroll to bottom when new transcriptions arrive
   useEffect(() => {
     if (autoScroll && transcriptionEndRef.current) {
       transcriptionEndRef.current.scrollIntoView({ behavior: "smooth" })
     }
   }, [transcriptions, autoScroll])
 
-  // Detect manual scroll to disable auto-scroll
   const handleScroll = () => {
     if (!containerRef.current) return
 

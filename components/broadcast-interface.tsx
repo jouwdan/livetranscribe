@@ -74,6 +74,7 @@ export function BroadcastInterface({ slug, eventName }: BroadcastInterfaceProps)
     }
 
     if (!isFinal) {
+      console.log("[v0] Skipping interim transcription broadcast")
       return
     }
 
@@ -97,7 +98,7 @@ export function BroadcastInterface({ slug, eventName }: BroadcastInterfaceProps)
         console.error("[v0] Error response:", errorText)
       } else {
         const data = await response.json()
-        console.log("[v0] Broadcasted to", data.viewerCount, "viewers")
+        console.log("[v0] Broadcasted successfully. Server response:", data)
         setTranscriptionCount((prev) => prev + 1)
       }
     } catch (error) {

@@ -1,148 +1,108 @@
 import type { NextRequest } from "next/server"
-
-const global = globalThis as typeof globalThis & {
-  streamControllers?: Map<string, Set<ReadableStreamDefaultController>>
-  eventMetadata?: Map<string, { name: string; createdAt: string }>
-}
-
-if (!global.streamControllers) {
-  global.streamControllers = new Map()
-}
-if (!global.eventMetadata) {
-  global.eventMetadata = new Map()
-}
-
-const activeStreams = global.streamControllers
-const eventMetadata = global.eventMetadata
-
-export const runtime = "edge"
+import { createClient } from "@/lib/supabase/server"
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params
-  console.log("[v0] New viewer connecting to stream:", slug)
+  const url = new URL(request.url)
+  const since = Number.parseInt(url.searchParams.get("since") || "0")
 
-  let streamController: ReadableStreamDefaultController | null = null
+  const supabase = await createClient()
 
-  const stream = new ReadableStream({
-    start(controller: ReadableStreamDefaultController) {
-      console.log("[v0] Viewer stream started for:", slug)
+  // Get event details
+  const { data: event } = await supabase.from("events").select("*").eq("slug", slug).single()
 
-      streamController = controller
+  if (!event) {
+    return Response.json({ error: "Event not found" }, { status: 404 })
+  }
 
-      if (!activeStreams.has(slug)) {
-        activeStreams.set(slug, new Set())
-      }
-      activeStreams.get(slug)!.add(controller)
-      console.log("[v0] Total viewers for", slug, ":", activeStreams.get(slug)!.size)
+  // Get new transcriptions since the last sequence number
+  const { data: transcriptions, error } = await supabase
+    .from("transcriptions")
+    .select("*")
+    .eq("event_id", event.id)
+    .gt("sequence_number", since)
+    .order("sequence_number", { ascending: true })
 
-      const encoder = new TextEncoder()
-      controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: "connected", slug })}\n\n`))
+  if (error) {
+    console.error("[v0] Error fetching transcriptions:", error)
+    return Response.json({ error: "Failed to fetch transcriptions" }, { status: 500 })
+  }
 
-      const metadata = eventMetadata.get(slug)
-      if (metadata) {
-        controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: "metadata", ...metadata })}\n\n`))
-      }
+  // Get latest sequence number
+  const { data: latest } = await supabase
+    .from("transcriptions")
+    .select("sequence_number")
+    .eq("event_id", event.id)
+    .order("sequence_number", { ascending: false })
+    .limit(1)
+    .single()
 
-      const keepAliveInterval = setInterval(() => {
-        try {
-          controller.enqueue(encoder.encode(`: keep-alive\n\n`))
-        } catch (error) {
-          clearInterval(keepAliveInterval)
-        }
-      }, 15000)
-
-      // Store interval for cleanup
-      ;(controller as any).keepAliveInterval = keepAliveInterval
+  return Response.json({
+    transcriptions: transcriptions.map((t) => ({
+      text: t.text,
+      isFinal: t.is_final,
+      sequenceNumber: t.sequence_number,
+      timestamp: t.created_at,
+    })),
+    metadata: {
+      name: event.name,
+      createdAt: event.created_at,
     },
-    cancel() {
-      console.log("[v0] Viewer disconnecting from:", slug)
-
-      if (streamController && (streamController as any).keepAliveInterval) {
-        clearInterval((streamController as any).keepAliveInterval)
-      }
-
-      const viewers = activeStreams.get(slug)
-      if (viewers && streamController) {
-        viewers.delete(streamController)
-        console.log("[v0] Remaining viewers for", slug, ":", viewers.size)
-        if (viewers.size === 0) {
-          activeStreams.delete(slug)
-        }
-      }
-    },
-  })
-
-  return new Response(stream, {
-    headers: {
-      "Content-Type": "text/event-stream",
-      "Cache-Control": "no-cache, no-transform",
-      Connection: "keep-alive",
-      "X-Accel-Buffering": "no",
-    },
+    latestSequence: latest?.sequence_number || 0,
   })
 }
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params
-  console.log("[v0] Received broadcast request for:", slug)
 
   try {
     const data = await request.json()
-    const { text, isFinal, sequenceNumber, eventName } = data
+    const { text, isFinal, sequenceNumber } = data
 
-    console.log("[v0] Broadcasting transcription:", { text, isFinal, sequenceNumber, slug })
+    const supabase = await createClient()
 
-    if (eventName && !eventMetadata.has(slug)) {
-      eventMetadata.set(slug, {
-        name: eventName,
-        createdAt: new Date().toISOString(),
-      })
-      console.log("[v0] Stored event metadata for:", slug)
+    const { data: events } = await supabase.from("events").select("*").eq("slug", slug)
+
+    let event = events?.[0]
+
+    if (!event) {
+      const { data: newEvent, error: createError } = await supabase
+        .from("events")
+        .insert({
+          slug,
+          name: data.eventName || "Live Event",
+          organizer_key: `auto-${slug}`, // Provide organizer_key to satisfy NOT NULL constraint
+          is_active: true,
+        })
+        .select()
+        .single()
+
+      if (createError) {
+        console.error("[v0] Error creating event:", createError)
+        return Response.json({ error: "Failed to create event" }, { status: 500 })
+      }
+
+      event = newEvent
     }
 
-    const viewers = activeStreams.get(slug)
-    console.log("[v0] Current viewers for", slug, ":", viewers?.size || 0)
-    console.log("[v0] All active streams:", Array.from(activeStreams.keys()))
+    // Insert transcription
+    const { error: insertError } = await supabase.from("transcriptions").insert({
+      event_id: event.id,
+      text,
+      is_final: isFinal,
+      sequence_number: sequenceNumber,
+    })
 
-    if (viewers && viewers.size > 0) {
-      const encoder = new TextEncoder()
-      const message = JSON.stringify({
-        type: "transcription",
-        text,
-        isFinal,
-        sequenceNumber,
-        timestamp: new Date().toISOString(),
-      })
-
-      console.log("[v0] Sending message to", viewers.size, "viewers:", message)
-
-      let successCount = 0
-      const failedControllers: ReadableStreamDefaultController[] = []
-
-      viewers.forEach((viewerController) => {
-        try {
-          viewerController.enqueue(encoder.encode(`data: ${message}\n\n`))
-          successCount++
-          console.log("[v0] Successfully sent to viewer")
-        } catch (error) {
-          console.error("[v0] Failed to send to viewer:", error)
-          failedControllers.push(viewerController)
-        }
-      })
-
-      // Clean up failed controllers
-      failedControllers.forEach((controller) => viewers.delete(controller))
-
-      console.log("[v0] Broadcast complete:", successCount, "successful,", failedControllers.length, "failed")
-
-      return Response.json({ success: true, viewerCount: successCount })
-    } else {
-      console.log("[v0] No viewers connected to receive broadcast")
+    if (insertError) {
+      console.error("[v0] Error inserting transcription:", insertError)
+      return Response.json({ error: "Failed to save transcription" }, { status: 500 })
     }
 
-    return Response.json({ success: true, viewerCount: 0 })
+    console.log("[v0] Transcription saved to database:", { slug, sequenceNumber })
+
+    return Response.json({ success: true })
   } catch (error) {
     console.error("[v0] Stream broadcast error:", error)
-    return Response.json({ error: "Failed to broadcast", details: String(error) }, { status: 500 })
+    return Response.json({ error: "Failed to broadcast" }, { status: 500 })
   }
 }
