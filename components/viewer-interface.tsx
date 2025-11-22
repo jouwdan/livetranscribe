@@ -27,6 +27,7 @@ export function ViewerInterface({ slug, eventName }: ViewerInterfaceProps) {
   const eventSourceRef = useRef<EventSource | null>(null)
 
   useEffect(() => {
+    console.log("[v0] Setting up EventSource for slug:", slug)
     const eventSource = new EventSource(`/api/stream/${slug}`)
     eventSourceRef.current = eventSource
 
@@ -61,10 +62,12 @@ export function ViewerInterface({ slug, eventName }: ViewerInterfaceProps) {
 
     eventSource.onerror = (error) => {
       console.error("[v0] EventSource error:", error)
+      console.error("[v0] EventSource readyState:", eventSource.readyState)
       setIsConnected(false)
     }
 
     return () => {
+      console.log("[v0] Closing EventSource connection")
       eventSource.close()
     }
   }, [slug])

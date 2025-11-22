@@ -78,6 +78,8 @@ export function BroadcastInterface({ slug, eventName }: BroadcastInterfaceProps)
     }
 
     try {
+      console.log("[v0] Sending transcription to API:", { text, isFinal, sequence, slug })
+
       const response = await fetch(`/api/stream/${slug}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -91,6 +93,8 @@ export function BroadcastInterface({ slug, eventName }: BroadcastInterfaceProps)
 
       if (!response.ok) {
         console.error("[v0] Failed to broadcast transcription:", response.status)
+        const errorText = await response.text()
+        console.error("[v0] Error response:", errorText)
       } else {
         const data = await response.json()
         console.log("[v0] Broadcasted to", data.viewerCount, "viewers")
