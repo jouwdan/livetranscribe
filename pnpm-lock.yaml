@@ -150,7 +150,7 @@ importers:
         specifier: ^1.7.4
         version: 1.7.4(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
       stream:
-        specifier: latest
+        specifier: 0.0.3
         version: 0.0.3
       tailwind-merge:
         specifier: ^2.5.5

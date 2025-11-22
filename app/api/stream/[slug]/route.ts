@@ -1,9 +1,19 @@
 import type { NextRequest } from "next/server"
-import type { ReadableStreamDefaultController } from "stream/web"
 
-// In-memory store for active streams
-const activeStreams = new Map<string, Set<ReadableStreamDefaultController>>()
-const eventMetadata = new Map<string, { name: string; createdAt: string }>()
+const global = globalThis as typeof globalThis & {
+  streamControllers?: Map<string, Set<ReadableStreamDefaultController>>
+  eventMetadata?: Map<string, { name: string; createdAt: string }>
+}
+
+if (!global.streamControllers) {
+  global.streamControllers = new Map()
+}
+if (!global.eventMetadata) {
+  global.eventMetadata = new Map()
+}
+
+const activeStreams = global.streamControllers
+const eventMetadata = global.eventMetadata
 
 export const runtime = "edge"
 
@@ -13,34 +23,44 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
   let streamController: ReadableStreamDefaultController | null = null
 
-  // Create a new ReadableStream for SSE
   const stream = new ReadableStream({
     start(controller: ReadableStreamDefaultController) {
       console.log("[v0] Viewer stream started for:", slug)
 
       streamController = controller
 
-      // Add this controller to the set of viewers for this event
       if (!activeStreams.has(slug)) {
         activeStreams.set(slug, new Set())
       }
       activeStreams.get(slug)!.add(controller)
       console.log("[v0] Total viewers for", slug, ":", activeStreams.get(slug)!.size)
 
-      // Send initial connection message
       const encoder = new TextEncoder()
       controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: "connected", slug })}\n\n`))
 
-      // Send event metadata if available
       const metadata = eventMetadata.get(slug)
       if (metadata) {
         controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: "metadata", ...metadata })}\n\n`))
       }
+
+      const keepAliveInterval = setInterval(() => {
+        try {
+          controller.enqueue(encoder.encode(`: keep-alive\n\n`))
+        } catch (error) {
+          clearInterval(keepAliveInterval)
+        }
+      }, 15000)
+
+      // Store interval for cleanup
+      ;(controller as any).keepAliveInterval = keepAliveInterval
     },
     cancel() {
       console.log("[v0] Viewer disconnecting from:", slug)
 
-      // Remove this controller when the connection closes
+      if (streamController && (streamController as any).keepAliveInterval) {
+        clearInterval((streamController as any).keepAliveInterval)
+      }
+
       const viewers = activeStreams.get(slug)
       if (viewers && streamController) {
         viewers.delete(streamController)
@@ -55,8 +75,9 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   return new Response(stream, {
     headers: {
       "Content-Type": "text/event-stream",
-      "Cache-Control": "no-cache",
+      "Cache-Control": "no-cache, no-transform",
       Connection: "keep-alive",
+      "X-Accel-Buffering": "no",
     },
   })
 }
@@ -71,7 +92,6 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
     console.log("[v0] Broadcasting transcription:", { text, isFinal, sequenceNumber, slug })
 
-    // Store event metadata
     if (eventName && !eventMetadata.has(slug)) {
       eventMetadata.set(slug, {
         name: eventName,
@@ -80,9 +100,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       console.log("[v0] Stored event metadata for:", slug)
     }
 
-    // Broadcast to all connected viewers
     const viewers = activeStreams.get(slug)
     console.log("[v0] Current viewers for", slug, ":", viewers?.size || 0)
+    console.log("[v0] All active streams:", Array.from(activeStreams.keys()))
 
     if (viewers && viewers.size > 0) {
       const encoder = new TextEncoder()
@@ -94,25 +114,35 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         timestamp: new Date().toISOString(),
       })
 
-      console.log("[v0] Sending message to viewers:", message)
+      console.log("[v0] Sending message to", viewers.size, "viewers:", message)
+
+      let successCount = 0
+      const failedControllers: ReadableStreamDefaultController[] = []
 
       viewers.forEach((viewerController) => {
         try {
           viewerController.enqueue(encoder.encode(`data: ${message}\n\n`))
+          successCount++
           console.log("[v0] Successfully sent to viewer")
         } catch (error) {
           console.error("[v0] Failed to send to viewer:", error)
-          // Remove failed controllers
-          viewers.delete(viewerController)
+          failedControllers.push(viewerController)
         }
       })
+
+      // Clean up failed controllers
+      failedControllers.forEach((controller) => viewers.delete(controller))
+
+      console.log("[v0] Broadcast complete:", successCount, "successful,", failedControllers.length, "failed")
+
+      return Response.json({ success: true, viewerCount: successCount })
     } else {
       console.log("[v0] No viewers connected to receive broadcast")
     }
 
-    return Response.json({ success: true, viewerCount: viewers?.size || 0 })
+    return Response.json({ success: true, viewerCount: 0 })
   } catch (error) {
     console.error("[v0] Stream broadcast error:", error)
-    return Response.json({ error: "Failed to broadcast" }, { status: 500 })
+    return Response.json({ error: "Failed to broadcast", details: String(error) }, { status: 500 })
   }
 }

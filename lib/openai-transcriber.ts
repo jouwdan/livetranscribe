@@ -63,7 +63,7 @@ export class OpenAITranscriber {
   private async connectWebSocket() {
     return new Promise<void>((resolve, reject) => {
       // Conversation session URL: include model
-      const url = "wss://api.openai.com/v1/realtime?model=gpt-4o-realtime-preview-2024-10-01"
+      const url = "wss://api.openai.com/v1/realtime?model=gpt-4o-realtime-preview-2024-12-17"
 
       this.ws = new WebSocket(url, [
         "realtime",
@@ -75,35 +75,27 @@ export class OpenAITranscriber {
         console.log("[v0] WebSocket connected")
         this.isConnected = true
 
-        // Conversation schema, but configured for "transcription-only"
-        //  - NO voice/output_audio_format
-        //  - turn_detection.create_response: false  (prevents assistant replies)
-        //  - input_audio_transcription selects the ASR model
         this.ws!.send(
           JSON.stringify({
             type: "session.update",
             session: {
-              // Optional, helps if anything slips through: make intent clear
-              instructions: "Transcribe the input audio verbatim with proper punctuation. Do not respond or chat.",
+              instructions:
+                "Transcribe the input audio verbatim in real-time with proper punctuation and formatting. Do not respond or engage in conversation.",
               modalities: ["text"],
 
-              // Your audio input format to match what you're sending ("pcm16")
               input_audio_format: "pcm16",
 
-              // Use Whisper or a 4o transcribe model; whisper-1 is the most compatible in conversation sessions
               input_audio_transcription: {
                 model: "whisper-1",
-                language: "en",
-                // prompt: "Proper nouns: CRL, Alloy, ...",
               },
 
-              // Let the server detect turns, but DO NOT create responses
+              // More aggressive VAD settings for faster real-time updates
               turn_detection: {
                 type: "server_vad",
-                threshold: 0.5,
-                prefix_padding_ms: 300,
-                silence_duration_ms: 500,
-                create_response: false, // 👈 prevents assistant responses
+                threshold: 0.3, // Lower threshold = more sensitive, catches speech sooner
+                prefix_padding_ms: 100, // Reduced padding for faster start
+                silence_duration_ms: 200, // Shorter silence = faster updates
+                create_response: false,
               },
             },
           }),
@@ -139,12 +131,14 @@ export class OpenAITranscriber {
     switch (message.type) {
       case "conversation.item.input_audio_transcription.delta": {
         if (typeof message.delta === "string") {
+          console.log("[v0] Delta transcription:", message.delta)
           this.onTranscription(message.delta, false, this.sequenceNumber)
         }
         break
       }
       case "conversation.item.input_audio_transcription.completed": {
         if (typeof message.transcript === "string") {
+          console.log("[v0] Final transcription:", message.transcript)
           this.onTranscription(message.transcript, true, this.sequenceNumber++)
         }
         break
