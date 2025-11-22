@@ -39,6 +39,8 @@ export function ViewerInterface({ slug, eventName }: ViewerInterfaceProps) {
 
       if (eventError) {
         console.error("[v0] Error fetching event:", eventError)
+        setIsConnected(false)
+        return
       }
 
       if (!event) {
@@ -76,7 +78,7 @@ export function ViewerInterface({ slug, eventName }: ViewerInterfaceProps) {
       }
 
       const channel = supabase
-        .channel(`transcriptions:${event.id}`)
+        .channel(`transcriptions:${slug}`)
         .on(
           "postgres_changes",
           {
@@ -86,15 +88,17 @@ export function ViewerInterface({ slug, eventName }: ViewerInterfaceProps) {
             filter: `event_id=eq.${event.id}`,
           },
           (payload) => {
-            console.log("[v0] Real-time transcription INSERT received:", payload.new)
+            console.log("[v0] Real-time transcription INSERT received:", payload)
             const newTranscription = payload.new as any
 
             setTranscriptions((prev) => {
               // Avoid duplicates
               if (prev.some((t) => t.sequenceNumber === newTranscription.sequence_number)) {
+                console.log("[v0] Duplicate transcription detected, skipping")
                 return prev
               }
 
+              console.log("[v0] Adding new transcription to state")
               return [
                 ...prev,
                 {
@@ -110,8 +114,11 @@ export function ViewerInterface({ slug, eventName }: ViewerInterfaceProps) {
             setIsConnected(true)
           },
         )
-        .subscribe((status) => {
+        .subscribe((status, err) => {
           console.log("[v0] Supabase subscription status:", status)
+          if (err) {
+            console.error("[v0] Supabase subscription error:", err)
+          }
           setIsConnected(status === "SUBSCRIBED")
         })
 
@@ -121,7 +128,11 @@ export function ViewerInterface({ slug, eventName }: ViewerInterfaceProps) {
       }
     }
 
-    setupRealtimeSubscription()
+    const cleanup = setupRealtimeSubscription()
+
+    return () => {
+      cleanup.then((cleanupFn) => cleanupFn?.())
+    }
   }, [slug])
 
   useEffect(() => {
