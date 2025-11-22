@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Mic, MicOff, Copy, Check, Radio, AlertCircle, Download } from "lucide-react"
 import { OpenAITranscriber } from "@/lib/openai-transcriber"
+import { LiveTranscriptionDisplay } from "@/components/live-transcription-display"
 
 interface BroadcastInterfaceProps {
   slug: string
@@ -48,9 +49,9 @@ export function BroadcastInterface({ slug, eventName }: BroadcastInterfaceProps)
 
   const downloadTranscript = () => {
     const text = transcriptions
-      .filter((t) => t.isFinal)
-      .map((t) => `[${t.timestamp.toLocaleTimeString()}] ${t.text}`)
-      .join("\n\n")
+      .filter((t) => t.isFinal && t.text.trim() !== "")
+      .map((t) => t.text)
+      .join(" ")
 
     const blob = new Blob([text], { type: "text/plain" })
     const url = URL.createObjectURL(blob)
@@ -145,6 +146,13 @@ export function BroadcastInterface({ slug, eventName }: BroadcastInterfaceProps)
       }
     }
   }, [])
+
+  const displayTranscriptions = transcriptions.filter((t) => t.text.trim() !== "")
+  const finalText = displayTranscriptions
+    .filter((t) => t.isFinal)
+    .map((t) => t.text)
+    .join(" ")
+  const interimText = currentInterim.trim() !== "" ? currentInterim : undefined
 
   return (
     <div className="container mx-auto px-4 py-8">
@@ -275,32 +283,8 @@ export function BroadcastInterface({ slug, eventName }: BroadcastInterfaceProps)
               </div>
             </CardHeader>
             <CardContent>
-              <div className="h-[60vh] overflow-y-auto space-y-4 p-4 bg-slate-50 rounded-md border border-slate-200">
-                {transcriptions.map((transcription, index) => (
-                  <div key={index} className="space-y-1">
-                    <div className="flex items-baseline gap-2">
-                      <span className="text-xs text-slate-500 font-mono">
-                        {transcription.timestamp.toLocaleTimeString()}
-                      </span>
-                      <Badge variant="outline" className="text-xs">
-                        #{transcription.sequence}
-                      </Badge>
-                    </div>
-                    <p className="text-slate-900 leading-relaxed">{transcription.text}</p>
-                  </div>
-                ))}
-                {currentInterim && (
-                  <div className="space-y-1 opacity-60 animate-pulse">
-                    <div className="flex items-baseline gap-2">
-                      <span className="text-xs text-slate-500 font-mono">{new Date().toLocaleTimeString()}</span>
-                      <Badge variant="outline" className="text-xs">
-                        Interim
-                      </Badge>
-                    </div>
-                    <p className="text-slate-700 leading-relaxed italic">{currentInterim}</p>
-                  </div>
-                )}
-                <div ref={transcriptionsEndRef} />
+              <div className="h-[60vh] overflow-y-auto p-6 bg-slate-50 rounded-md border border-slate-200">
+                <LiveTranscriptionDisplay finalText={finalText} interimText={interimText} />
               </div>
             </CardContent>
           </Card>

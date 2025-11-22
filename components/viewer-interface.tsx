@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Radio, Volume2, VolumeX, Download } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
+import { LiveTranscriptionDisplay } from "@/components/live-transcription-display"
 
 interface Transcription {
   text: string
@@ -23,10 +24,8 @@ export function ViewerInterface({ slug, eventName }: ViewerInterfaceProps) {
   const [transcriptions, setTranscriptions] = useState<Transcription[]>([])
   const [isConnected, setIsConnected] = useState(false)
   const [autoScroll, setAutoScroll] = useState(true)
-  const [latestSequence, setLatestSequence] = useState(0)
   const transcriptionEndRef = useRef<HTMLDivElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
-  const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null)
 
   useEffect(() => {
     console.log("[v0] Setting up Supabase real-time subscription for slug:", slug)
@@ -66,15 +65,15 @@ export function ViewerInterface({ slug, eventName }: ViewerInterfaceProps) {
 
       if (initialTranscriptions) {
         setTranscriptions(
-          initialTranscriptions.map((t) => ({
-            text: t.text,
-            isFinal: t.is_final,
-            sequenceNumber: t.sequence_number,
-            timestamp: t.created_at,
-          })),
+          initialTranscriptions
+            .filter((t) => t.text && t.text.trim() !== "")
+            .map((t) => ({
+              text: t.text,
+              isFinal: t.is_final,
+              sequenceNumber: t.sequence_number,
+              timestamp: t.created_at,
+            })),
         )
-        const maxSeq = Math.max(...initialTranscriptions.map((t) => t.sequence_number), 0)
-        setLatestSequence(maxSeq)
       }
 
       const channel = supabase
@@ -90,6 +89,10 @@ export function ViewerInterface({ slug, eventName }: ViewerInterfaceProps) {
           (payload) => {
             console.log("[v0] Real-time transcription INSERT received:", payload)
             const newTranscription = payload.new as any
+
+            if (!newTranscription.text || newTranscription.text.trim() === "") {
+              return
+            }
 
             setTranscriptions((prev) => {
               // Avoid duplicates
@@ -110,15 +113,11 @@ export function ViewerInterface({ slug, eventName }: ViewerInterfaceProps) {
               ].sort((a, b) => a.sequenceNumber - b.sequenceNumber)
             })
 
-            setLatestSequence(newTranscription.sequence_number)
             setIsConnected(true)
           },
         )
-        .subscribe((status, err) => {
+        .subscribe((status) => {
           console.log("[v0] Supabase subscription status:", status)
-          if (err) {
-            console.error("[v0] Supabase subscription error:", err)
-          }
           setIsConnected(status === "SUBSCRIBED")
         })
 
@@ -152,12 +151,9 @@ export function ViewerInterface({ slug, eventName }: ViewerInterfaceProps) {
 
   const downloadTranscript = () => {
     const text = transcriptions
-      .filter((t) => t.isFinal)
-      .map((t) => {
-        const time = new Date(t.timestamp).toLocaleTimeString()
-        return `[${time}] ${t.text}`
-      })
-      .join("\n\n")
+      .filter((t) => t.isFinal && t.text.trim() !== "")
+      .map((t) => t.text)
+      .join(" ")
 
     const blob = new Blob([text], { type: "text/plain" })
     const url = URL.createObjectURL(blob)
@@ -168,8 +164,12 @@ export function ViewerInterface({ slug, eventName }: ViewerInterfaceProps) {
     URL.revokeObjectURL(url)
   }
 
-  const finalTranscriptions = transcriptions.filter((t) => t.isFinal)
-  const latestTranscription = transcriptions[transcriptions.length - 1]
+  const displayTranscriptions = transcriptions.filter((t) => t.text.trim() !== "")
+  const finalText = displayTranscriptions
+    .filter((t) => t.isFinal)
+    .map((t) => t.text)
+    .join(" ")
+  const latestInterim = displayTranscriptions.find((t) => !t.isFinal)
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -187,7 +187,7 @@ export function ViewerInterface({ slug, eventName }: ViewerInterfaceProps) {
                 variant="outline"
                 size="sm"
                 className="gap-2 bg-transparent"
-                disabled={finalTranscriptions.length === 0}
+                disabled={displayTranscriptions.length === 0}
               >
                 <Download className="h-4 w-4" />
                 Download
@@ -230,66 +230,18 @@ export function ViewerInterface({ slug, eventName }: ViewerInterfaceProps) {
               </div>
             </CardHeader>
             <CardContent className="p-0">
-              <div ref={containerRef} onScroll={handleScroll} className="h-[70vh] overflow-y-auto p-6 space-y-4">
-                {transcriptions.length === 0 ? (
-                  <div className="flex items-center justify-center h-full text-slate-400">
-                    <p>Waiting for transcription to start...</p>
-                  </div>
-                ) : (
-                  <>
-                    {finalTranscriptions.map((transcription) => (
-                      <div
-                        key={transcription.sequenceNumber}
-                        className="animate-in fade-in slide-in-from-bottom-2 duration-500"
-                      >
-                        <div className="flex gap-3">
-                          <div className="flex-shrink-0 text-xs text-slate-500 pt-1 w-16">
-                            {new Date(transcription.timestamp).toLocaleTimeString([], {
-                              hour: "2-digit",
-                              minute: "2-digit",
-                            })}
-                          </div>
-                          <p className="flex-1 text-slate-800 leading-relaxed">{transcription.text}</p>
-                        </div>
-                      </div>
-                    ))}
-
-                    {/* Show interim transcription */}
-                    {latestTranscription && !latestTranscription.isFinal && (
-                      <div className="animate-pulse">
-                        <div className="flex gap-3">
-                          <div className="flex-shrink-0 text-xs text-slate-500 pt-1 w-16">
-                            {new Date(latestTranscription.timestamp).toLocaleTimeString([], {
-                              hour: "2-digit",
-                              minute: "2-digit",
-                            })}
-                          </div>
-                          <p className="flex-1 text-slate-400 leading-relaxed italic">{latestTranscription.text}</p>
-                        </div>
-                      </div>
-                    )}
-                  </>
-                )}
-                <div ref={transcriptionEndRef} />
+              <div ref={containerRef} onScroll={handleScroll} className="h-[70vh] overflow-y-auto p-6">
+                <LiveTranscriptionDisplay finalText={finalText} interimText={latestInterim?.text} />
               </div>
             </CardContent>
           </Card>
 
-          {/* Stats */}
-          <div className="mt-6 grid grid-cols-2 gap-4">
-            <Card>
-              <CardContent className="pt-6">
-                <div className="text-center">
-                  <p className="text-3xl font-bold text-slate-900">{finalTranscriptions.length}</p>
-                  <p className="text-sm text-slate-600 mt-1">Transcriptions</p>
-                </div>
-              </CardContent>
-            </Card>
+          <div className="mt-6">
             <Card>
               <CardContent className="pt-6">
                 <div className="text-center">
                   <p className="text-3xl font-bold text-slate-900">
-                    {finalTranscriptions.reduce((acc, t) => acc + t.text.split(" ").length, 0).toLocaleString()}
+                    {finalText.split(" ").filter((w) => w.length > 0).length}
                   </p>
                   <p className="text-sm text-slate-600 mt-1">Words</p>
                 </div>
