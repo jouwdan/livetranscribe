@@ -7,14 +7,18 @@ const eventMetadata = new Map<string, { name: string; createdAt: string }>()
 
 export const runtime = "edge"
 
-export async function GET(request: NextRequest, { params }: { params: { slug: string } }) {
-  const { slug } = params
+export async function GET(request: NextRequest, { params }: { params: Promise<{ slug: string }> }) {
+  const { slug } = await params
   console.log("[v0] New viewer connecting to stream:", slug)
+
+  let streamController: ReadableStreamDefaultController | null = null
 
   // Create a new ReadableStream for SSE
   const stream = new ReadableStream({
     start(controller: ReadableStreamDefaultController) {
       console.log("[v0] Viewer stream started for:", slug)
+
+      streamController = controller
 
       // Add this controller to the set of viewers for this event
       if (!activeStreams.has(slug)) {
@@ -33,13 +37,13 @@ export async function GET(request: NextRequest, { params }: { params: { slug: st
         controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: "metadata", ...metadata })}\n\n`))
       }
     },
-    cancel(controller: ReadableStreamDefaultController) {
+    cancel() {
       console.log("[v0] Viewer disconnecting from:", slug)
 
       // Remove this controller when the connection closes
       const viewers = activeStreams.get(slug)
-      if (viewers) {
-        viewers.delete(controller)
+      if (viewers && streamController) {
+        viewers.delete(streamController)
         console.log("[v0] Remaining viewers for", slug, ":", viewers.size)
         if (viewers.size === 0) {
           activeStreams.delete(slug)
@@ -57,8 +61,8 @@ export async function GET(request: NextRequest, { params }: { params: { slug: st
   })
 }
 
-export async function POST(request: NextRequest, { params }: { params: { slug: string } }) {
-  const { slug } = params
+export async function POST(request: NextRequest, { params }: { params: Promise<{ slug: string }> }) {
+  const { slug } = await params
   console.log("[v0] Received broadcast request for:", slug)
 
   try {
@@ -92,14 +96,14 @@ export async function POST(request: NextRequest, { params }: { params: { slug: s
 
       console.log("[v0] Sending message to viewers:", message)
 
-      viewers.forEach((controller) => {
+      viewers.forEach((viewerController) => {
         try {
-          controller.enqueue(encoder.encode(`data: ${message}\n\n`))
+          viewerController.enqueue(encoder.encode(`data: ${message}\n\n`))
           console.log("[v0] Successfully sent to viewer")
         } catch (error) {
           console.error("[v0] Failed to send to viewer:", error)
           // Remove failed controllers
-          viewers.delete(controller)
+          viewers.delete(viewerController)
         }
       })
     } else {
