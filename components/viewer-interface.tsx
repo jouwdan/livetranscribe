@@ -277,47 +277,113 @@ export function ViewerInterface({ slug, eventName, eventDescription }: ViewerInt
   const displayTranscriptions = transcriptions.filter((t) => t.text.trim() !== "" && t.isFinal)
   const latestInterim = transcriptions.find((t) => !t.isFinal && t.text.trim() !== "")
 
+  const formatTimestamp = (timestamp: string) => {
+    const date = new Date(timestamp)
+    return date.toLocaleTimeString("en-US", {
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+    })
+  }
+
+  const groupTranscriptionsByTime = (transcriptions: Transcription[]) => {
+    const sorted = [...transcriptions].sort((a, b) => {
+      return new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+    })
+
+    return sorted.reduce(
+      (acc, curr, index) => {
+        if (index === 0) {
+          acc.push({
+            timestamp: curr.timestamp,
+            texts: [curr.text],
+          })
+        } else {
+          const prevTimestamp = new Date(sorted[index - 1].timestamp).getTime()
+          const currTimestamp = new Date(curr.timestamp).getTime()
+          const timeDiff = (currTimestamp - prevTimestamp) / 1000
+
+          if (timeDiff > 10) {
+            acc.push({
+              timestamp: curr.timestamp,
+              texts: [curr.text],
+            })
+          } else {
+            acc[acc.length - 1].texts.push(curr.text)
+          }
+        }
+        return acc
+      },
+      [] as Array<{ timestamp: string; texts: string[] }>,
+    )
+  }
+
   if (displayMode === "stage") {
+    const groupedTranscriptions = groupTranscriptionsByTime(displayTranscriptions.slice(-8))
+
     // Stage TV Display - Large text, minimal UI, high contrast
     return (
       <div className="flex flex-col h-screen bg-black overflow-hidden">
-        {/* Minimal header for stage display */}
         <div className="bg-black border-b border-purple-500/30 flex-shrink-0">
-          <div className="px-8 py-6">
+          <div className="px-6 py-3">
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                <Badge variant={isConnected ? "default" : "secondary"} className="px-4 py-2 text-lg">
+              <div className="flex items-center gap-3">
+                <Badge variant={isConnected ? "default" : "secondary"} className="px-3 py-1.5 text-base">
                   {isConnected ? (
                     <>
-                      <Radio className="h-5 w-5 mr-3 animate-pulse" />
+                      <Radio className="h-4 w-4 mr-2 animate-pulse" />
                       LIVE
                     </>
                   ) : (
                     "OFFLINE"
                   )}
                 </Badge>
-                <h1 className="text-3xl font-bold text-white">{eventName}</h1>
+                <h1 className="text-2xl font-bold text-white">{eventName}</h1>
               </div>
-              <div className="flex gap-2">
+              <div className="flex gap-2 items-center">
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={() => setDisplayMode("laptop")}
-                  className="gap-2 hover:bg-foreground/5 text-white"
+                  onClick={() => setAutoScroll(!autoScroll)}
+                  className="h-8 px-3 gap-1.5 hover:bg-foreground/5 text-white text-xs"
                 >
-                  <Monitor className="h-4 w-4" />
+                  {autoScroll ? (
+                    <>
+                      <ArrowDownToLine className="h-3 w-3" />
+                      Auto
+                    </>
+                  ) : (
+                    <>
+                      <Pause className="h-3 w-3" />
+                      Paused
+                    </>
+                  )}
                 </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setDisplayMode("mobile")}
-                  className="gap-2 hover:bg-foreground/5 text-white"
-                >
-                  <Smartphone className="h-4 w-4" />
-                </Button>
-                <Button variant="outline" size="sm" className="gap-2 border-purple-500/30 bg-purple-500/10 text-white">
-                  <Tv className="h-4 w-4" />
-                </Button>
+                <div className="flex gap-1">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setDisplayMode("laptop")}
+                    className="h-8 w-8 p-0 hover:bg-foreground/5 text-white"
+                  >
+                    <Monitor className="h-3 w-3" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setDisplayMode("mobile")}
+                    className="h-8 w-8 p-0 hover:bg-foreground/5 text-white"
+                  >
+                    <Smartphone className="h-3 w-3" />
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-8 w-8 p-0 border-purple-500/30 bg-purple-500/10 text-white"
+                  >
+                    <Tv className="h-3 w-3" />
+                  </Button>
+                </div>
               </div>
             </div>
           </div>
@@ -335,13 +401,17 @@ export function ViewerInterface({ slug, eventName, eventDescription }: ViewerInt
               </div>
             )}
 
-            {/* Recent final transcriptions - large text */}
             <div className="space-y-8">
-              {displayTranscriptions.slice(-8).map((t, index) => (
-                <div key={`${t.sequenceNumber}-${index}`} className="p-6 bg-white/5 rounded-lg backdrop-blur-sm">
-                  <p className="text-3xl md:text-4xl lg:text-5xl text-white/90 leading-relaxed tracking-wide">
-                    {t.text}
-                  </p>
+              {groupedTranscriptions.map((group, index) => (
+                <div key={index} className="space-y-3">
+                  <div className="text-xs font-medium text-purple-400/60 uppercase tracking-wide">
+                    {formatTimestamp(group.timestamp)}
+                  </div>
+                  <div className="p-6 bg-white/5 rounded-lg backdrop-blur-sm">
+                    <p className="text-3xl md:text-4xl lg:text-5xl text-white/90 leading-relaxed tracking-wide">
+                      {group.texts.join(" ")}
+                    </p>
+                  </div>
                 </div>
               ))}
             </div>
@@ -362,24 +432,28 @@ export function ViewerInterface({ slug, eventName, eventDescription }: ViewerInt
   }
 
   if (displayMode === "mobile") {
+    const groupedTranscriptions = groupTranscriptionsByTime(displayTranscriptions)
+
     // Mobile optimized - Compact, touch-friendly
     return (
       <div className="flex flex-col h-screen bg-black overflow-hidden">
-        {/* Compact mobile header */}
         <div className="bg-black border-b border-border flex-shrink-0">
           <div className="px-4 py-3">
-            <div className="flex items-center justify-between gap-2 mb-2">
-              <Badge variant={isConnected ? "default" : "secondary"} className="px-2 py-1 text-xs">
-                {isConnected ? (
-                  <>
-                    <Radio className="h-3 w-3 mr-1 animate-pulse" />
-                    Live
-                  </>
-                ) : (
-                  "Offline"
-                )}
-              </Badge>
-              <div className="flex gap-1">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2 min-w-0 flex-1">
+                <Badge variant={isConnected ? "default" : "secondary"} className="px-2 py-1 text-xs flex-shrink-0">
+                  {isConnected ? (
+                    <>
+                      <Radio className="h-3 w-3 mr-1 animate-pulse" />
+                      Live
+                    </>
+                  ) : (
+                    "Offline"
+                  )}
+                </Badge>
+                <h1 className="text-base font-bold text-white truncate">{eventName}</h1>
+              </div>
+              <div className="flex gap-1 flex-shrink-0">
                 <Button
                   variant="ghost"
                   size="sm"
@@ -401,8 +475,7 @@ export function ViewerInterface({ slug, eventName, eventDescription }: ViewerInt
                 </Button>
               </div>
             </div>
-            <h1 className="text-lg font-bold text-white truncate">{eventName}</h1>
-            {eventDescription && <p className="text-xs text-foreground/60 truncate mt-1">{eventDescription}</p>}
+            {eventDescription && <p className="text-xs text-foreground/60 truncate mt-2">{eventDescription}</p>}
           </div>
         </div>
 
@@ -417,10 +490,14 @@ export function ViewerInterface({ slug, eventName, eventDescription }: ViewerInt
                 </div>
               )}
 
-              {/* Final transcriptions - compact */}
-              {displayTranscriptions.map((t, index) => (
-                <div key={`${t.sequenceNumber}-${index}`} className="p-3 bg-white/5 rounded backdrop-blur-sm">
-                  <p className="text-base text-white/90 leading-relaxed">{t.text}</p>
+              {groupedTranscriptions.map((group, index) => (
+                <div key={index} className="space-y-2">
+                  <div className="text-xs font-medium text-foreground/40 uppercase tracking-wide">
+                    {formatTimestamp(group.timestamp)}
+                  </div>
+                  <div className="p-3 bg-white/5 rounded backdrop-blur-sm">
+                    <p className="text-base text-white/90 leading-relaxed">{group.texts.join(" ")}</p>
+                  </div>
                 </div>
               ))}
               <div ref={transcriptionEndRef} />
