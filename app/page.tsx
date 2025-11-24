@@ -1,5 +1,5 @@
 import { Button } from "@/components/ui/button"
-import { ArrowRight, Mic, Users, Zap, Clock, Globe, CheckCircle2, Sparkles, BarChart3 } from "lucide-react"
+import { ArrowRight, Mic, Users, Zap, Clock, Globe, CheckCircle2, AudioLines, BarChart3 } from "lucide-react"
 import Link from "next/link"
 
 export default function Home() {
@@ -13,7 +13,7 @@ export default function Home() {
         <header className="sticky top-0 z-50 backdrop-blur-xl bg-black/50 border-b border-white/10">
           <div className="container mx-auto px-4 py-4 flex items-center justify-between">
             <Link href="/" className="text-xl font-semibold flex items-center gap-2">
-              <Sparkles className="h-5 w-5 text-purple-400" />
+              <AudioLines className="h-5 w-5 text-purple-400" />
               LiveTranscribe
             </Link>
             <nav className="flex items-center gap-6">
@@ -38,7 +38,7 @@ export default function Home() {
           <section className="container mx-auto px-4 py-24 md:py-32 max-w-6xl">
             <div className="text-center mb-16">
               <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-purple-500/30 bg-purple-500/10 backdrop-blur-sm mb-6">
-                <Sparkles className="h-4 w-4 text-purple-400" />
+                <AudioLines className="h-4 w-4 text-purple-400" />
                 <span className="text-sm text-purple-300">AI-Powered Live Transcription</span>
               </div>
               <h1 className="text-5xl md:text-7xl font-bold mb-6 tracking-tight bg-gradient-to-br from-white via-white to-white/60 bg-clip-text text-transparent">
@@ -194,7 +194,7 @@ export default function Home() {
           <div className="container mx-auto px-4 py-12">
             <div className="flex flex-col md:flex-row justify-between items-center gap-6">
               <div className="flex items-center gap-2">
-                <Sparkles className="h-5 w-5 text-purple-400" />
+                <AudioLines className="h-5 w-5 text-purple-400" />
                 <span className="font-semibold">LiveTranscribe</span>
               </div>
               <div className="flex gap-8 text-sm text-muted-foreground">

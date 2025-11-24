@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { Home, Radio, LogOut, Sparkles, Shield } from "lucide-react"
+import { Home, Radio, LogOut, AudioLines, Shield } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { useEffect, useState } from "react"
@@ -48,7 +48,7 @@ export function AppNav() {
               href={isLoggedIn ? "/dashboard" : "/"}
               className="text-xl font-bold text-white flex items-center gap-2"
             >
-              <Sparkles className="h-5 w-5 text-purple-400" />
+              <AudioLines className="h-5 w-5 text-purple-400" />
               LiveTranscribe
             </Link>
             <div className="flex gap-2">
