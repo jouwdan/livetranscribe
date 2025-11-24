@@ -1,5 +1,6 @@
 "use server"
-import { signUpBypass } from "@/lib/auth/bypass"
+import { createServerClient } from "@/lib/supabase/server"
+import { cookies } from "next/headers"
 
 export async function signUp(formData: FormData) {
   try {
@@ -14,36 +15,26 @@ export async function signUp(formData: FormData) {
       return { error: "Password must be at least 6 characters" }
     }
 
-    const result = await signUpBypass(email, password)
-    return result
+    const supabase = await createServerClient()
 
-    // const supabase = await createServerClient()
+    const { error, data } = await supabase.auth.signUp({
+      email,
+      password,
+    })
 
-    // const { error, data } = await supabase.auth.signUp({
-    //   email,
-    //   password,
-    // })
+    if (error) {
+      console.error("[v0] Sign up error:", error)
+      return { error: error.message || "Sign up failed" }
+    }
 
-    // if (error) {
-    //   console.error("[v0] Sign up error:", error)
+    if (!data.user) {
+      return { error: "Sign up failed - no user data returned" }
+    }
 
-    //   if (error.status === 556 || error.message.includes("Internal server error")) {
-    //     return {
-    //       error:
-    //         "Authentication is not configured. Please disable email confirmation in Supabase: Dashboard → Authentication → Providers → Email → Toggle OFF 'Confirm email'",
-    //     }
-    //   }
-    //   return { error: error.message || "Sign up failed" }
-    // }
+    const cookieStore = await cookies()
+    cookieStore.getAll() // Force cookie refresh
 
-    // if (!data.user) {
-    //   return { error: "Sign up failed - no user data returned" }
-    // }
-
-    // const cookieStore = await cookies()
-    // cookieStore.getAll() // Force cookie refresh
-
-    // return { success: true }
+    return { success: true }
   } catch (err: any) {
     console.error("[v0] Sign up exception:", err)
     return {

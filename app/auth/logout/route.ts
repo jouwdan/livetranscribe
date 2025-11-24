@@ -1,7 +1,8 @@
-import { logoutBypass } from "@/lib/auth/bypass"
+import { createServerClient } from "@/lib/supabase/server"
 import { redirect } from "next/navigation"
 
 export async function POST() {
-  await logoutBypass()
+  const supabase = await createServerClient()
+  await supabase.auth.signOut()
   redirect("/")
 }
