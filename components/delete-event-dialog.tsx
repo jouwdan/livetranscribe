@@ -27,6 +27,7 @@ export function DeleteEventDialog({ eventId, eventSlug, eventName }: DeleteEvent
   const [open, setOpen] = useState(false)
   const [confirmSlug, setConfirmSlug] = useState("")
   const [isDeleting, setIsDeleting] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   const router = useRouter()
 
   const handleDelete = async () => {
@@ -34,15 +35,28 @@ export function DeleteEventDialog({ eventId, eventSlug, eventName }: DeleteEvent
       return
     }
 
+    console.log("[v0] Deleting event:", eventId)
     setIsDeleting(true)
-    const result = await deleteEvent(eventId)
+    setError(null)
 
-    if (result.error) {
-      alert(result.error)
+    try {
+      const result = await deleteEvent(eventId)
+      console.log("[v0] Delete result:", result)
+
+      if (result.error) {
+        console.error("[v0] Delete error:", result.error)
+        setError(result.error)
+        setIsDeleting(false)
+      } else {
+        console.log("[v0] Event deleted successfully, closing dialog and refreshing")
+        setOpen(false)
+        setConfirmSlug("")
+        window.location.reload()
+      }
+    } catch (err) {
+      console.error("[v0] Exception during delete:", err)
+      setError("An unexpected error occurred")
       setIsDeleting(false)
-    } else {
-      setOpen(false)
-      router.refresh()
     }
   }
 
@@ -75,6 +89,9 @@ export function DeleteEventDialog({ eventId, eventSlug, eventName }: DeleteEvent
               className="bg-background border-border text-foreground"
             />
           </div>
+          {error && (
+            <div className="text-sm text-red-400 bg-red-500/10 p-2 rounded border border-red-500/20">{error}</div>
+          )}
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => setOpen(false)} disabled={isDeleting}>

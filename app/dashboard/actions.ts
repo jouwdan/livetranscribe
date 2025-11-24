@@ -62,7 +62,10 @@ export async function unarchiveEvent(formData: FormData) {
 }
 
 export async function deleteEvent(eventId: string) {
+  console.log("[v0] deleteEvent called with ID:", eventId)
+
   if (!eventId) {
+    console.log("[v0] No event ID provided")
     return { error: "Event ID is required" }
   }
 
@@ -73,8 +76,11 @@ export async function deleteEvent(eventId: string) {
   } = await supabase.auth.getUser()
 
   if (!user) {
+    console.log("[v0] User not authenticated")
     return { error: "Not authenticated" }
   }
+
+  console.log("[v0] Verifying event ownership for user:", user.id)
 
   // Verify the event is archived and belongs to the user
   const { data: event, error: fetchError } = await supabase
@@ -85,13 +91,16 @@ export async function deleteEvent(eventId: string) {
     .single()
 
   if (fetchError || !event) {
+    console.error("[v0] Event not found or error:", fetchError)
     return { error: "Event not found" }
   }
 
   if (!event.archived) {
+    console.log("[v0] Event is not archived")
     return { error: "Only archived events can be deleted" }
   }
 
+  console.log("[v0] Deleting transcriptions...")
   // Delete transcriptions first (due to foreign key constraints)
   const { error: transcriptionsError } = await supabase.from("transcriptions").delete().eq("event_id", eventId)
 
@@ -100,6 +109,7 @@ export async function deleteEvent(eventId: string) {
     return { error: "Failed to delete event transcriptions" }
   }
 
+  console.log("[v0] Deleting viewer sessions...")
   // Delete viewer sessions
   const { error: viewersError } = await supabase.from("viewer_sessions").delete().eq("event_id", eventId)
 
@@ -108,6 +118,7 @@ export async function deleteEvent(eventId: string) {
     return { error: "Failed to delete viewer sessions" }
   }
 
+  console.log("[v0] Deleting event...")
   // Delete the event
   const { error: deleteError } = await supabase.from("events").delete().eq("id", eventId).eq("user_id", user.id)
 
@@ -116,6 +127,7 @@ export async function deleteEvent(eventId: string) {
     return { error: "Failed to delete event" }
   }
 
+  console.log("[v0] Event deleted successfully, revalidating path")
   revalidatePath("/dashboard")
   return { success: true }
 }
