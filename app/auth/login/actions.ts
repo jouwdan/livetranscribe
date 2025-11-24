@@ -1,6 +1,7 @@
 "use server"
 
 import { createServerClient } from "@/lib/supabase/server"
+import { cookies } from "next/headers"
 
 export async function login(formData: FormData) {
   const email = formData.get("email") as string
@@ -22,6 +23,9 @@ export async function login(formData: FormData) {
       console.log("[v0] Login error:", error.message)
       return { error: error.message }
     }
+
+    const cookieStore = await cookies()
+    cookieStore.getAll() // Force cookie refresh
 
     return { success: true }
   } catch (err) {
