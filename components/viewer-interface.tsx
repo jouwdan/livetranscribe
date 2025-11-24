@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Radio, Volume2, VolumeX, Download } from "lucide-react"
+import { Radio, Volume2, VolumeX } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
 import { LiveTranscriptionDisplay } from "@/components/live-transcription-display"
 
@@ -213,21 +213,6 @@ export function ViewerInterface({ slug, eventName, eventDescription }: ViewerInt
     setAutoScroll(isAtBottom)
   }
 
-  const downloadTranscript = () => {
-    const text = transcriptions
-      .filter((t) => t.isFinal && t.text.trim() !== "")
-      .map((t) => t.text)
-      .join(" ")
-
-    const blob = new Blob([text], { type: "text/plain" })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement("a")
-    a.href = url
-    a.download = `${slug}-transcript.txt`
-    a.click()
-    URL.revokeObjectURL(url)
-  }
-
   const displayTranscriptions = transcriptions.filter((t) => t.text.trim() !== "" && t.isFinal)
   const latestInterim = transcriptions.find((t) => !t.isFinal && t.text.trim() !== "")
 
@@ -243,16 +228,6 @@ export function ViewerInterface({ slug, eventName, eventDescription }: ViewerInt
               {!eventDescription && <p className="text-sm text-foreground/60">Live Transcription</p>}
             </div>
             <div className="flex items-center gap-3 flex-shrink-0">
-              <Button
-                onClick={downloadTranscript}
-                variant="outline"
-                size="sm"
-                className="gap-2 bg-transparent border-border hover:bg-foreground/5"
-                disabled={transcriptions.length === 0}
-              >
-                <Download className="h-4 w-4" />
-                <span className="hidden sm:inline">Download</span>
-              </Button>
               <Badge variant={isConnected ? "default" : "secondary"} className="px-3 py-1">
                 {isConnected ? (
                   <>
