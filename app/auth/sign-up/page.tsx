@@ -7,13 +7,11 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import Link from "next/link"
 import { useState } from "react"
-import { useRouter } from "next/navigation"
 import { signUp } from "./actions"
 
 export default function SignUpPage() {
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
-  const router = useRouter()
 
   const handleSignUp = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
@@ -30,19 +28,10 @@ export default function SignUpPage() {
       return
     }
 
-    try {
-      const result = await signUp(formData)
+    const result = await signUp(formData)
 
-      if (result?.error) {
-        setError(result.error)
-        setIsLoading(false)
-      } else if (result?.success) {
-        router.push("/dashboard")
-        router.refresh()
-      }
-    } catch (err) {
-      console.error("[v0] Sign-up error:", err)
-      setError("An unexpected error occurred. Please try again.")
+    if (result?.error) {
+      setError(result.error)
       setIsLoading(false)
     }
   }

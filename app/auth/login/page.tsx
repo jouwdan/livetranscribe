@@ -7,33 +7,22 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import Link from "next/link"
 import { useState } from "react"
-import { useRouter } from "next/navigation"
 import { login } from "./actions"
 
 export default function LoginPage() {
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
-  const router = useRouter()
 
   const handleLogin = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     setIsLoading(true)
     setError(null)
 
-    try {
-      const formData = new FormData(e.currentTarget)
-      const result = await login(formData)
+    const formData = new FormData(e.currentTarget)
+    const result = await login(formData)
 
-      if (result?.error) {
-        setError(result.error)
-        setIsLoading(false)
-      } else if (result?.success) {
-        router.push("/dashboard")
-        router.refresh()
-      }
-    } catch (err) {
-      console.error("[v0] Login error:", err)
-      setError("An unexpected error occurred. Please try again.")
+    if (result?.error) {
+      setError(result.error)
       setIsLoading(false)
     }
   }
