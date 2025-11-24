@@ -3,7 +3,7 @@ import { redirect } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import Link from "next/link"
-import { PlusCircle, Clock, Archive, ArchiveRestore } from "lucide-react"
+import { PlusCircle, Clock, Archive, ArchiveRestore, BarChart3 } from "lucide-react"
 import { AppNav } from "@/components/app-nav"
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
 import { archiveEvent, unarchiveEvent } from "./actions"
@@ -161,6 +161,12 @@ export default async function DashboardPage() {
                       </Link>
                       <Link href={`/view/${event.slug}`}>
                         <Button variant="outline">View</Button>
+                      </Link>
+                      <Link href={`/metrics/${event.slug}`}>
+                        <Button variant="outline" className="gap-2 bg-transparent">
+                          <BarChart3 className="h-4 w-4" />
+                          Metrics
+                        </Button>
                       </Link>
                       <Link href={`/edit/${event.slug}`}>
                         <Button variant="outline">Edit</Button>

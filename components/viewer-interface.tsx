@@ -29,6 +29,13 @@ export function ViewerInterface({ slug, eventName, eventDescription }: ViewerInt
   const containerRef = useRef<HTMLDivElement>(null)
   const sessionIdRef = useRef<string>()
 
+  const scrollEventsRef = useRef(0)
+  const visibilityChangesRef = useRef(0)
+  const activeTimeRef = useRef(0)
+  const lastActivityRef = useRef(Date.now())
+  const transcriptionsViewedRef = useRef(0)
+  const activityIntervalRef = useRef<NodeJS.Timeout>()
+
   useEffect(() => {
     console.log("[v0] Setting up Supabase real-time subscription for slug:", slug)
 
@@ -66,16 +73,16 @@ export function ViewerInterface({ slug, eventName, eventDescription }: ViewerInt
       console.log("[v0] Initial transcriptions count:", initialTranscriptions?.length || 0)
 
       if (initialTranscriptions) {
+        const filtered = initialTranscriptions.filter((t) => t.text && t.text.trim() !== "")
         setTranscriptions(
-          initialTranscriptions
-            .filter((t) => t.text && t.text.trim() !== "")
-            .map((t) => ({
-              text: t.text,
-              isFinal: t.is_final,
-              sequenceNumber: t.sequence_number,
-              timestamp: t.created_at,
-            })),
+          filtered.map((t) => ({
+            text: t.text,
+            isFinal: t.is_final,
+            sequenceNumber: t.sequence_number,
+            timestamp: t.created_at,
+          })),
         )
+        transcriptionsViewedRef.current = filtered.filter((t) => t.is_final).length
       }
 
       const channelName = `transcriptions-${slug}-${Date.now()}`
@@ -106,13 +113,17 @@ export function ViewerInterface({ slug, eventName, eventDescription }: ViewerInt
             }
 
             setTranscriptions((prev) => {
-              // Avoid duplicates
               if (prev.some((t) => t.sequenceNumber === newTranscription.sequence_number)) {
                 console.log("[v0] Duplicate transcription detected, skipping")
                 return prev
               }
 
               console.log("[v0] Adding new transcription to state:", newTranscription.text)
+
+              if (newTranscription.is_final) {
+                transcriptionsViewedRef.current += 1
+              }
+
               return [
                 ...prev,
                 {
@@ -149,6 +160,33 @@ export function ViewerInterface({ slug, eventName, eventDescription }: ViewerInt
   }, [slug])
 
   useEffect(() => {
+    const handleVisibilityChange = () => {
+      visibilityChangesRef.current += 1
+      if (!document.hidden) {
+        lastActivityRef.current = Date.now()
+      }
+    }
+
+    document.addEventListener("visibilitychange", handleVisibilityChange)
+    return () => document.removeEventListener("visibilitychange", handleVisibilityChange)
+  }, [])
+
+  useEffect(() => {
+    activityIntervalRef.current = setInterval(() => {
+      if (!document.hidden) {
+        activeTimeRef.current += 1 // Increment by 1 second
+        lastActivityRef.current = Date.now()
+      }
+    }, 1000)
+
+    return () => {
+      if (activityIntervalRef.current) {
+        clearInterval(activityIntervalRef.current)
+      }
+    }
+  }, [])
+
+  useEffect(() => {
     sessionIdRef.current = `viewer-${Date.now()}-${Math.random().toString(36).substring(7)}`
 
     const supabase = createClient()
@@ -167,13 +205,23 @@ export function ViewerInterface({ slug, eventName, eventDescription }: ViewerInt
         session_id: sessionIdRef.current,
         joined_at: new Date().toISOString(),
         last_ping: new Date().toISOString(),
+        scroll_events: 0,
+        visibility_changes: 0,
+        total_active_time_seconds: 0,
+        transcriptions_viewed: 0,
       })
 
-      // Send ping every 15 seconds to show we're still active
       pingInterval = setInterval(async () => {
         await supabase
           .from("viewer_sessions")
-          .update({ last_ping: new Date().toISOString() })
+          .update({
+            last_ping: new Date().toISOString(),
+            last_activity_at: new Date().toISOString(),
+            scroll_events: scrollEventsRef.current,
+            visibility_changes: visibilityChangesRef.current,
+            total_active_time_seconds: activeTimeRef.current,
+            transcriptions_viewed: transcriptionsViewedRef.current,
+          })
           .eq("event_id", event.id)
           .eq("session_id", sessionIdRef.current)
       }, 15000)
@@ -183,13 +231,19 @@ export function ViewerInterface({ slug, eventName, eventDescription }: ViewerInt
 
     return () => {
       clearInterval(pingInterval)
-      // Mark session as left
+      // Mark session as left with final engagement metrics
       const cleanup = async () => {
         const { data: event } = await supabase.from("events").select("id").eq("slug", slug).single()
         if (event) {
           await supabase
             .from("viewer_sessions")
-            .update({ left_at: new Date().toISOString() })
+            .update({
+              left_at: new Date().toISOString(),
+              scroll_events: scrollEventsRef.current,
+              visibility_changes: visibilityChangesRef.current,
+              total_active_time_seconds: activeTimeRef.current,
+              transcriptions_viewed: transcriptionsViewedRef.current,
+            })
             .eq("event_id", event.id)
             .eq("session_id", sessionIdRef.current)
         }
@@ -211,6 +265,9 @@ export function ViewerInterface({ slug, eventName, eventDescription }: ViewerInt
     const isAtBottom = scrollHeight - scrollTop - clientHeight < 50
 
     setAutoScroll(isAtBottom)
+
+    scrollEventsRef.current += 1
+    lastActivityRef.current = Date.now()
   }
 
   const displayTranscriptions = transcriptions.filter((t) => t.text.trim() !== "" && t.isFinal)
