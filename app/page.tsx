@@ -172,7 +172,7 @@ export default function Home() {
 
           <section className="container mx-auto px-4 py-24 max-w-4xl">
             <div className="glass-card p-16 text-center relative overflow-hidden">
-              <div className="absolute inset-0 bg-gradient-to-br from-purple-500/20 to-blue-500/20" />
+              <div className="absolute inset-0 bg-gradient-to-br from-purple-500/5 to-blue-500/5" />
               <div className="relative z-10">
                 <h2 className="text-4xl md:text-5xl font-bold mb-6">
                   Join fellow event organizers making accessibility easy
