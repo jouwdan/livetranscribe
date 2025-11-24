@@ -2,34 +2,92 @@
 
 import { useRef, useEffect } from "react"
 
+interface Transcription {
+  text: string
+  timestamp: string
+  isFinal: boolean
+}
+
 interface LiveTranscriptionDisplayProps {
-  finalText: string
+  transcriptions: Transcription[]
   interimText?: string
   className?: string
 }
 
-export function LiveTranscriptionDisplay({ finalText, interimText, className = "" }: LiveTranscriptionDisplayProps) {
+export function LiveTranscriptionDisplay({
+  transcriptions,
+  interimText,
+  className = "",
+}: LiveTranscriptionDisplayProps) {
   const endRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth" })
-  }, [finalText, interimText])
+  }, [transcriptions, interimText])
+
+  const groupedTranscriptions = transcriptions.reduce(
+    (acc, curr, index) => {
+      if (index === 0) {
+        acc.push({
+          timestamp: curr.timestamp,
+          texts: [curr.text],
+        })
+      } else {
+        const prevTimestamp = new Date(transcriptions[index - 1].timestamp).getTime()
+        const currTimestamp = new Date(curr.timestamp).getTime()
+        const timeDiff = (currTimestamp - prevTimestamp) / 1000 // in seconds
+
+        if (timeDiff > 10) {
+          // More than 10 seconds gap, start new group with timestamp
+          acc.push({
+            timestamp: curr.timestamp,
+            texts: [curr.text],
+          })
+        } else {
+          // Continue in current group
+          acc[acc.length - 1].texts.push(curr.text)
+        }
+      }
+      return acc
+    },
+    [] as Array<{ timestamp: string; texts: string[] }>,
+  )
+
+  const formatTimestamp = (timestamp: string) => {
+    const date = new Date(timestamp)
+    return date.toLocaleTimeString("en-US", {
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+    })
+  }
+
+  if (transcriptions.length === 0 && !interimText) {
+    return (
+      <div className={className}>
+        <div className="flex items-center justify-center h-full text-foreground/40">
+          <p>Waiting for transcription to start...</p>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className={className}>
-      {!finalText && !interimText ? (
-        <div className="flex items-center justify-center h-full text-slate-400">
-          <p>Waiting for transcription to start...</p>
-        </div>
-      ) : (
-        <div className="space-y-1">
-          <p className="text-lg leading-relaxed text-slate-800">
-            {finalText}
-            {interimText && <span className="text-slate-400 italic animate-pulse"> {interimText}</span>}
-          </p>
-          <div ref={endRef} />
-        </div>
-      )}
+      <div className="space-y-6">
+        {groupedTranscriptions.map((group, index) => (
+          <div key={index} className="space-y-2">
+            <div className="text-xs font-medium text-foreground/50 uppercase tracking-wide">
+              {formatTimestamp(group.timestamp)}
+            </div>
+            <p className="text-lg leading-relaxed text-white">{group.texts.join(" ")}</p>
+          </div>
+        ))}
+        {interimText && (
+          <p className="text-lg leading-relaxed text-foreground/50 italic animate-pulse">{interimText}</p>
+        )}
+        <div ref={endRef} />
+      </div>
     </div>
   )
 }

@@ -26,6 +26,7 @@ export function ViewerInterface({ slug, eventName }: ViewerInterfaceProps) {
   const [autoScroll, setAutoScroll] = useState(true)
   const transcriptionEndRef = useRef<HTMLDivElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
+  const sessionIdRef = useRef<string>()
 
   useEffect(() => {
     console.log("[v0] Setting up Supabase real-time subscription for slug:", slug)
@@ -76,8 +77,16 @@ export function ViewerInterface({ slug, eventName }: ViewerInterfaceProps) {
         )
       }
 
+      const channelName = `transcriptions-${slug}-${Date.now()}`
+      console.log("[v0] Creating channel:", channelName)
+
       const channel = supabase
-        .channel(`transcriptions:${slug}`)
+        .channel(channelName, {
+          config: {
+            broadcast: { self: true },
+            presence: { key: "" },
+          },
+        })
         .on(
           "postgres_changes",
           {
@@ -91,6 +100,7 @@ export function ViewerInterface({ slug, eventName }: ViewerInterfaceProps) {
             const newTranscription = payload.new as any
 
             if (!newTranscription.text || newTranscription.text.trim() === "") {
+              console.log("[v0] Skipping empty transcription")
               return
             }
 
@@ -101,7 +111,7 @@ export function ViewerInterface({ slug, eventName }: ViewerInterfaceProps) {
                 return prev
               }
 
-              console.log("[v0] Adding new transcription to state")
+              console.log("[v0] Adding new transcription to state:", newTranscription.text)
               return [
                 ...prev,
                 {
@@ -116,8 +126,11 @@ export function ViewerInterface({ slug, eventName }: ViewerInterfaceProps) {
             setIsConnected(true)
           },
         )
-        .subscribe((status) => {
+        .subscribe((status, err) => {
           console.log("[v0] Supabase subscription status:", status)
+          if (err) {
+            console.error("[v0] Supabase subscription error:", err)
+          }
           setIsConnected(status === "SUBSCRIBED")
         })
 
@@ -131,6 +144,56 @@ export function ViewerInterface({ slug, eventName }: ViewerInterfaceProps) {
 
     return () => {
       cleanup.then((cleanupFn) => cleanupFn?.())
+    }
+  }, [slug])
+
+  useEffect(() => {
+    sessionIdRef.current = `viewer-${Date.now()}-${Math.random().toString(36).substring(7)}`
+
+    const supabase = createClient()
+    let pingInterval: NodeJS.Timeout
+
+    const setupViewerTracking = async () => {
+      console.log("[v0] Setting up viewer tracking for session:", sessionIdRef.current)
+
+      const { data: event } = await supabase.from("events").select("id").eq("slug", slug).single()
+
+      if (!event) return
+
+      // Register viewer session
+      await supabase.from("viewer_sessions").insert({
+        event_id: event.id,
+        session_id: sessionIdRef.current,
+        joined_at: new Date().toISOString(),
+        last_ping: new Date().toISOString(),
+      })
+
+      // Send ping every 15 seconds to show we're still active
+      pingInterval = setInterval(async () => {
+        await supabase
+          .from("viewer_sessions")
+          .update({ last_ping: new Date().toISOString() })
+          .eq("event_id", event.id)
+          .eq("session_id", sessionIdRef.current)
+      }, 15000)
+    }
+
+    setupViewerTracking()
+
+    return () => {
+      clearInterval(pingInterval)
+      // Mark session as left
+      const cleanup = async () => {
+        const { data: event } = await supabase.from("events").select("id").eq("slug", slug).single()
+        if (event) {
+          await supabase
+            .from("viewer_sessions")
+            .update({ left_at: new Date().toISOString() })
+            .eq("event_id", event.id)
+            .eq("session_id", sessionIdRef.current)
+        }
+      }
+      cleanup()
     }
   }, [slug])
 
@@ -164,30 +227,26 @@ export function ViewerInterface({ slug, eventName }: ViewerInterfaceProps) {
     URL.revokeObjectURL(url)
   }
 
-  const displayTranscriptions = transcriptions.filter((t) => t.text.trim() !== "")
-  const finalText = displayTranscriptions
-    .filter((t) => t.isFinal)
-    .map((t) => t.text)
-    .join(" ")
-  const latestInterim = displayTranscriptions.find((t) => !t.isFinal)
+  const displayTranscriptions = transcriptions.filter((t) => t.text.trim() !== "" && t.isFinal)
+  const latestInterim = transcriptions.find((t) => !t.isFinal && t.text.trim() !== "")
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="min-h-screen bg-black">
       {/* Header */}
-      <div className="bg-white border-b border-slate-200 sticky top-0 z-10">
+      <div className="bg-black border-b border-border sticky top-0 z-10">
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-2xl font-bold text-slate-900">{eventName}</h1>
-              <p className="text-sm text-slate-600">Live Transcription</p>
+              <h1 className="text-2xl font-bold text-white">{eventName}</h1>
+              <p className="text-sm text-foreground/60">Live Transcription</p>
             </div>
             <div className="flex items-center gap-3">
               <Button
                 onClick={downloadTranscript}
                 variant="outline"
                 size="sm"
-                className="gap-2 bg-transparent"
-                disabled={displayTranscriptions.length === 0}
+                className="gap-2 bg-transparent border-border hover:bg-foreground/5"
+                disabled={transcriptions.length === 0}
               >
                 <Download className="h-4 w-4" />
                 Download
@@ -210,11 +269,16 @@ export function ViewerInterface({ slug, eventName }: ViewerInterfaceProps) {
       {/* Transcription Display */}
       <div className="container mx-auto px-4 py-8">
         <div className="max-w-4xl mx-auto">
-          <Card>
-            <CardHeader className="border-b">
+          <Card className="bg-black border-border">
+            <CardHeader className="border-b border-border">
               <div className="flex items-center justify-between">
-                <CardTitle>Live Transcript</CardTitle>
-                <Button variant="ghost" size="sm" onClick={() => setAutoScroll(!autoScroll)} className="gap-2">
+                <CardTitle className="text-white">Live Transcript</CardTitle>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setAutoScroll(!autoScroll)}
+                  className="gap-2 hover:bg-foreground/5"
+                >
                   {autoScroll ? (
                     <>
                       <Volume2 className="h-4 w-4" />
@@ -231,19 +295,22 @@ export function ViewerInterface({ slug, eventName }: ViewerInterfaceProps) {
             </CardHeader>
             <CardContent className="p-0">
               <div ref={containerRef} onScroll={handleScroll} className="h-[70vh] overflow-y-auto p-6">
-                <LiveTranscriptionDisplay finalText={finalText} interimText={latestInterim?.text} />
+                <LiveTranscriptionDisplay transcriptions={displayTranscriptions} interimText={latestInterim?.text} />
               </div>
             </CardContent>
           </Card>
 
           <div className="mt-6">
-            <Card>
+            <Card className="bg-black border-border">
               <CardContent className="pt-6">
                 <div className="text-center">
-                  <p className="text-3xl font-bold text-slate-900">
-                    {finalText.split(" ").filter((w) => w.length > 0).length}
+                  <p className="text-3xl font-bold text-white">
+                    {displayTranscriptions.reduce(
+                      (count, t) => count + t.text.split(" ").filter((w) => w.length > 0).length,
+                      0,
+                    )}
                   </p>
-                  <p className="text-sm text-slate-600 mt-1">Words</p>
+                  <p className="text-sm text-foreground/60 mt-1">Words</p>
                 </div>
               </CardContent>
             </Card>

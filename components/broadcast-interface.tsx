@@ -4,15 +4,15 @@ import { useState, useEffect, useRef } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import { Mic, MicOff, Copy, Check, Radio, AlertCircle, Download } from "lucide-react"
 import { OpenAITranscriber } from "@/lib/openai-transcriber"
 import { LiveTranscriptionDisplay } from "@/components/live-transcription-display"
+import { createClient } from "@/lib/supabase/client" // Fixed import path for Supabase client
 
 interface BroadcastInterfaceProps {
   slug: string
   eventName: string
+  eventId: string
 }
 
 interface Transcription {
@@ -22,15 +22,17 @@ interface Transcription {
   timestamp: Date
 }
 
-export function BroadcastInterface({ slug, eventName }: BroadcastInterfaceProps) {
+export function BroadcastInterface({ slug, eventName, eventId }: BroadcastInterfaceProps) {
   const [isStreaming, setIsStreaming] = useState(false)
   const [copied, setCopied] = useState(false)
   const [transcriptionCount, setTranscriptionCount] = useState(0)
-  const [apiKey, setApiKey] = useState("")
-  const [showApiKeyInput, setShowApiKeyInput] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [transcriptions, setTranscriptions] = useState<Transcription[]>([])
   const [currentInterim, setCurrentInterim] = useState<string>("")
+  const [liveViewers, setLiveViewers] = useState(0)
+  const [totalViewers, setTotalViewers] = useState(0)
+  const [sessionDuration, setSessionDuration] = useState(0)
+  const [sessionStartTime, setSessionStartTime] = useState<Date | null>(null)
 
   const transcriberRef = useRef<OpenAITranscriber | null>(null)
   const transcriptionsEndRef = useRef<HTMLDivElement>(null)
@@ -40,6 +42,45 @@ export function BroadcastInterface({ slug, eventName }: BroadcastInterfaceProps)
   useEffect(() => {
     transcriptionsEndRef.current?.scrollIntoView({ behavior: "smooth" })
   }, [transcriptions, currentInterim])
+
+  useEffect(() => {
+    if (!isStreaming || !sessionStartTime) return
+
+    const interval = setInterval(() => {
+      const duration = Math.floor((Date.now() - sessionStartTime.getTime()) / 1000)
+      setSessionDuration(duration)
+    }, 1000)
+
+    return () => clearInterval(interval)
+  }, [isStreaming, sessionStartTime])
+
+  useEffect(() => {
+    const supabase = createClient()
+
+    const fetchViewerStats = async () => {
+      // Get live viewers (active in last 30 seconds)
+      const thirtySecondsAgo = new Date(Date.now() - 30000).toISOString()
+      const { data: liveSessions } = await supabase
+        .from("viewer_sessions")
+        .select("id")
+        .eq("event_id", eventId)
+        .is("left_at", null)
+        .gte("last_ping", thirtySecondsAgo)
+
+      setLiveViewers(liveSessions?.length || 0)
+
+      // Get total unique viewers
+      const { data: allSessions } = await supabase.from("viewer_sessions").select("session_id").eq("event_id", eventId)
+
+      const uniqueViewers = new Set(allSessions?.map((s) => s.session_id) || [])
+      setTotalViewers(uniqueViewers.size)
+    }
+
+    fetchViewerStats()
+    const interval = setInterval(fetchViewerStats, 5000)
+
+    return () => clearInterval(interval)
+  }, [eventId])
 
   const copyToClipboard = async () => {
     await navigator.clipboard.writeText(viewerUrl)
@@ -108,15 +149,23 @@ export function BroadcastInterface({ slug, eventName }: BroadcastInterfaceProps)
   }
 
   const handleStartStreaming = async () => {
-    if (!apiKey) {
-      setShowApiKeyInput(true)
-      setError("Please enter your OpenAI API key")
-      return
-    }
-
     try {
       setError(null)
-      const transcriber = new OpenAITranscriber(apiKey, handleTranscription, (error) => {
+      setSessionStartTime(new Date())
+
+      const response = await fetch("/api/transcribe-ws", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ slug, eventName }),
+      })
+
+      if (!response.ok) {
+        throw new Error("Failed to initialize transcription session")
+      }
+
+      const { apiKey } = await response.json()
+
+      const transcriber = new OpenAITranscriber(apiKey, eventId, handleTranscription, (error) => {
         setError(error)
         setIsStreaming(false)
       })
@@ -124,10 +173,10 @@ export function BroadcastInterface({ slug, eventName }: BroadcastInterfaceProps)
       await transcriber.start()
       transcriberRef.current = transcriber
       setIsStreaming(true)
-      setShowApiKeyInput(false)
     } catch (error) {
       setError(error instanceof Error ? error.message : "Failed to start streaming")
       setIsStreaming(false)
+      setSessionStartTime(null)
     }
   }
 
@@ -137,6 +186,8 @@ export function BroadcastInterface({ slug, eventName }: BroadcastInterfaceProps)
       transcriberRef.current = null
     }
     setIsStreaming(false)
+    setSessionStartTime(null)
+    setSessionDuration(0)
   }
 
   useEffect(() => {
@@ -147,12 +198,21 @@ export function BroadcastInterface({ slug, eventName }: BroadcastInterfaceProps)
     }
   }, [])
 
-  const displayTranscriptions = transcriptions.filter((t) => t.text.trim() !== "")
-  const finalText = displayTranscriptions
-    .filter((t) => t.isFinal)
-    .map((t) => t.text)
-    .join(" ")
+  const displayTranscriptions = transcriptions
+    .filter((t) => t.text.trim() !== "" && t.isFinal)
+    .map((t) => ({
+      text: t.text,
+      timestamp: t.timestamp.toISOString(),
+      isFinal: t.isFinal,
+    }))
   const interimText = currentInterim.trim() !== "" ? currentInterim : undefined
+
+  const formatDuration = (seconds: number) => {
+    const hours = Math.floor(seconds / 3600)
+    const minutes = Math.floor((seconds % 3600) / 60)
+    const secs = seconds % 60
+    return `${hours.toString().padStart(2, "0")}:${minutes.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`
+  }
 
   return (
     <div className="container mx-auto px-4 py-8">
@@ -195,30 +255,6 @@ export function BroadcastInterface({ slug, eventName }: BroadcastInterfaceProps)
           </CardContent>
         </Card>
 
-        {/* API Key Input */}
-        {(showApiKeyInput || !isStreaming) && (
-          <Card>
-            <CardHeader>
-              <CardTitle>OpenAI API Configuration</CardTitle>
-              <CardDescription>Enter your OpenAI API key to enable live transcription</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="apiKey">OpenAI API Key</Label>
-                <Input
-                  id="apiKey"
-                  type="password"
-                  placeholder="sk-..."
-                  value={apiKey}
-                  onChange={(e) => setApiKey(e.target.value)}
-                  disabled={isStreaming}
-                />
-                <p className="text-xs text-slate-500">Your API key is stored locally and never sent to our servers</p>
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
         {/* Error Display */}
         {error && (
           <Card className="border-red-200 bg-red-50">
@@ -257,8 +293,22 @@ export function BroadcastInterface({ slug, eventName }: BroadcastInterfaceProps)
 
             {isStreaming && (
               <div className="space-y-3">
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="p-4 bg-slate-100 rounded-md">
+                    <div className="text-sm text-slate-600 mb-1">Live Viewers</div>
+                    <div className="text-2xl font-bold text-slate-900">{liveViewers}</div>
+                  </div>
+                  <div className="p-4 bg-slate-100 rounded-md">
+                    <div className="text-sm text-slate-600 mb-1">Total Viewers</div>
+                    <div className="text-2xl font-bold text-slate-900">{totalViewers}</div>
+                  </div>
+                </div>
                 <div className="p-4 bg-slate-100 rounded-md">
                   <div className="flex items-center justify-between text-sm mb-2">
+                    <span className="text-slate-600">Session Time:</span>
+                    <span className="font-semibold text-slate-900 font-mono">{formatDuration(sessionDuration)}</span>
+                  </div>
+                  <div className="flex items-center justify-between text-sm">
                     <span className="text-slate-600">Transcriptions sent:</span>
                     <span className="font-semibold text-slate-900">{transcriptionCount}</span>
                   </div>
@@ -284,7 +334,7 @@ export function BroadcastInterface({ slug, eventName }: BroadcastInterfaceProps)
             </CardHeader>
             <CardContent>
               <div className="h-[60vh] overflow-y-auto p-6 bg-slate-50 rounded-md border border-slate-200">
-                <LiveTranscriptionDisplay finalText={finalText} interimText={interimText} />
+                <LiveTranscriptionDisplay transcriptions={displayTranscriptions} interimText={interimText} />
               </div>
             </CardContent>
           </Card>

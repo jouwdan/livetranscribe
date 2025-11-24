@@ -8,7 +8,7 @@ const _geist = Geist({ subsets: ["latin"] })
 const _geistMono = Geist_Mono({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
-  title: "livetranscribe.net - AI Live Transcription",
+  title: "LiveTranscribe - AI Live Transcription",
   description: "Real-time AI transcription for events, powered by OpenAI and WebRTC",
   generator: "v0.app",
   icons: {
@@ -36,7 +36,7 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="en">
+    <html lang="en" className="dark">
       <body className={`font-sans antialiased`}>
         {children}
         <Analytics />
