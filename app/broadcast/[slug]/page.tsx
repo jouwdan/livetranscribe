@@ -25,7 +25,7 @@ export default async function BroadcastPage({ params }: BroadcastPageProps) {
   }
 
   return (
-    <div className="min-h-screen bg-slate-900">
+    <div className="min-h-screen bg-black">
       <BroadcastInterface slug={slug} eventName={event.name} eventId={event.id} />
     </div>
   )

@@ -14,7 +14,7 @@ export default async function CreatePage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-slate-50 to-slate-100 py-12">
+    <div className="min-h-screen bg-black py-12">
       <div className="container mx-auto px-4">
         <div className="max-w-2xl mx-auto">
           <Card>
