@@ -1,7 +1,5 @@
 "use server"
-
-import { createServerClient } from "@/lib/supabase/server"
-import { cookies } from "next/headers"
+import { loginBypass } from "@/lib/auth/bypass"
 
 export async function login(formData: FormData) {
   try {
@@ -12,38 +10,41 @@ export async function login(formData: FormData) {
       return { error: "Email and password are required" }
     }
 
-    const supabase = await createServerClient()
+    const result = await loginBypass(email, password)
+    return result
 
-    const { error, data } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    })
+    // const supabase = await createServerClient()
 
-    if (error) {
-      console.error("[v0] Login error:", error)
+    // const { error, data } = await supabase.auth.signInWithPassword({
+    //   email,
+    //   password,
+    // })
 
-      if (error.status === 556 || error.message.includes("Internal server error")) {
-        return {
-          error:
-            "Authentication is not configured. Please disable email confirmation in Supabase: Dashboard → Authentication → Providers → Email → Toggle OFF 'Confirm email'",
-        }
-      }
-      if (error.message.includes("Email not confirmed")) {
-        return {
-          error: "Please confirm your email address before logging in.",
-        }
-      }
-      return { error: error.message || "Login failed" }
-    }
+    // if (error) {
+    //   console.error("[v0] Login error:", error)
 
-    if (!data.user) {
-      return { error: "Login failed - no user data returned" }
-    }
+    //   if (error.status === 556 || error.message.includes("Internal server error")) {
+    //     return {
+    //       error:
+    //         "Authentication is not configured. Please disable email confirmation in Supabase: Dashboard → Authentication → Providers → Email → Toggle OFF 'Confirm email'",
+    //     }
+    //   }
+    //   if (error.message.includes("Email not confirmed")) {
+    //     return {
+    //       error: "Please confirm your email address before logging in.",
+    //     }
+    //   }
+    //   return { error: error.message || "Login failed" }
+    // }
 
-    const cookieStore = await cookies()
-    cookieStore.getAll() // Force cookie refresh
+    // if (!data.user) {
+    //   return { error: "Login failed - no user data returned" }
+    // }
 
-    return { success: true }
+    // const cookieStore = await cookies()
+    // cookieStore.getAll() // Force cookie refresh
+
+    // return { success: true }
   } catch (err: any) {
     console.error("[v0] Login exception:", err)
     return {

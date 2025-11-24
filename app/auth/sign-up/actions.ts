@@ -1,7 +1,5 @@
 "use server"
-
-import { createServerClient } from "@/lib/supabase/server"
-import { cookies } from "next/headers"
+import { signUpBypass } from "@/lib/auth/bypass"
 
 export async function signUp(formData: FormData) {
   try {
@@ -12,33 +10,40 @@ export async function signUp(formData: FormData) {
       return { error: "Email and password are required" }
     }
 
-    const supabase = await createServerClient()
-
-    const { error, data } = await supabase.auth.signUp({
-      email,
-      password,
-    })
-
-    if (error) {
-      console.error("[v0] Sign up error:", error)
-
-      if (error.status === 556 || error.message.includes("Internal server error")) {
-        return {
-          error:
-            "Authentication is not configured. Please disable email confirmation in Supabase: Dashboard → Authentication → Providers → Email → Toggle OFF 'Confirm email'",
-        }
-      }
-      return { error: error.message || "Sign up failed" }
+    if (password.length < 6) {
+      return { error: "Password must be at least 6 characters" }
     }
 
-    if (!data.user) {
-      return { error: "Sign up failed - no user data returned" }
-    }
+    const result = await signUpBypass(email, password)
+    return result
 
-    const cookieStore = await cookies()
-    cookieStore.getAll() // Force cookie refresh
+    // const supabase = await createServerClient()
 
-    return { success: true }
+    // const { error, data } = await supabase.auth.signUp({
+    //   email,
+    //   password,
+    // })
+
+    // if (error) {
+    //   console.error("[v0] Sign up error:", error)
+
+    //   if (error.status === 556 || error.message.includes("Internal server error")) {
+    //     return {
+    //       error:
+    //         "Authentication is not configured. Please disable email confirmation in Supabase: Dashboard → Authentication → Providers → Email → Toggle OFF 'Confirm email'",
+    //     }
+    //   }
+    //   return { error: error.message || "Sign up failed" }
+    // }
+
+    // if (!data.user) {
+    //   return { error: "Sign up failed - no user data returned" }
+    // }
+
+    // const cookieStore = await cookies()
+    // cookieStore.getAll() // Force cookie refresh
+
+    // return { success: true }
   } catch (err: any) {
     console.error("[v0] Sign up exception:", err)
     return {
