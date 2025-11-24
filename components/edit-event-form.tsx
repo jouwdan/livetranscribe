@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { createClient } from "@/lib/supabase/client"
 import { Loader2 } from "lucide-react"
@@ -17,11 +18,13 @@ interface EditEventFormProps {
     name: string
     slug: string
     is_active: boolean
+    description?: string
   }
 }
 
 export function EditEventForm({ event }: EditEventFormProps) {
   const [name, setName] = useState(event.name)
+  const [description, setDescription] = useState(event.description || "")
   const [slug, setSlug] = useState(event.slug)
   const [isActive, setIsActive] = useState(event.is_active)
   const [loading, setLoading] = useState(false)
@@ -45,7 +48,6 @@ export function EditEventForm({ event }: EditEventFormProps) {
 
     console.log("[v0] Slug check result:", { data, error, available: !data })
 
-    // Slug is available if no data was returned (no event with this slug exists)
     const available = !data
     setSlugAvailable(available)
     setCheckingSlug(false)
@@ -73,6 +75,7 @@ export function EditEventForm({ event }: EditEventFormProps) {
         .from("events")
         .update({
           name,
+          description,
           slug,
           is_active: isActive,
         })
@@ -106,6 +109,20 @@ export function EditEventForm({ event }: EditEventFormProps) {
               placeholder="My Live Event"
               required
             />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="description">Short Description</Label>
+            <Textarea
+              id="description"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="Brief description of your event (optional)"
+              rows={3}
+              maxLength={200}
+              className="resize-none"
+            />
+            <p className="text-xs text-foreground/60">{description.length}/200 characters</p>
           </div>
 
           <div className="space-y-2">

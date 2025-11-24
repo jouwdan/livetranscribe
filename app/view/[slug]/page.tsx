@@ -1,15 +1,18 @@
 import { ViewerInterface } from "@/components/viewer-interface"
+import { createServerClient } from "@/lib/supabase/server"
 
 interface ViewerPageProps {
   params: Promise<{ slug: string }>
-  searchParams: Promise<{ name?: string }>
 }
 
-export default async function ViewerPage({ params, searchParams }: ViewerPageProps) {
+export default async function ViewerPage({ params }: ViewerPageProps) {
   const { slug } = await params
-  const { name } = await searchParams
 
-  const eventName = name || "Live Event"
+  const supabase = await createServerClient()
+  const { data: event } = await supabase.from("events").select("name, description").eq("slug", slug).single()
 
-  return <ViewerInterface slug={slug} eventName={eventName} />
+  const eventName = event?.name || "Live Event"
+  const eventDescription = event?.description || ""
+
+  return <ViewerInterface slug={slug} eventName={eventName} eventDescription={eventDescription} />
 }
