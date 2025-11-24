@@ -9,6 +9,9 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/
 import { archiveEvent, unarchiveEvent } from "./actions"
 import { DeleteEventDialog } from "@/components/delete-event-dialog"
 
+export const dynamic = "force-dynamic"
+export const revalidate = 0
+
 export default async function DashboardPage() {
   const supabase = await createServerClient()
 

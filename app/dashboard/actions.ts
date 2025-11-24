@@ -128,6 +128,8 @@ export async function deleteEvent(eventId: string) {
   }
 
   console.log("[v0] Event deleted successfully, revalidating path")
-  revalidatePath("/dashboard")
+  revalidatePath("/dashboard", "page")
+  revalidatePath("/")
+
   return { success: true }
 }

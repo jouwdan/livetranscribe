@@ -35,26 +35,24 @@ export function DeleteEventDialog({ eventId, eventSlug, eventName }: DeleteEvent
       return
     }
 
-    console.log("[v0] Deleting event:", eventId)
     setIsDeleting(true)
     setError(null)
 
     try {
       const result = await deleteEvent(eventId)
-      console.log("[v0] Delete result:", result)
 
       if (result.error) {
-        console.error("[v0] Delete error:", result.error)
         setError(result.error)
         setIsDeleting(false)
       } else {
-        console.log("[v0] Event deleted successfully, closing dialog and refreshing")
         setOpen(false)
         setConfirmSlug("")
-        window.location.reload()
+        // Navigate to dashboard which will force a fresh server render
+        router.push("/dashboard")
+        // Also trigger a refresh to ensure cache is cleared
+        router.refresh()
       }
     } catch (err) {
-      console.error("[v0] Exception during delete:", err)
       setError("An unexpected error occurred")
       setIsDeleting(false)
     }
