@@ -47,8 +47,8 @@ export default function Home() {
                 accessible to everyone
               </h1>
               <p className="text-xl text-muted-foreground mb-8 max-w-2xl mx-auto leading-relaxed">
-                Real-time AI transcription for conferences, webinars, and live events. Simple setup, instant
-                accessibility, pay-per-use pricing.
+                Real-time AI transcription for conferences, workshops, and in-person events. Built by event organizers
+                who understand accessibility matters.
               </p>
               <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-green-500/30 bg-green-500/10 backdrop-blur-sm mb-6">
                 <CheckCircle2 className="h-4 w-4 text-green-400" />
@@ -72,10 +72,10 @@ export default function Home() {
 
           <section className="container mx-auto px-4 py-16 max-w-6xl">
             <div className="text-center mb-12">
-              <h2 className="text-3xl md:text-4xl font-bold mb-4">Everything you need for accessible events</h2>
+              <h2 className="text-3xl md:text-4xl font-bold mb-4">Built by organizers, for organizers</h2>
               <p className="text-muted-foreground max-w-2xl mx-auto">
-                Professional-grade live transcription powered by advanced AI models, optimized for real-time event
-                streaming.
+                We've been there. Running events and struggling with accessibility. So we built the solution we wished
+                existed.
               </p>
             </div>
 
@@ -127,9 +127,9 @@ export default function Home() {
 
           <section className="container mx-auto px-4 py-16 max-w-6xl">
             <div className="text-center mb-12">
-              <h2 className="text-3xl md:text-4xl font-bold mb-4">Built for every type of event</h2>
+              <h2 className="text-3xl md:text-4xl font-bold mb-4">Perfect for live, in-person events</h2>
               <p className="text-muted-foreground max-w-2xl mx-auto">
-                From intimate workshops to large-scale conferences, LiveTranscribe adapts to your needs.
+                From small meetups to large conferences, we've designed every feature with real event scenarios in mind.
               </p>
             </div>
 
@@ -138,19 +138,19 @@ export default function Home() {
                 {
                   title: "Conferences & Summits",
                   description:
-                    "Multi-track conferences with hundreds of attendees. Real-time captions for every session.",
+                    "Multi-track conferences with hundreds of attendees. Real-time captions projected on screens or accessed via phone.",
                   highlights: ["Multi-session support", "Custom branding", "Analytics dashboard"],
                 },
                 {
-                  title: "Corporate Webinars",
+                  title: "Workshops & Training",
                   description:
-                    "Company-wide meetings and training sessions. Make every word accessible to remote teams.",
+                    "Hands-on workshops and training sessions. Attendees follow along in real-time without missing critical instructions.",
                   highlights: ["Real-time streaming", "Custom event URLs", "Session tracking"],
                 },
                 {
                   title: "Community Events",
                   description:
-                    "Meetups, workshops, and educational sessions. Support attendees who need accessibility.",
+                    "Meetups, hackathons, and educational sessions. Make your community events inclusive for everyone.",
                   highlights: ["Simple setup", "Timestamped transcripts", "Easy sharing"],
                 },
               ].map((useCase) => (
@@ -174,9 +174,11 @@ export default function Home() {
             <div className="glass-card p-16 text-center relative overflow-hidden">
               <div className="absolute inset-0 bg-gradient-to-br from-purple-500/20 to-blue-500/20" />
               <div className="relative z-10">
-                <h2 className="text-4xl md:text-5xl font-bold mb-6">Start making your events accessible today</h2>
+                <h2 className="text-4xl md:text-5xl font-bold mb-6">
+                  Join fellow event organizers making accessibility easy
+                </h2>
                 <p className="text-xl text-muted-foreground mb-8 max-w-2xl mx-auto">
-                  Join event organizers providing real-time transcription to their attendees.
+                  We understand the challenges of running events. That's why we built LiveTranscribe to be effortless.
                 </p>
                 <Link href="/auth/sign-up">
                   <Button size="lg" className="gap-2 bg-white text-black hover:bg-white/90">
