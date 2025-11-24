@@ -235,7 +235,7 @@ export function BroadcastInterface({ slug, eventName, eventId }: BroadcastInterf
         </div>
 
         {/* Viewer URL Card */}
-        <Card>
+        <Card className="bg-card border-border">
           <CardHeader>
             <CardTitle>Viewer URL</CardTitle>
             <CardDescription>Share this URL with attendees so they can view the live transcription</CardDescription>
@@ -246,7 +246,7 @@ export function BroadcastInterface({ slug, eventName, eventId }: BroadcastInterf
                 type="text"
                 value={viewerUrl}
                 readOnly
-                className="flex-1 px-3 py-2 bg-slate-100 border border-slate-300 rounded-md text-sm"
+                className="flex-1 px-3 py-2 bg-background border border-border rounded-md text-sm text-foreground"
               />
               <Button onClick={copyToClipboard} variant="outline">
                 {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
@@ -294,23 +294,23 @@ export function BroadcastInterface({ slug, eventName, eventId }: BroadcastInterf
             {isStreaming && (
               <div className="space-y-3">
                 <div className="grid grid-cols-2 gap-3">
-                  <div className="p-4 bg-slate-100 rounded-md">
-                    <div className="text-sm text-slate-600 mb-1">Live Viewers</div>
-                    <div className="text-2xl font-bold text-slate-900">{liveViewers}</div>
+                  <div className="p-4 bg-background border border-border rounded-md">
+                    <div className="text-sm text-foreground/60 mb-1">Live Viewers</div>
+                    <div className="text-2xl font-bold text-foreground">{liveViewers}</div>
                   </div>
-                  <div className="p-4 bg-slate-100 rounded-md">
-                    <div className="text-sm text-slate-600 mb-1">Total Viewers</div>
-                    <div className="text-2xl font-bold text-slate-900">{totalViewers}</div>
+                  <div className="p-4 bg-background border border-border rounded-md">
+                    <div className="text-sm text-foreground/60 mb-1">Total Viewers</div>
+                    <div className="text-2xl font-bold text-foreground">{totalViewers}</div>
                   </div>
                 </div>
-                <div className="p-4 bg-slate-100 rounded-md">
+                <div className="p-4 bg-background border border-border rounded-md">
                   <div className="flex items-center justify-between text-sm mb-2">
-                    <span className="text-slate-600">Session Time:</span>
-                    <span className="font-semibold text-slate-900 font-mono">{formatDuration(sessionDuration)}</span>
+                    <span className="text-foreground/60">Session Time:</span>
+                    <span className="font-semibold text-foreground font-mono">{formatDuration(sessionDuration)}</span>
                   </div>
                   <div className="flex items-center justify-between text-sm">
-                    <span className="text-slate-600">Transcriptions sent:</span>
-                    <span className="font-semibold text-slate-900">{transcriptionCount}</span>
+                    <span className="text-foreground/60">Transcriptions sent:</span>
+                    <span className="font-semibold text-foreground">{transcriptionCount}</span>
                   </div>
                 </div>
               </div>
@@ -333,7 +333,7 @@ export function BroadcastInterface({ slug, eventName, eventId }: BroadcastInterf
               </div>
             </CardHeader>
             <CardContent>
-              <div className="h-[60vh] overflow-y-auto p-6 bg-slate-50 rounded-md border border-slate-200">
+              <div className="h-[60vh] overflow-y-auto p-6 bg-background rounded-md border border-border">
                 <LiveTranscriptionDisplay transcriptions={displayTranscriptions} interimText={interimText} />
               </div>
             </CardContent>
