@@ -20,7 +20,12 @@ export async function signUp(formData: FormData) {
     })
 
     if (error) {
-      console.error("[v0] Sign up error:", error.message)
+      if (error.status === 556 || error.message.includes("Internal server error")) {
+        return {
+          error:
+            "Authentication service error. Please ensure your domain is configured in Supabase dashboard under Authentication → URL Configuration. Add your domain to both 'Site URL' and 'Redirect URLs'.",
+        }
+      }
       return { error: error.message }
     }
 
