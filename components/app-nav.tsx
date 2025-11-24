@@ -2,11 +2,12 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { Home, Radio, LogOut, AudioLines, Shield } from "lucide-react"
+import { Home, Radio, AudioLines, Shield } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { useEffect, useState } from "react"
 import { createClient } from "@/lib/supabase/client"
+import { UserMenu } from "@/components/user-menu"
 
 export function AppNav() {
   const pathname = usePathname()
@@ -65,21 +66,6 @@ export function AppNav() {
                   Dashboard
                 </Button>
               </Link>
-              {isAdmin && (
-                <Link href="/admin">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className={cn(
-                      "gap-2 text-slate-400 hover:text-white hover:bg-white/5",
-                      isActive("/admin") && "text-white bg-white/10",
-                    )}
-                  >
-                    <Shield className="h-4 w-4" />
-                    Admin
-                  </Button>
-                </Link>
-              )}
               {pathname.startsWith("/broadcast/") && (
                 <Link href={pathname}>
                   <Button
@@ -97,12 +83,24 @@ export function AppNav() {
               )}
             </div>
           </div>
-          <form action="/auth/logout" method="post">
-            <Button variant="ghost" size="sm" className="gap-2 text-slate-400 hover:text-white hover:bg-white/5">
-              <LogOut className="h-4 w-4" />
-              Logout
-            </Button>
-          </form>
+          <div className="flex items-center gap-2">
+            {isAdmin && (
+              <Link href="/admin">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className={cn(
+                    "gap-2 text-slate-400 hover:text-white hover:bg-white/5",
+                    isActive("/admin") && "text-white bg-white/10",
+                  )}
+                >
+                  <Shield className="h-4 w-4" />
+                  Admin
+                </Button>
+              </Link>
+            )}
+            <UserMenu />
+          </div>
         </div>
       </div>
     </nav>

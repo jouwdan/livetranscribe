@@ -12,6 +12,7 @@ import { Search, Plus, Minus, Users, Clock } from "lucide-react"
 interface UserProfile {
   id: string
   email: string
+  full_name: string | null
   credits_minutes: number
   max_attendees: number
   is_admin: boolean
@@ -32,7 +33,8 @@ export function AdminDashboard({ users: initialUsers }: { users: UserProfile[] }
   const filteredUsers = users.filter(
     (user) =>
       user.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      user.id.toLowerCase().includes(searchQuery.toLowerCase()),
+      user.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      user.full_name?.toLowerCase().includes(searchQuery.toLowerCase()),
   )
 
   const handleAddCredits = async (userId: string) => {
@@ -127,7 +129,7 @@ export function AdminDashboard({ users: initialUsers }: { users: UserProfile[] }
         </CardHeader>
         <CardContent>
           <Input
-            placeholder="Search by email or user ID..."
+            placeholder="Search by name, email or user ID..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="bg-black/50 border-border text-white"
@@ -143,14 +145,17 @@ export function AdminDashboard({ users: initialUsers }: { users: UserProfile[] }
               <div className="flex items-start justify-between">
                 <div className="space-y-1">
                   <CardTitle className="text-white flex items-center gap-2">
-                    {user.email}
+                    {user.full_name || user.email}
                     {user.is_admin && (
                       <Badge variant="secondary" className="bg-purple-500/20 text-purple-400">
                         Admin
                       </Badge>
                     )}
                   </CardTitle>
-                  <CardDescription className="font-mono text-xs">{user.id}</CardDescription>
+                  <CardDescription className="space-y-1">
+                    {user.full_name && <div className="text-sm">{user.email}</div>}
+                    <div className="font-mono text-xs">{user.id}</div>
+                  </CardDescription>
                 </div>
                 <Button
                   variant="ghost"

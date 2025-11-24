@@ -16,7 +16,7 @@ export default async function AdminPage() {
   // Fetch all user profiles
   const { data: users } = await supabase
     .from("user_profiles")
-    .select("id, email, credits_minutes, max_attendees, is_admin, created_at, credits_last_updated")
+    .select("id, email, full_name, credits_minutes, max_attendees, is_admin, created_at, credits_last_updated")
     .order("created_at", { ascending: false })
 
   return (
