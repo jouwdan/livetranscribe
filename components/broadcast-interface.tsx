@@ -4,10 +4,11 @@ import { useState, useEffect, useRef } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Mic, MicOff, Copy, Check, Radio, AlertCircle, Download } from "lucide-react"
+import { Mic, MicOff, Copy, Check, Radio, AlertCircle, Download, QrCode } from "lucide-react"
 import { OpenAITranscriber } from "@/lib/openai-transcriber"
 import { LiveTranscriptionDisplay } from "@/components/live-transcription-display"
-import { createClient } from "@/lib/supabase/client" // Fixed import path for Supabase client
+import { createClient } from "@/lib/supabase/client"
+import QRCode from "qrcode"
 
 interface BroadcastInterfaceProps {
   slug: string
@@ -110,6 +111,36 @@ export function BroadcastInterface({ slug, eventName, eventId, userId }: Broadca
     a.click()
     document.body.removeChild(a)
     URL.revokeObjectURL(url)
+  }
+
+  const generateQRCode = async () => {
+    try {
+      const canvas = document.createElement("canvas")
+      await QRCode.toCanvas(canvas, viewerUrl, {
+        width: 512,
+        margin: 2,
+        color: {
+          dark: "#000000",
+          light: "#FFFFFF",
+        },
+      })
+
+      canvas.toBlob((blob) => {
+        if (blob) {
+          const url = URL.createObjectURL(blob)
+          const a = document.createElement("a")
+          a.href = url
+          a.download = `${slug}-qr-code.png`
+          document.body.appendChild(a)
+          a.click()
+          document.body.removeChild(a)
+          URL.revokeObjectURL(url)
+        }
+      })
+    } catch (error) {
+      console.error("[v0] Failed to generate QR code:", error)
+      setError("Failed to generate QR code. Please try again.")
+    }
   }
 
   const handleTranscription = async (text: string, isFinal: boolean, sequence: number) => {
@@ -337,6 +368,10 @@ export function BroadcastInterface({ slug, eventName, eventId, userId }: Broadca
               />
               <Button onClick={copyToClipboard} variant="outline">
                 {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+              </Button>
+              <Button onClick={generateQRCode} variant="outline" className="gap-2 bg-transparent">
+                <QrCode className="h-4 w-4" />
+                QR Code
               </Button>
             </div>
           </CardContent>
