@@ -25,7 +25,11 @@ export function LiveTranscriptionDisplay({
     endRef.current?.scrollIntoView({ behavior: "smooth" })
   }, [transcriptions, interimText])
 
-  const groupedTranscriptions = transcriptions.reduce(
+  const sortedTranscriptions = [...transcriptions].sort((a, b) => {
+    return new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+  })
+
+  const groupedTranscriptions = sortedTranscriptions.reduce(
     (acc, curr, index) => {
       if (index === 0) {
         acc.push({
@@ -33,7 +37,7 @@ export function LiveTranscriptionDisplay({
           texts: [curr.text],
         })
       } else {
-        const prevTimestamp = new Date(transcriptions[index - 1].timestamp).getTime()
+        const prevTimestamp = new Date(sortedTranscriptions[index - 1].timestamp).getTime()
         const currTimestamp = new Date(curr.timestamp).getTime()
         const timeDiff = (currTimestamp - prevTimestamp) / 1000 // in seconds
 

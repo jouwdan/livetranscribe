@@ -120,7 +120,7 @@ export function ViewerInterface({ slug, eventName }: ViewerInterfaceProps) {
                   sequenceNumber: newTranscription.sequence_number,
                   timestamp: newTranscription.created_at,
                 },
-              ].sort((a, b) => a.sequenceNumber - b.sequenceNumber)
+              ].sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())
             })
 
             setIsConnected(true)
