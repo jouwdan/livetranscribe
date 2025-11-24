@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Radio, Volume2, VolumeX } from "lucide-react"
+import { Radio, ArrowDownToLine, Pause } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
 import { LiveTranscriptionDisplay } from "@/components/live-transcription-display"
 
@@ -257,12 +257,12 @@ export function ViewerInterface({ slug, eventName, eventDescription }: ViewerInt
                 >
                   {autoScroll ? (
                     <>
-                      <Volume2 className="h-4 w-4" />
+                      <ArrowDownToLine className="h-4 w-4" />
                       <span className="hidden sm:inline">Auto-scroll on</span>
                     </>
                   ) : (
                     <>
-                      <VolumeX className="h-4 w-4" />
+                      <Pause className="h-4 w-4" />
                       <span className="hidden sm:inline">Auto-scroll off</span>
                     </>
                   )}
