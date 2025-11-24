@@ -231,16 +231,16 @@ export function ViewerInterface({ slug, eventName }: ViewerInterfaceProps) {
   const latestInterim = transcriptions.find((t) => !t.isFinal && t.text.trim() !== "")
 
   return (
-    <div className="min-h-screen bg-black">
+    <div className="flex flex-col h-screen bg-black overflow-hidden">
       {/* Header */}
-      <div className="bg-black border-b border-border sticky top-0 z-10">
-        <div className="container mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-2xl font-bold text-white">{eventName}</h1>
+      <div className="bg-black border-b border-border flex-shrink-0">
+        <div className="px-4 sm:px-6 lg:px-8 py-4 max-w-7xl mx-auto">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div className="min-w-0 flex-1">
+              <h1 className="text-xl sm:text-2xl font-bold text-white truncate">{eventName}</h1>
               <p className="text-sm text-foreground/60">Live Transcription</p>
             </div>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 flex-shrink-0">
               <Button
                 onClick={downloadTranscript}
                 variant="outline"
@@ -249,7 +249,7 @@ export function ViewerInterface({ slug, eventName }: ViewerInterfaceProps) {
                 disabled={transcriptions.length === 0}
               >
                 <Download className="h-4 w-4" />
-                Download
+                <span className="hidden sm:inline">Download</span>
               </Button>
               <Badge variant={isConnected ? "default" : "secondary"} className="px-3 py-1">
                 {isConnected ? (
@@ -266,54 +266,61 @@ export function ViewerInterface({ slug, eventName }: ViewerInterfaceProps) {
         </div>
       </div>
 
-      {/* Transcription Display */}
-      <div className="container mx-auto px-4 py-8">
-        <div className="max-w-4xl mx-auto">
-          <Card className="bg-black border-border">
-            <CardHeader className="border-b border-border">
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-white">Live Transcript</CardTitle>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setAutoScroll(!autoScroll)}
-                  className="gap-2 hover:bg-foreground/5"
-                >
-                  {autoScroll ? (
-                    <>
-                      <Volume2 className="h-4 w-4" />
-                      Auto-scroll on
-                    </>
-                  ) : (
-                    <>
-                      <VolumeX className="h-4 w-4" />
-                      Auto-scroll off
-                    </>
-                  )}
-                </Button>
-              </div>
-            </CardHeader>
-            <CardContent className="p-0">
-              <div ref={containerRef} onScroll={handleScroll} className="h-[70vh] overflow-y-auto p-6">
-                <LiveTranscriptionDisplay transcriptions={displayTranscriptions} interimText={latestInterim?.text} />
-              </div>
-            </CardContent>
-          </Card>
+      <div className="flex-1 overflow-y-auto">
+        <div className="px-4 sm:px-6 lg:px-8 py-6 max-w-7xl mx-auto h-full">
+          <div className="flex flex-col lg:flex-row gap-6 h-full">
+            <div className="flex-1 min-h-0">
+              <Card className="bg-black border-border h-full flex flex-col">
+                <CardHeader className="border-b border-border flex-shrink-0">
+                  <div className="flex items-center justify-between gap-4">
+                    <CardTitle className="text-white">Live Transcript</CardTitle>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setAutoScroll(!autoScroll)}
+                      className="gap-2 hover:bg-foreground/5 flex-shrink-0"
+                    >
+                      {autoScroll ? (
+                        <>
+                          <Volume2 className="h-4 w-4" />
+                          <span className="hidden sm:inline">Auto-scroll on</span>
+                        </>
+                      ) : (
+                        <>
+                          <VolumeX className="h-4 w-4" />
+                          <span className="hidden sm:inline">Auto-scroll off</span>
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                </CardHeader>
+                <CardContent className="flex-1 overflow-y-auto p-6">
+                  <div ref={containerRef} onScroll={handleScroll} className="h-full">
+                    <LiveTranscriptionDisplay
+                      transcriptions={displayTranscriptions}
+                      interimText={latestInterim?.text}
+                    />
+                    <div ref={transcriptionEndRef} />
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
 
-          <div className="mt-6">
-            <Card className="bg-black border-border">
-              <CardContent className="pt-6">
-                <div className="text-center">
-                  <p className="text-3xl font-bold text-white">
-                    {displayTranscriptions.reduce(
-                      (count, t) => count + t.text.split(" ").filter((w) => w.length > 0).length,
-                      0,
-                    )}
-                  </p>
-                  <p className="text-sm text-foreground/60 mt-1">Words</p>
-                </div>
-              </CardContent>
-            </Card>
+            <div className="lg:w-64 flex-shrink-0">
+              <Card className="bg-black border-border sticky top-6">
+                <CardContent className="pt-6">
+                  <div className="text-center">
+                    <p className="text-3xl font-bold text-white">
+                      {displayTranscriptions.reduce(
+                        (count, t) => count + t.text.split(" ").filter((w) => w.length > 0).length,
+                        0,
+                      )}
+                    </p>
+                    <p className="text-sm text-foreground/60 mt-1">Words</p>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
           </div>
         </div>
       </div>

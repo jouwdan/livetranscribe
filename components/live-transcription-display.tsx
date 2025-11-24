@@ -22,7 +22,7 @@ export function LiveTranscriptionDisplay({
   const endRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    endRef.current?.scrollIntoView({ behavior: "smooth" })
+    endRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" })
   }, [transcriptions, interimText])
 
   const sortedTranscriptions = [...transcriptions].sort((a, b) => {

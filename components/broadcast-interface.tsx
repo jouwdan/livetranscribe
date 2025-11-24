@@ -36,13 +36,7 @@ export function BroadcastInterface({ slug, eventName, eventId, userId }: Broadca
   const [sessionStartTime, setSessionStartTime] = useState<Date | null>(null)
 
   const transcriberRef = useRef<OpenAITranscriber | null>(null)
-  const transcriptionsEndRef = useRef<HTMLDivElement>(null)
-
   const viewerUrl = `${typeof window !== "undefined" ? window.location.origin : ""}/view/${slug}`
-
-  useEffect(() => {
-    transcriptionsEndRef.current?.scrollIntoView({ behavior: "smooth" })
-  }, [transcriptions, currentInterim])
 
   useEffect(() => {
     if (!isStreaming || !sessionStartTime) return
