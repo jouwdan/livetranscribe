@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { Home, Radio, LogOut } from "lucide-react"
+import { Home, Radio, LogOut, Sparkles } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 
@@ -21,7 +21,8 @@ export function AppNav() {
       <div className="container mx-auto px-4">
         <div className="flex items-center justify-between h-16">
           <div className="flex items-center gap-6">
-            <Link href="/" className="text-xl font-bold text-white">
+            <Link href="/" className="text-xl font-bold text-white flex items-center gap-2">
+              <Sparkles className="h-5 w-5 text-purple-400" />
               LiveTranscribe
             </Link>
             <div className="flex gap-2">
