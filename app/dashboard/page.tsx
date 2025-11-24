@@ -3,8 +3,11 @@ import { redirect } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import Link from "next/link"
-import { PlusCircle, Clock } from "lucide-react"
+import { PlusCircle, Clock, Archive, ArchiveRestore } from "lucide-react"
 import { AppNav } from "@/components/app-nav"
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
+import { archiveEvent, unarchiveEvent } from "./actions"
+import { DeleteEventDialog } from "@/components/delete-event-dialog"
 
 export default async function DashboardPage() {
   const supabase = await createServerClient()
@@ -32,10 +35,18 @@ export default async function DashboardPage() {
     })
   }
 
-  const { data: events } = await supabase
+  const { data: activeEvents } = await supabase
     .from("events")
     .select("*")
     .eq("user_id", user.id)
+    .eq("archived", false)
+    .order("created_at", { ascending: false })
+
+  const { data: archivedEvents } = await supabase
+    .from("events")
+    .select("*")
+    .eq("user_id", user.id)
+    .eq("archived", true)
     .order("created_at", { ascending: false })
 
   const { data: usage } = await supabase
@@ -119,8 +130,8 @@ export default async function DashboardPage() {
           )}
 
           <div className="grid gap-4">
-            {events && events.length > 0 ? (
-              events.map((event) => (
+            {activeEvents && activeEvents.length > 0 ? (
+              activeEvents.map((event) => (
                 <Card key={event.id} className="bg-card border-border">
                   <CardHeader>
                     <div className="flex items-center justify-between">
@@ -151,6 +162,13 @@ export default async function DashboardPage() {
                       <Link href={`/edit/${event.slug}`}>
                         <Button variant="outline">Edit</Button>
                       </Link>
+                      <form action={archiveEvent}>
+                        <input type="hidden" name="eventId" value={event.id} />
+                        <Button variant="ghost" size="sm" className="gap-2">
+                          <Archive className="h-4 w-4" />
+                          Archive
+                        </Button>
+                      </form>
                     </div>
                   </CardContent>
                 </Card>
@@ -165,6 +183,48 @@ export default async function DashboardPage() {
               </Card>
             )}
           </div>
+
+          {archivedEvents && archivedEvents.length > 0 && (
+            <Accordion type="single" collapsible className="w-full">
+              <AccordionItem value="archived" className="border-border">
+                <AccordionTrigger className="text-muted-foreground hover:text-foreground">
+                  <div className="flex items-center gap-2">
+                    <Archive className="h-4 w-4" />
+                    Archived Events ({archivedEvents.length})
+                  </div>
+                </AccordionTrigger>
+                <AccordionContent>
+                  <div className="grid gap-4 pt-4">
+                    {archivedEvents.map((event) => (
+                      <Card key={event.id} className="bg-card/50 border-border/50">
+                        <CardHeader>
+                          <CardTitle className="text-foreground text-base">{event.name}</CardTitle>
+                          <CardDescription className="text-sm">{event.slug}</CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="flex gap-2">
+                            <Link href={`/view/${event.slug}`}>
+                              <Button variant="outline" size="sm">
+                                View
+                              </Button>
+                            </Link>
+                            <form action={unarchiveEvent}>
+                              <input type="hidden" name="eventId" value={event.id} />
+                              <Button variant="ghost" size="sm" className="gap-2">
+                                <ArchiveRestore className="h-4 w-4" />
+                                Unarchive
+                              </Button>
+                            </form>
+                            <DeleteEventDialog eventId={event.id} eventSlug={event.slug} eventName={event.name} />
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                </AccordionContent>
+              </AccordionItem>
+            </Accordion>
+          )}
         </div>
       </div>
     </div>
