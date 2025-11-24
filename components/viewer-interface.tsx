@@ -278,6 +278,23 @@ export function ViewerInterface({ slug, eventName, eventDescription }: ViewerInt
           </Card>
         </div>
       </div>
+
+      <div className="bg-black border-t border-border flex-shrink-0">
+        <div className="px-4 sm:px-6 lg:px-8 py-3 max-w-7xl mx-auto">
+          <p className="text-center text-xs text-foreground/40">
+            Powered by{" "}
+            <a
+              href="https://livetranscribe.net"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-purple-400 hover:text-purple-300 transition-colors"
+            >
+              LiveTranscribe
+            </a>{" "}
+            and AI
+          </p>
+        </div>
+      </div>
     </div>
   )
 }
