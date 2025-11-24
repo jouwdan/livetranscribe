@@ -1,8 +1,13 @@
+"use client"
+
 import { Button } from "@/components/ui/button"
-import { ArrowRight, Mic, Users, Zap, Clock, Globe, CheckCircle2, AudioLines, BarChart3 } from "lucide-react"
+import { ArrowRight, Mic, Users, Zap, Clock, Globe, CheckCircle2, AudioLines, BarChart3, Menu, X } from "lucide-react"
 import Link from "next/link"
+import { useState } from "react"
 
 export default function Home() {
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+
   return (
     <div className="min-h-screen bg-black relative overflow-hidden">
       <div className="absolute inset-0 bg-gradient-to-br from-purple-900/20 via-black to-blue-900/20" />
@@ -16,7 +21,7 @@ export default function Home() {
               <AudioLines className="h-5 w-5 text-purple-400" />
               LiveTranscribe
             </Link>
-            <nav className="flex items-center gap-6">
+            <nav className="hidden md:flex items-center gap-6">
               <Link href="/dashboard" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
                 Dashboard
               </Link>
@@ -31,7 +36,37 @@ export default function Home() {
                 </Button>
               </Link>
             </nav>
+            <button
+              className="md:hidden p-2 text-white hover:bg-white/10 rounded-lg transition-colors"
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              aria-label="Toggle menu"
+            >
+              {mobileMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
+            </button>
           </div>
+          {mobileMenuOpen && (
+            <div className="md:hidden border-t border-white/10 bg-black/95 backdrop-blur-xl">
+              <nav className="container mx-auto px-4 py-4 flex flex-col gap-3">
+                <Link
+                  href="/dashboard"
+                  className="text-sm text-muted-foreground hover:text-foreground transition-colors py-2"
+                  onClick={() => setMobileMenuOpen(false)}
+                >
+                  Dashboard
+                </Link>
+                <Link href="/auth/login" onClick={() => setMobileMenuOpen(false)}>
+                  <Button variant="ghost" size="sm" className="w-full justify-start">
+                    Login
+                  </Button>
+                </Link>
+                <Link href="/auth/sign-up" onClick={() => setMobileMenuOpen(false)}>
+                  <Button size="sm" className="w-full bg-primary hover:bg-primary/90">
+                    Sign Up
+                  </Button>
+                </Link>
+              </nav>
+            </div>
+          )}
         </header>
 
         <main>
