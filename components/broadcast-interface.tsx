@@ -34,6 +34,7 @@ export function BroadcastInterface({ slug, eventName, eventId, userId }: Broadca
   const [totalViewers, setTotalViewers] = useState(0)
   const [sessionDuration, setSessionDuration] = useState(0)
   const [sessionStartTime, setSessionStartTime] = useState<Date | null>(null)
+  const [creditsRemaining, setCreditsRemaining] = useState<number | null>(null)
 
   const transcriberRef = useRef<OpenAITranscriber | null>(null)
   const viewerUrl = `${typeof window !== "undefined" ? window.location.origin : ""}/view/${slug}`
@@ -53,7 +54,6 @@ export function BroadcastInterface({ slug, eventName, eventId, userId }: Broadca
     const supabase = createClient()
 
     const fetchViewerStats = async () => {
-      // Get live viewers (active in last 30 seconds)
       const thirtySecondsAgo = new Date(Date.now() - 30000).toISOString()
       const { data: liveSessions } = await supabase
         .from("viewer_sessions")
@@ -64,7 +64,6 @@ export function BroadcastInterface({ slug, eventName, eventId, userId }: Broadca
 
       setLiveViewers(liveSessions?.length || 0)
 
-      // Get total unique viewers
       const { data: allSessions } = await supabase.from("viewer_sessions").select("session_id").eq("event_id", eventId)
 
       const uniqueViewers = new Set(allSessions?.map((s) => s.session_id) || [])
@@ -76,6 +75,19 @@ export function BroadcastInterface({ slug, eventName, eventId, userId }: Broadca
 
     return () => clearInterval(interval)
   }, [eventId])
+
+  useEffect(() => {
+    const fetchCredits = async () => {
+      const supabase = createClient()
+      const { data } = await supabase.from("user_profiles").select("credits_minutes").eq("id", userId).single()
+
+      if (data) {
+        setCreditsRemaining(data.credits_minutes)
+      }
+    }
+
+    fetchCredits()
+  }, [userId])
 
   const copyToClipboard = async () => {
     await navigator.clipboard.writeText(viewerUrl)
@@ -146,10 +158,18 @@ export function BroadcastInterface({ slug, eventName, eventId, userId }: Broadca
   const handleStartStreaming = async () => {
     try {
       setError(null)
+
+      const supabase = createClient()
+      const { data: profile } = await supabase.from("user_profiles").select("credits_minutes").eq("id", userId).single()
+
+      if (!profile || profile.credits_minutes <= 0) {
+        setError("Insufficient credits. Please add more minutes to your account to continue broadcasting.")
+        return
+      }
+
       const startTime = new Date()
       setSessionStartTime(startTime)
 
-      const supabase = createClient()
       const { data: usageLog, error: usageError } = await supabase
         .from("usage_logs")
         .insert({
@@ -165,7 +185,6 @@ export function BroadcastInterface({ slug, eventName, eventId, userId }: Broadca
         console.error("[v0] Failed to create usage log:", usageError)
       } else {
         console.log("[v0] Created usage log:", usageLog)
-        // Store the usage log ID for later update
         sessionStorage.setItem("currentUsageLogId", usageLog.id)
       }
 
@@ -209,6 +228,7 @@ export function BroadcastInterface({ slug, eventName, eventId, userId }: Broadca
       const usageLogId = sessionStorage.getItem("currentUsageLogId")
       if (usageLogId) {
         const supabase = createClient()
+
         const { error: updateError } = await supabase
           .from("usage_logs")
           .update({
@@ -221,6 +241,25 @@ export function BroadcastInterface({ slug, eventName, eventId, userId }: Broadca
           console.error("[v0] Failed to update usage log:", updateError)
         } else {
           console.log("[v0] Updated usage log with duration:", durationMinutes)
+
+          const { error: deductError } = await supabase.rpc("deduct_user_credits", {
+            p_user_id: userId,
+            p_duration_minutes: durationMinutes,
+          })
+
+          if (deductError) {
+            console.error("[v0] Failed to deduct credits:", deductError)
+          } else {
+            const { data: profile } = await supabase
+              .from("user_profiles")
+              .select("credits_minutes")
+              .eq("id", userId)
+              .single()
+
+            if (profile) {
+              setCreditsRemaining(profile.credits_minutes)
+            }
+          }
         }
 
         sessionStorage.removeItem("currentUsageLogId")
@@ -264,19 +303,25 @@ export function BroadcastInterface({ slug, eventName, eventId, userId }: Broadca
             <h1 className="text-3xl font-bold text-white mb-2">{eventName}</h1>
             <p className="text-slate-400">Organizer Dashboard</p>
           </div>
-          <Badge variant={isStreaming ? "default" : "secondary"} className="text-lg px-4 py-2">
-            {isStreaming ? (
-              <>
-                <Radio className="h-4 w-4 mr-2 animate-pulse" />
-                Live
-              </>
-            ) : (
-              "Offline"
+          <div className="flex items-center gap-3">
+            {creditsRemaining !== null && (
+              <Badge variant="outline" className="text-sm px-3 py-1">
+                {creditsRemaining} min remaining
+              </Badge>
             )}
-          </Badge>
+            <Badge variant={isStreaming ? "default" : "secondary"} className="text-lg px-4 py-2">
+              {isStreaming ? (
+                <>
+                  <Radio className="h-4 w-4 mr-2 animate-pulse" />
+                  Live
+                </>
+              ) : (
+                "Offline"
+              )}
+            </Badge>
+          </div>
         </div>
 
-        {/* Viewer URL Card */}
         <Card className="bg-card border-border">
           <CardHeader>
             <CardTitle>Viewer URL</CardTitle>
@@ -297,7 +342,6 @@ export function BroadcastInterface({ slug, eventName, eventId, userId }: Broadca
           </CardContent>
         </Card>
 
-        {/* Error Display */}
         {error && (
           <Card className="border-red-200 bg-red-50">
             <CardContent className="pt-6">
@@ -312,7 +356,6 @@ export function BroadcastInterface({ slug, eventName, eventId, userId }: Broadca
           </Card>
         )}
 
-        {/* Streaming Controls */}
         <Card>
           <CardHeader>
             <CardTitle>Audio Stream</CardTitle>
@@ -382,7 +425,6 @@ export function BroadcastInterface({ slug, eventName, eventId, userId }: Broadca
           </Card>
         )}
 
-        {/* Info Card */}
         <Card>
           <CardHeader>
             <CardTitle>Event Information</CardTitle>

@@ -7,7 +7,7 @@ import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Loader2, CheckCircle2, XCircle } from "lucide-react"
+import { Loader2, CheckCircle2, XCircle, AlertCircle } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
 
 export function CreateEventForm() {
@@ -17,7 +17,29 @@ export function CreateEventForm() {
   const [checkingSlug, setCheckingSlug] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [hasCredits, setHasCredits] = useState<boolean>(true)
   const router = useRouter()
+
+  useEffect(() => {
+    const checkCredits = async () => {
+      const supabase = createClient()
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+
+      if (!user) return
+
+      const { data: profile } = await supabase
+        .from("user_profiles")
+        .select("credits_minutes")
+        .eq("id", user.id)
+        .single()
+
+      setHasCredits(profile ? profile.credits_minutes > 0 : false)
+    }
+
+    checkCredits()
+  }, [])
 
   useEffect(() => {
     if (!customSlug) {
@@ -86,6 +108,18 @@ export function CreateEventForm() {
         return
       }
 
+      const { data: profile } = await supabase
+        .from("user_profiles")
+        .select("credits_minutes")
+        .eq("id", user.id)
+        .single()
+
+      if (!profile || profile.credits_minutes <= 0) {
+        setError("Insufficient credits. Please add more minutes to your account before creating an event.")
+        setIsLoading(false)
+        return
+      }
+
       const slug = customSlug && slugAvailable ? sanitizeSlug(customSlug) : generateSlug(eventName)
 
       if (customSlug && slugAvailable) {
@@ -123,6 +157,18 @@ export function CreateEventForm() {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
+      {!hasCredits && (
+        <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-lg flex items-start gap-3">
+          <AlertCircle className="h-5 w-5 text-red-400 mt-0.5" />
+          <div>
+            <p className="text-sm text-red-400 font-semibold">Insufficient Credits</p>
+            <p className="text-sm text-red-300 mt-1">
+              You don't have enough credits to create an event. Please contact us to add more minutes to your account.
+            </p>
+          </div>
+        </div>
+      )}
+
       <div className="space-y-2">
         <Label htmlFor="eventName">Event Name</Label>
         <Input
@@ -176,7 +222,7 @@ export function CreateEventForm() {
 
       <Button
         type="submit"
-        disabled={isLoading || !eventName || (customSlug !== "" && slugAvailable !== true)}
+        disabled={isLoading || !eventName || (customSlug !== "" && slugAvailable !== true) || !hasCredits}
         className="w-full"
       >
         {isLoading ? (
