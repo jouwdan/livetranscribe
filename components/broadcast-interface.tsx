@@ -4,11 +4,13 @@ import { useState, useEffect, useRef } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Mic, MicOff, Copy, Check, Radio, AlertCircle, Download, QrCode } from "lucide-react"
+import { Mic, MicOff, Copy, Check, Radio, AlertCircle, Download, QrCode, List } from "lucide-react"
 import { OpenAITranscriber } from "@/lib/openai-transcriber"
 import { LiveTranscriptionDisplay } from "@/components/live-transcription-display"
 import { createClient } from "@/lib/supabase/client"
 import QRCode from "qrcode"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import Link from "next/link"
 
 interface BroadcastInterfaceProps {
   slug: string
@@ -36,6 +38,8 @@ export function BroadcastInterface({ slug, eventName, eventId, userId }: Broadca
   const [sessionDuration, setSessionDuration] = useState(0)
   const [sessionStartTime, setSessionStartTime] = useState<Date | null>(null)
   const [creditsRemaining, setCreditsRemaining] = useState<number | null>(null)
+  const [sessions, setSessions] = useState<Array<{ id: string; name: string; session_number: number }>>([])
+  const [currentSessionId, setCurrentSessionId] = useState<string | null>(null)
 
   const transcriberRef = useRef<OpenAITranscriber | null>(null)
   const viewerUrl = `${typeof window !== "undefined" ? window.location.origin : ""}/view/${slug}`
@@ -90,6 +94,27 @@ export function BroadcastInterface({ slug, eventName, eventId, userId }: Broadca
     fetchCredits()
   }, [userId])
 
+  useEffect(() => {
+    const fetchSessions = async () => {
+      const supabase = createClient()
+      const { data } = await supabase
+        .from("event_sessions")
+        .select("id, name, session_number")
+        .eq("event_id", eventId)
+        .order("session_number", { ascending: true })
+
+      if (data) {
+        setSessions(data)
+        // Auto-select first session if available
+        if (data.length > 0 && !currentSessionId) {
+          setCurrentSessionId(data[0].id)
+        }
+      }
+    }
+
+    fetchSessions()
+  }, [eventId, currentSessionId])
+
   const copyToClipboard = async () => {
     await navigator.clipboard.writeText(viewerUrl)
     setCopied(true)
@@ -97,6 +122,7 @@ export function BroadcastInterface({ slug, eventName, eventId, userId }: Broadca
   }
 
   const downloadTranscript = () => {
+    const sessionName = sessions.find((s) => s.id === currentSessionId)?.name || "transcript"
     const text = transcriptions
       .filter((t) => t.isFinal && t.text.trim() !== "")
       .map((t) => t.text)
@@ -106,7 +132,7 @@ export function BroadcastInterface({ slug, eventName, eventId, userId }: Broadca
     const url = URL.createObjectURL(blob)
     const a = document.createElement("a")
     a.href = url
-    a.download = `${slug}-transcript-${new Date().toISOString()}.txt`
+    a.download = `${slug}-${sessionName.toLowerCase().replace(/\s+/g, "-")}-${new Date().toISOString()}.txt`
     document.body.appendChild(a)
     a.click()
     document.body.removeChild(a)
@@ -190,6 +216,11 @@ export function BroadcastInterface({ slug, eventName, eventId, userId }: Broadca
     try {
       setError(null)
 
+      if (!currentSessionId) {
+        setError("Please select a session before starting the broadcast.")
+        return
+      }
+
       const supabase = createClient()
       const { data: profile } = await supabase.from("user_profiles").select("credits_minutes").eq("id", userId).single()
 
@@ -201,28 +232,12 @@ export function BroadcastInterface({ slug, eventName, eventId, userId }: Broadca
       const startTime = new Date()
       setSessionStartTime(startTime)
 
-      const { data: usageLog, error: usageError } = await supabase
-        .from("usage_logs")
-        .insert({
-          user_id: userId,
-          event_id: eventId,
-          session_start: startTime.toISOString(),
-          duration_minutes: 0,
-        })
-        .select()
-        .single()
-
-      if (usageError) {
-        console.error("[v0] Failed to create usage log:", usageError)
-      } else {
-        console.log("[v0] Created usage log:", usageLog)
-        sessionStorage.setItem("currentUsageLogId", usageLog.id)
-      }
+      await supabase.from("event_sessions").update({ started_at: startTime.toISOString() }).eq("id", currentSessionId)
 
       const response = await fetch("/api/transcribe-ws", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ slug, eventName }),
+        body: JSON.stringify({ slug, eventName, sessionId: currentSessionId }),
       })
 
       if (!response.ok) {
@@ -252,48 +267,37 @@ export function BroadcastInterface({ slug, eventName, eventId, userId }: Broadca
       transcriberRef.current = null
     }
 
-    if (sessionStartTime) {
+    if (sessionStartTime && currentSessionId) {
       const endTime = new Date()
       const durationMinutes = Math.ceil((endTime.getTime() - sessionStartTime.getTime()) / 60000)
 
-      const usageLogId = sessionStorage.getItem("currentUsageLogId")
-      if (usageLogId) {
-        const supabase = createClient()
+      const supabase = createClient()
 
-        const { error: updateError } = await supabase
-          .from("usage_logs")
-          .update({
-            session_end: endTime.toISOString(),
-            duration_minutes: durationMinutes,
-          })
-          .eq("id", usageLogId)
+      await supabase
+        .from("event_sessions")
+        .update({
+          ended_at: endTime.toISOString(),
+          duration_minutes: durationMinutes,
+        })
+        .eq("id", currentSessionId)
 
-        if (updateError) {
-          console.error("[v0] Failed to update usage log:", updateError)
-        } else {
-          console.log("[v0] Updated usage log with duration:", durationMinutes)
+      const { error: deductError } = await supabase.rpc("deduct_user_credits", {
+        p_user_id: userId,
+        p_duration_minutes: durationMinutes,
+      })
 
-          const { error: deductError } = await supabase.rpc("deduct_user_credits", {
-            p_user_id: userId,
-            p_duration_minutes: durationMinutes,
-          })
+      if (deductError) {
+        console.error("[v0] Failed to deduct credits:", deductError)
+      } else {
+        const { data: profile } = await supabase
+          .from("user_profiles")
+          .select("credits_minutes")
+          .eq("id", userId)
+          .single()
 
-          if (deductError) {
-            console.error("[v0] Failed to deduct credits:", deductError)
-          } else {
-            const { data: profile } = await supabase
-              .from("user_profiles")
-              .select("credits_minutes")
-              .eq("id", userId)
-              .single()
-
-            if (profile) {
-              setCreditsRemaining(profile.credits_minutes)
-            }
-          }
+        if (profile) {
+          setCreditsRemaining(profile.credits_minutes)
         }
-
-        sessionStorage.removeItem("currentUsageLogId")
       }
     }
 
@@ -374,6 +378,40 @@ export function BroadcastInterface({ slug, eventName, eventId, userId }: Broadca
                 QR Code
               </Button>
             </div>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-card border-border">
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle>Session Selection</CardTitle>
+                <CardDescription>Choose which session to broadcast</CardDescription>
+              </div>
+              <Link href={`/sessions/${slug}`}>
+                <Button variant="outline" size="sm" className="gap-2 bg-transparent">
+                  <List className="h-4 w-4" />
+                  Manage Sessions
+                </Button>
+              </Link>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <Select value={currentSessionId || undefined} onValueChange={setCurrentSessionId} disabled={isStreaming}>
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Select a session" />
+              </SelectTrigger>
+              <SelectContent>
+                {sessions.map((session) => (
+                  <SelectItem key={session.id} value={session.id}>
+                    Session {session.session_number}: {session.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {sessions.length === 0 && (
+              <p className="text-sm text-muted-foreground mt-2">No sessions found. Create a session first.</p>
+            )}
           </CardContent>
         </Card>
 

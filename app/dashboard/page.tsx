@@ -3,7 +3,7 @@ import { redirect } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import Link from "next/link"
-import { PlusCircle, Clock, Archive, ArchiveRestore, BarChart3 } from "lucide-react"
+import { PlusCircle, Clock, Archive, ArchiveRestore, BarChart3, List } from "lucide-react"
 import { AppNav } from "@/components/app-nav"
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
 import { archiveEvent, unarchiveEvent } from "./actions"
@@ -155,7 +155,13 @@ export default async function DashboardPage() {
                     <CardDescription>{event.slug}</CardDescription>
                   </CardHeader>
                   <CardContent>
-                    <div className="flex gap-2">
+                    <div className="flex gap-2 flex-wrap">
+                      <Link href={`/sessions/${event.slug}`}>
+                        <Button variant="outline" className="gap-2 bg-transparent">
+                          <List className="h-4 w-4" />
+                          Sessions
+                        </Button>
+                      </Link>
                       <Link href={`/broadcast/${event.slug}`}>
                         <Button variant="outline">Broadcast</Button>
                       </Link>
