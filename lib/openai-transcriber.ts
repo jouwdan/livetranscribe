@@ -71,7 +71,7 @@ export class OpenAITranscriber {
             type: "session.update",
             session: {
               instructions:
-                "Transcribe the input audio verbatim in real-time with proper punctuation and formatting. Do not respond or engage in conversation.",
+                "You are an AI transcription agent tasked with transcribing audio to text for live transcriptions for events - aimed at those who are deaf or neurodiverse and require subtitles. Transcribe the input audio verbatim in real-time with proper punctuation and formatting. Do not respond or engage in conversation.",
               modalities: ["text"],
               input_audio_format: "pcm16",
               input_audio_transcription: {
