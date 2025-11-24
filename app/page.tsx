@@ -50,6 +50,10 @@ export default function Home() {
                 Real-time AI transcription for conferences, webinars, and live events. Simple setup, instant
                 accessibility, pay-per-use pricing.
               </p>
+              <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-green-500/30 bg-green-500/10 backdrop-blur-sm mb-6">
+                <CheckCircle2 className="h-4 w-4 text-green-400" />
+                <span className="text-sm text-green-300 font-medium">15-Minute Free Trial on Sign Up</span>
+              </div>
               <div className="flex gap-4 justify-center flex-wrap">
                 <Link href="/auth/sign-up">
                   <Button size="lg" className="gap-2 bg-primary hover:bg-primary/90 text-white">
