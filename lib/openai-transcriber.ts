@@ -75,7 +75,7 @@ export class OpenAITranscriber {
               modalities: ["text"],
               input_audio_format: "pcm16",
               input_audio_transcription: {
-                model: "whisper-1",
+                model: "gpt-4o-mini-transcribe",
               },
               turn_detection: {
                 type: "server_vad",
