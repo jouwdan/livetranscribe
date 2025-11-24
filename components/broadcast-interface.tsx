@@ -13,6 +13,7 @@ interface BroadcastInterfaceProps {
   slug: string
   eventName: string
   eventId: string
+  userId: string
 }
 
 interface Transcription {
@@ -22,7 +23,7 @@ interface Transcription {
   timestamp: Date
 }
 
-export function BroadcastInterface({ slug, eventName, eventId }: BroadcastInterfaceProps) {
+export function BroadcastInterface({ slug, eventName, eventId, userId }: BroadcastInterfaceProps) {
   const [isStreaming, setIsStreaming] = useState(false)
   const [copied, setCopied] = useState(false)
   const [transcriptionCount, setTranscriptionCount] = useState(0)
@@ -151,7 +152,28 @@ export function BroadcastInterface({ slug, eventName, eventId }: BroadcastInterf
   const handleStartStreaming = async () => {
     try {
       setError(null)
-      setSessionStartTime(new Date())
+      const startTime = new Date()
+      setSessionStartTime(startTime)
+
+      const supabase = createClient()
+      const { data: usageLog, error: usageError } = await supabase
+        .from("usage_logs")
+        .insert({
+          user_id: userId,
+          event_id: eventId,
+          session_start: startTime.toISOString(),
+          duration_minutes: 0,
+        })
+        .select()
+        .single()
+
+      if (usageError) {
+        console.error("[v0] Failed to create usage log:", usageError)
+      } else {
+        console.log("[v0] Created usage log:", usageLog)
+        // Store the usage log ID for later update
+        sessionStorage.setItem("currentUsageLogId", usageLog.id)
+      }
 
       const response = await fetch("/api/transcribe-ws", {
         method: "POST",
@@ -180,11 +202,37 @@ export function BroadcastInterface({ slug, eventName, eventId }: BroadcastInterf
     }
   }
 
-  const handleStopStreaming = () => {
+  const handleStopStreaming = async () => {
     if (transcriberRef.current) {
       transcriberRef.current.stop()
       transcriberRef.current = null
     }
+
+    if (sessionStartTime) {
+      const endTime = new Date()
+      const durationMinutes = Math.ceil((endTime.getTime() - sessionStartTime.getTime()) / 60000)
+
+      const usageLogId = sessionStorage.getItem("currentUsageLogId")
+      if (usageLogId) {
+        const supabase = createClient()
+        const { error: updateError } = await supabase
+          .from("usage_logs")
+          .update({
+            session_end: endTime.toISOString(),
+            duration_minutes: durationMinutes,
+          })
+          .eq("id", usageLogId)
+
+        if (updateError) {
+          console.error("[v0] Failed to update usage log:", updateError)
+        } else {
+          console.log("[v0] Updated usage log with duration:", durationMinutes)
+        }
+
+        sessionStorage.removeItem("currentUsageLogId")
+      }
+    }
+
     setIsStreaming(false)
     setSessionStartTime(null)
     setSessionDuration(0)

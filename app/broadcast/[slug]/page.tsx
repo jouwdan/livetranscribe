@@ -1,6 +1,7 @@
 import { BroadcastInterface } from "@/components/broadcast-interface"
 import { createServerClient } from "@/lib/supabase/server"
 import { redirect } from "next/navigation"
+import { AppNav } from "@/components/app-nav"
 
 interface BroadcastPageProps {
   params: Promise<{ slug: string }>
@@ -26,7 +27,8 @@ export default async function BroadcastPage({ params }: BroadcastPageProps) {
 
   return (
     <div className="min-h-screen bg-black">
-      <BroadcastInterface slug={slug} eventName={event.name} eventId={event.id} />
+      <AppNav />
+      <BroadcastInterface slug={slug} eventName={event.name} eventId={event.id} userId={user.id} />
     </div>
   )
 }
