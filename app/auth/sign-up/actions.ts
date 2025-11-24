@@ -4,37 +4,45 @@ import { createServerClient } from "@/lib/supabase/server"
 import { cookies } from "next/headers"
 
 export async function signUp(formData: FormData) {
-  const email = formData.get("email") as string
-  const password = formData.get("password") as string
-
-  if (!email || !password) {
-    return { error: "Email and password are required" }
-  }
-
   try {
+    const email = formData.get("email") as string
+    const password = formData.get("password") as string
+
+    if (!email || !password) {
+      return { error: "Email and password are required" }
+    }
+
     const supabase = await createServerClient()
 
-    const { error } = await supabase.auth.signUp({
+    const { error, data } = await supabase.auth.signUp({
       email,
       password,
     })
 
     if (error) {
+      console.error("[v0] Sign up error:", error)
+
       if (error.status === 556 || error.message.includes("Internal server error")) {
         return {
           error:
-            "Authentication service error. Please ensure your domain is configured in Supabase dashboard under Authentication → URL Configuration. Add your domain to both 'Site URL' and 'Redirect URLs'.",
+            "Authentication is not configured. Please disable email confirmation in Supabase: Dashboard → Authentication → Providers → Email → Toggle OFF 'Confirm email'",
         }
       }
-      return { error: error.message }
+      return { error: error.message || "Sign up failed" }
+    }
+
+    if (!data.user) {
+      return { error: "Sign up failed - no user data returned" }
     }
 
     const cookieStore = await cookies()
     cookieStore.getAll() // Force cookie refresh
 
     return { success: true }
-  } catch (err) {
+  } catch (err: any) {
     console.error("[v0] Sign up exception:", err)
-    return { error: "An unexpected error occurred. Please try again." }
+    return {
+      error: err?.message || "An unexpected error occurred. Please try again.",
+    }
   }
 }
