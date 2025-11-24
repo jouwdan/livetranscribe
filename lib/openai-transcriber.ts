@@ -77,11 +77,12 @@ export class OpenAITranscriber {
               input_audio_transcription: {
                 model: "gpt-4o-mini-transcribe",
               },
+              // Using server_vad with lower silence threshold for faster, more responsive transcription
               turn_detection: {
                 type: "server_vad",
-                threshold: 0.3,
-                prefix_padding_ms: 100,
-                silence_duration_ms: 200,
+                threshold: 0.35, // Slightly more sensitive to catch all speech at events
+                prefix_padding_ms: 50, // Minimal padding for fast response
+                silence_duration_ms: 300, // Reduced from 400ms for faster turn completion
                 create_response: false,
               },
             },
