@@ -11,6 +11,7 @@ import { createClient } from "@/lib/supabase/client"
 export function AppNav() {
   const pathname = usePathname()
   const [isAdmin, setIsAdmin] = useState(false)
+  const [isLoggedIn, setIsLoggedIn] = useState(false)
 
   useEffect(() => {
     const checkAdmin = async () => {
@@ -20,6 +21,8 @@ export function AppNav() {
       } = await supabase.auth.getUser()
 
       if (!user) return
+
+      setIsLoggedIn(true)
 
       const { data: profile } = await supabase.from("user_profiles").select("is_admin").eq("id", user.id).maybeSingle()
 
@@ -41,7 +44,10 @@ export function AppNav() {
       <div className="container mx-auto px-4">
         <div className="flex items-center justify-between h-16">
           <div className="flex items-center gap-6">
-            <Link href="/" className="text-xl font-bold text-white flex items-center gap-2">
+            <Link
+              href={isLoggedIn ? "/dashboard" : "/"}
+              className="text-xl font-bold text-white flex items-center gap-2"
+            >
               <Sparkles className="h-5 w-5 text-purple-400" />
               LiveTranscribe
             </Link>
