@@ -26,15 +26,22 @@ interface ViewerInterfaceProps {
 
 type DisplayMode = "laptop" | "mobile" | "stage"
 
-const StreamingText = ({ text, isInterim }: { text: string; isInterim?: boolean }) => {
+const StreamingText = ({ text, isInterim, itemId }: { text: string; isInterim?: boolean; itemId?: string }) => {
   const [displayedText, setDisplayedText] = useState("")
   const [isComplete, setIsComplete] = useState(false)
+  const [currentItemId, setCurrentItemId] = useState<string | undefined>(itemId)
 
   useEffect(() => {
     if (!isInterim) {
       setDisplayedText(text)
       setIsComplete(true)
       return
+    }
+
+    if (itemId !== currentItemId) {
+      setCurrentItemId(itemId)
+      setDisplayedText("")
+      setIsComplete(false)
     }
 
     // For interim text, animate it streaming in
@@ -44,8 +51,10 @@ const StreamingText = ({ text, isInterim }: { text: string; isInterim?: boolean 
       return
     }
 
-    // If text is shorter than displayed (replacement), reset and start fresh
-    if (text.length < displayedText.length) {
+    if (
+      text.length < displayedText.length &&
+      !text.startsWith(displayedText.slice(0, Math.min(10, displayedText.length)))
+    ) {
       setDisplayedText("")
       setIsComplete(false)
     }
@@ -64,10 +73,10 @@ const StreamingText = ({ text, isInterim }: { text: string; isInterim?: boolean 
         setIsComplete(true)
         clearInterval(interval)
       }
-    }, 30) // 30ms per character for smooth streaming effect
+    }, 20) // Faster animation at 20ms per character
 
     return () => clearInterval(interval)
-  }, [text, isInterim])
+  }, [text, isInterim, itemId, currentItemId])
 
   return (
     <span className={isInterim && !isComplete ? "opacity-70" : ""}>
@@ -500,6 +509,7 @@ export function ViewerInterface({ slug, eventName, eventDescription }: ViewerInt
                               group === groupedTranscriptions[groupedTranscriptions.length - 1] &&
                               currentInterim !== null
                             }
+                            itemId={group.sessionId}
                           />
                           {textIndex < group.texts.length - 1 && " "}
                         </span>
@@ -637,6 +647,7 @@ export function ViewerInterface({ slug, eventName, eventDescription }: ViewerInt
                               group === groupedTranscriptions[groupedTranscriptions.length - 1] &&
                               currentInterim !== null
                             }
+                            itemId={group.sessionId}
                           />
                           {textIndex < group.texts.length - 1 && " "}
                         </span>
@@ -756,37 +767,21 @@ export function ViewerInterface({ slug, eventName, eventDescription }: ViewerInt
             </CardHeader>
             <CardContent className="flex-1 overflow-y-auto p-6">
               <div ref={scrollAreaRef} className="h-full overflow-y-auto">
-                {groupedTranscriptions.map((group, index) => (
-                  <div key={index}>
-                    {group.isSessionStart && group.sessionInfo && (
-                      <div className="mb-4 py-3 px-4 bg-purple-500/20 border border-purple-500/30 rounded-lg">
-                        <div className="flex items-center gap-2 text-purple-300 font-semibold">
-                          <Radio className="h-4 w-4" />
-                          New Session Started: {group.sessionInfo.name}
+                {allDisplayItems.map((t, idx) => {
+                  const isLastInterim = currentInterim && t.id === currentInterim.id
+                  return (
+                    <div key={t.id || idx} className="mb-3">
+                      <div className="flex items-start gap-2">
+                        <span className="text-xs text-muted-foreground shrink-0 mt-1">
+                          {formatTimestamp(new Date(t.timestamp))}
+                        </span>
+                        <div className="flex-1 text-base leading-relaxed">
+                          <StreamingText text={t.text} isInterim={isLastInterim} itemId={t.id} />
                         </div>
                       </div>
-                    )}
-                    <div className="space-y-2">
-                      <div className="text-xs text-muted-foreground uppercase tracking-wide">
-                        {formatTimestamp(group.timestamp)}
-                      </div>
-                      <div className="text-lg leading-relaxed text-foreground space-y-2">
-                        {group.texts.map((text, textIndex) => (
-                          <span key={textIndex}>
-                            <StreamingText
-                              text={text}
-                              isInterim={
-                                group === groupedTranscriptions[groupedTranscriptions.length - 1] &&
-                                currentInterim !== null
-                              }
-                            />
-                            {textIndex < group.texts.length - 1 && " "}
-                          </span>
-                        ))}
-                      </div>
                     </div>
-                  </div>
-                ))}
+                  )
+                })}
               </div>
             </CardContent>
           </Card>
