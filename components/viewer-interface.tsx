@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect, useRef, useCallback } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -21,21 +21,24 @@ interface Transcription {
 
 interface ViewerInterfaceProps {
   slug: string
-  eventName: string
-  eventDescription?: string
 }
 
 type DisplayMode = "laptop" | "mobile" | "stage"
 
-const StreamingText = ({ text }: { text: string }) => {
+const StreamingText = ({ text, onComplete }: { text: string; onComplete?: () => void }) => {
   const [displayedText, setDisplayedText] = useState("")
   const [isComplete, setIsComplete] = useState(false)
 
   useEffect(() => {
+    console.log("[v0] StreamingText started for text:", text.substring(0, 50))
     setDisplayedText("")
     setIsComplete(false)
 
-    if (text.length === 0) return
+    if (text.length === 0) {
+      console.log("[v0] Empty text, calling onComplete")
+      onComplete?.()
+      return
+    }
 
     let currentIndex = 0
     const interval = setInterval(() => {
@@ -45,11 +48,16 @@ const StreamingText = ({ text }: { text: string }) => {
       } else {
         setIsComplete(true)
         clearInterval(interval)
+        console.log("[v0] Animation complete, calling onComplete after 100ms")
+        setTimeout(() => {
+          console.log("[v0] Calling onComplete now")
+          onComplete?.()
+        }, 100)
       }
-    }, 15) // Fast streaming at 15ms per character
+    }, 15)
 
     return () => clearInterval(interval)
-  }, [text])
+  }, [text, onComplete])
 
   return (
     <span>
@@ -62,29 +70,32 @@ const StreamingText = ({ text }: { text: string }) => {
 const TranscriptionText = ({
   text,
   transcriptionId,
-  newestTranscriptionId,
+  currentlyAnimatingId,
+  onAnimationComplete,
 }: {
   text: string
   transcriptionId?: string
-  newestTranscriptionId?: string | null
+  currentlyAnimatingId?: string | null
+  onAnimationComplete?: () => void
 }) => {
-  const shouldAnimate = transcriptionId && transcriptionId === newestTranscriptionId
+  const shouldAnimate = transcriptionId && transcriptionId === currentlyAnimatingId
 
   if (shouldAnimate) {
-    return <StreamingText text={text} />
+    return <StreamingText text={text} onComplete={onAnimationComplete} />
   }
 
   return <span>{text}</span>
 }
 
-export function ViewerInterface({ slug, eventName, eventDescription }: ViewerInterfaceProps) {
+export function ViewerInterface({ slug }: ViewerInterfaceProps) {
   const [transcriptions, setTranscriptions] = useState<Transcription[]>([])
   const [isStreaming, setIsStreaming] = useState(false)
   const [streamingStatusMessage, setStreamingStatusMessage] = useState<string | null>(null)
   const [isConnected, setIsConnected] = useState(false)
   const [autoScroll, setAutoScroll] = useState(true)
   const [viewMode, setViewMode] = useState<"laptop" | "mobile" | "stage">("laptop")
-  const [newestTranscriptionId, setNewestTranscriptionId] = useState<string | null>(null)
+  const [animationQueue, setAnimationQueue] = useState<string[]>([])
+  const [currentlyAnimatingId, setCurrentlyAnimatingId] = useState<string | null>(null)
   const scrollAreaRef = useRef<HTMLDivElement>(null)
   const lastTranscriptionRef = useRef<HTMLDivElement>(null)
   const transcriptionsViewedRef = useRef(0)
@@ -92,10 +103,26 @@ export function ViewerInterface({ slug, eventName, eventDescription }: ViewerInt
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const latestSequenceRef = useRef(0)
   const [currentSession, setCurrentSession] = useState<any | null>(null)
-  const [description, setDescription] = useState<string | null>(eventDescription)
+  const [description, setDescription] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const initialLoadCompleteRef = useRef(false)
   const supabase = createClient()
+  const animationQueueRef = useRef<string[]>([])
+
+  const handleAnimationComplete = useCallback(() => {
+    console.log("[v0] handleAnimationComplete called, clearing currentlyAnimatingId")
+    setCurrentlyAnimatingId(null)
+  }, [])
+
+  const queueTranscriptionAnimation = useCallback((id: string) => {
+    console.log("[v0] Queueing animation for transcription:", id)
+    setAnimationQueue((prev) => {
+      const newQueue = [...prev, id]
+      animationQueueRef.current = newQueue
+      console.log("[v0] Animation queue updated:", newQueue)
+      return newQueue
+    })
+  }, [])
 
   useEffect(() => {
     let isSubscribed = true
@@ -188,10 +215,7 @@ export function ViewerInterface({ slug, eventName, eventDescription }: ViewerInt
               }
 
               if (initialLoadCompleteRef.current) {
-                setNewestTranscriptionId(newTranscription.id)
-                setTimeout(() => {
-                  setNewestTranscriptionId(null)
-                }, 3000) // Clear after 3 seconds to allow next transcription to animate
+                queueTranscriptionAnimation(newTranscription.id)
               }
 
               return [...prev, newItem].sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime())
@@ -231,7 +255,7 @@ export function ViewerInterface({ slug, eventName, eventDescription }: ViewerInt
     }
 
     initializeViewer()
-  }, [slug])
+  }, [slug, queueTranscriptionAnimation])
 
   useEffect(() => {
     const sessionId = `viewer-${Date.now()}-${Math.random().toString(36).substring(7)}`
@@ -317,6 +341,22 @@ export function ViewerInterface({ slug, eventName, eventDescription }: ViewerInt
     }
   }, [])
 
+  useEffect(() => {
+    console.log(
+      "[v0] Animation queue effect - currentlyAnimatingId:",
+      currentlyAnimatingId,
+      "queue length:",
+      animationQueue.length,
+    )
+    if (currentlyAnimatingId === null && animationQueue.length > 0) {
+      const nextId = animationQueue[0]
+      console.log("[v0] Starting animation for next transcription:", nextId)
+      setCurrentlyAnimatingId(nextId)
+      setAnimationQueue((prev) => prev.slice(1))
+      animationQueueRef.current = animationQueue.slice(1)
+    }
+  }, [animationQueue, currentlyAnimatingId])
+
   const displayTranscriptions = transcriptions.filter((t) => t.text.trim() !== "" && t.isFinal)
   const allDisplayItems = displayTranscriptions
 
@@ -399,7 +439,7 @@ export function ViewerInterface({ slug, eventName, eventDescription }: ViewerInt
                     "OFFLINE"
                   )}
                 </Badge>
-                <h1 className="text-2xl font-bold text-white">{eventName}</h1>
+                <h1 className="text-2xl font-bold text-white">Live Event</h1>
               </div>
               <div className="flex gap-2 items-center">
                 <Button
@@ -483,7 +523,8 @@ export function ViewerInterface({ slug, eventName, eventDescription }: ViewerInt
                             <TranscriptionText
                               text={text}
                               transcriptionId={textIndex === group.texts.length - 1 ? transcriptionId : undefined}
-                              newestTranscriptionId={newestTranscriptionId}
+                              currentlyAnimatingId={currentlyAnimatingId}
+                              onAnimationComplete={handleAnimationComplete}
                             />
                             {textIndex < group.texts.length - 1 && " "}
                           </span>
@@ -543,7 +584,7 @@ export function ViewerInterface({ slug, eventName, eventDescription }: ViewerInt
                     "Offline"
                   )}
                 </Badge>
-                <h1 className="text-base font-bold text-white truncate">{eventName}</h1>
+                <h1 className="text-base font-bold text-white truncate">Live Event</h1>
               </div>
               <div className="flex gap-1 flex-shrink-0">
                 <Button
@@ -623,7 +664,8 @@ export function ViewerInterface({ slug, eventName, eventDescription }: ViewerInt
                             <TranscriptionText
                               text={text}
                               transcriptionId={textIndex === group.texts.length - 1 ? transcriptionId : undefined}
-                              newestTranscriptionId={newestTranscriptionId}
+                              currentlyAnimatingId={currentlyAnimatingId}
+                              onAnimationComplete={handleAnimationComplete}
                             />
                             {textIndex < group.texts.length - 1 && " "}
                           </span>
@@ -657,7 +699,7 @@ export function ViewerInterface({ slug, eventName, eventDescription }: ViewerInt
         <div className="px-4 sm:px-6 lg:px-8 py-4 max-w-7xl mx-auto">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div className="min-w-0 flex-1">
-              <h1 className="text-xl sm:text-2xl font-bold text-white truncate">{eventName}</h1>
+              <h1 className="text-xl sm:text-2xl font-bold text-white truncate">Live Event</h1>
               {description && <p className="text-sm text-foreground/60 mt-1">{description}</p>}
               {!description && <p className="text-sm text-foreground/60">Live Transcription</p>}
             </div>
@@ -755,7 +797,8 @@ export function ViewerInterface({ slug, eventName, eventDescription }: ViewerInt
                           <TranscriptionText
                             text={t.text}
                             transcriptionId={t.id}
-                            newestTranscriptionId={newestTranscriptionId}
+                            currentlyAnimatingId={currentlyAnimatingId}
+                            onAnimationComplete={handleAnimationComplete}
                           />
                         </div>
                       </div>
