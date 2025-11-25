@@ -170,8 +170,6 @@ export function BroadcastInterface({ slug, eventName, eventId, userId }: Broadca
   }
 
   const handleTranscription = async (text: string, isFinal: boolean, sequence: number) => {
-    console.log("[v0] Transcription received:", { text, isFinal, sequence })
-
     if (isFinal) {
       setTranscriptions((prev) => [...prev, { text, isFinal, sequence, timestamp: new Date() }])
       setCurrentInterim("")
@@ -179,14 +177,7 @@ export function BroadcastInterface({ slug, eventName, eventId, userId }: Broadca
       setCurrentInterim(text)
     }
 
-    if (!isFinal) {
-      console.log("[v0] Skipping interim transcription broadcast")
-      return
-    }
-
     try {
-      console.log("[v0] Sending transcription to API:", { text, isFinal, sequence, slug, sessionId: currentSessionId })
-
       const response = await fetch(`/api/stream/${slug}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -204,9 +195,9 @@ export function BroadcastInterface({ slug, eventName, eventId, userId }: Broadca
         const errorText = await response.text()
         console.error("[v0] Error response:", errorText)
       } else {
-        const data = await response.json()
-        console.log("[v0] Broadcasted successfully. Server response:", data)
-        setTranscriptionCount((prev) => prev + 1)
+        if (isFinal) {
+          setTranscriptionCount((prev) => prev + 1)
+        }
       }
     } catch (error) {
       console.error("[v0] Error broadcasting transcription:", error)

@@ -9,6 +9,8 @@ export class OpenAITranscriber {
   private processor: ScriptProcessorNode | null = null
   private isConnected = false
   private sequenceNumber = 0
+  private currentItemId: string | null = null
+  private accumulatedText = ""
 
   constructor(
     private apiKey: string,
@@ -77,12 +79,11 @@ export class OpenAITranscriber {
               input_audio_transcription: {
                 model: "gpt-4o-mini-transcribe",
               },
-              // Using server_vad with lower silence threshold for faster, more responsive transcription
               turn_detection: {
                 type: "server_vad",
-                threshold: 0.35, // Slightly more sensitive to catch all speech at events
-                prefix_padding_ms: 50, // Minimal padding for fast response
-                silence_duration_ms: 300, // Reduced from 400ms for faster turn completion
+                threshold: 0.3, // Lower threshold = more sensitive to speech (0.5 is default, 0.0-1.0 range)
+                prefix_padding_ms: 50, // Minimal padding before speech starts
+                silence_duration_ms: 200, // Reduced from 300ms for even faster turn completion
                 create_response: false,
               },
             },
@@ -118,14 +119,29 @@ export class OpenAITranscriber {
   private handleServerMessage(message: AnyEvent) {
     switch (message.type) {
       case "conversation.item.input_audio_transcription.delta": {
-        if (typeof message.delta === "string") {
-          this.onTranscription(message.delta, false, this.sequenceNumber)
+        if (typeof message.delta === "string" && message.item_id) {
+          // If this is a new item, reset accumulated text
+          if (this.currentItemId !== message.item_id) {
+            this.currentItemId = message.item_id
+            this.accumulatedText = ""
+          }
+
+          // Accumulate the delta
+          this.accumulatedText += message.delta
+
+          // Send the accumulated text as interim transcription
+          this.onTranscription(this.accumulatedText, false, this.sequenceNumber)
         }
         break
       }
       case "conversation.item.input_audio_transcription.completed": {
         if (typeof message.transcript === "string") {
+          // Send final transcription and increment sequence
           this.onTranscription(message.transcript, true, this.sequenceNumber++)
+
+          // Reset accumulated text for next item
+          this.accumulatedText = ""
+          this.currentItemId = null
         }
         break
       }
