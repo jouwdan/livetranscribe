@@ -194,6 +194,13 @@ export function BroadcastInterface({ slug, eventName, eventId, userId }: Broadca
   const handleTranscription = async (text: string, isFinal: boolean, sequence: number) => {
     const adjustedSequence = lastSequenceNumber + sequence
 
+    console.log("[v0] Broadcasting transcription:", {
+      text: text.substring(0, 50),
+      isFinal,
+      sequence: adjustedSequence,
+      sessionId: currentSessionId,
+    })
+
     if (isFinal) {
       setTranscriptions((prev) => [...prev, { text, isFinal, sequence: adjustedSequence, timestamp: new Date() }])
       setCurrentInterim("")
@@ -219,6 +226,7 @@ export function BroadcastInterface({ slug, eventName, eventId, userId }: Broadca
         const errorText = await response.text()
         console.error("[v0] Error response:", errorText)
       } else {
+        console.log("[v0] Transcription broadcast successful")
         if (isFinal) {
           setTranscriptionCount((prev) => prev + 1)
           setLastSequenceNumber(adjustedSequence)

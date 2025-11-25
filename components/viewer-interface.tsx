@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Radio, ArrowDownToLine, Pause, Monitor, Smartphone, Tv } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
+import { setEventName } from "@/utils/set-event-name" // Assuming setEventName is declared in this file or imported from another file
 
 interface Transcription {
   id: string
@@ -39,61 +40,54 @@ export function ViewerInterface({ slug, eventName, eventDescription }: ViewerInt
   const latestSequenceRef = useRef(0)
   const [currentSession, setCurrentSession] = useState<any | null>(null)
   const [description, setDescription] = useState<string | null>(eventDescription)
+  const [error, setError] = useState<string | null>(null)
+  const supabase = createClient()
 
   useEffect(() => {
-    console.log("[v0] Setting up Supabase real-time subscription for slug:", slug)
-    let channel: any = null
-    let pollInterval: NodeJS.Timeout | null = null
     let isSubscribed = true
+    let channel: any
 
-    const setupRealtimeSubscription = async () => {
-      const supabase = createClient()
+    const initializeViewer = async () => {
+      console.log("[v0] Initializing viewer for slug:", slug)
 
-      console.log("[v0] Querying for event with slug:", slug)
-      const { data: event, error: eventError } = await supabase.from("events").select("id").eq("slug", slug).single()
+      const response = await fetch(`/api/stream/${slug}`)
+      const result = await response.json()
 
-      if (eventError || !event) {
-        console.error("[v0] Error fetching event:", eventError)
-        setIsConnected(false)
+      if (result.error) {
+        console.error("[v0] Error fetching event:", result.error)
+        setError(result.error)
         return
       }
 
-      console.log("[v0] Found event:", event)
+      console.log("[v0] Initial fetch result:", {
+        transcriptionCount: result.transcriptions?.length,
+        latestSequence: result.latestSequence,
+      })
 
-      console.log("[v0] Fetching initial transcriptions for event_id:", event.id)
-      const { data: initialTranscriptions, error: transcriptionsError } = await supabase
-        .from("transcriptions")
-        .select("*, event_sessions(name, session_number)")
-        .eq("event_id", event.id)
-        .eq("is_final", true)
-        .order("sequence_number", { ascending: true })
+      setEventName(result.metadata?.name || "Live Event")
 
-      if (transcriptionsError) {
-        console.error("[v0] Error fetching transcriptions:", transcriptionsError)
-      }
-
-      console.log("[v0] Initial transcriptions count:", initialTranscriptions?.length || 0)
-
-      if (initialTranscriptions && isSubscribed) {
-        const filtered = initialTranscriptions.filter((t) => t.text && t.text.trim() !== "")
+      if (result.transcriptions) {
+        const filtered = result.transcriptions.filter((t: any) => t.isFinal)
+        console.log("[v0] Filtered final transcriptions:", filtered.length)
         setTranscriptions(
-          filtered.map((t) => ({
+          filtered.map((t: any) => ({
             id: t.id,
             text: t.text,
-            isFinal: t.is_final,
-            sequenceNumber: t.sequence_number,
-            timestamp: new Date(t.created_at),
-            sessionId: t.session_id,
+            isFinal: t.isFinal,
+            sequenceNumber: t.sequenceNumber,
+            timestamp: new Date(t.timestamp),
+            sessionId: t.sessionId,
           })),
         )
-        transcriptionsViewedRef.current = filtered.filter((t) => t.is_final).length
+        transcriptionsViewedRef.current = filtered.filter((t: any) => t.isFinal).length
         if (filtered.length > 0) {
-          latestSequenceRef.current = Math.max(...filtered.map((t) => t.sequence_number))
+          latestSequenceRef.current = Math.max(...filtered.map((t: any) => t.sequenceNumber))
         }
       }
 
       const channelName = `transcriptions-${slug}`
       console.log("[v0] Creating channel:", channelName)
+      console.log("[v0] Event ID for subscription:", result.eventId)
 
       channel = supabase
         .channel(channelName, {
@@ -108,7 +102,7 @@ export function ViewerInterface({ slug, eventName, eventDescription }: ViewerInt
             event: "INSERT",
             schema: "public",
             table: "transcriptions",
-            filter: `event_id=eq.${event.id}`,
+            filter: `event_id=eq.${result.eventId}`,
           },
           async (payload) => {
             if (!isSubscribed) return
@@ -116,10 +110,23 @@ export function ViewerInterface({ slug, eventName, eventDescription }: ViewerInt
             console.log("[v0] Real-time transcription INSERT received:", payload)
             const newTranscription = payload.new as any
 
+            console.log("[v0] Transcription details:", {
+              text: newTranscription.text,
+              isFinal: newTranscription.is_final,
+              sequence: newTranscription.sequence_number,
+              eventId: newTranscription.event_id,
+              sessionId: newTranscription.session_id,
+            })
+
             lastTranscriptionTimeRef.current = Date.now()
 
             if (!newTranscription.text || newTranscription.text.trim() === "") {
               console.log("[v0] Skipping empty transcription")
+              return
+            }
+
+            if (!newTranscription.is_final) {
+              console.log("[v0] Skipping interim transcription, not final")
               return
             }
 
@@ -131,14 +138,12 @@ export function ViewerInterface({ slug, eventName, eventDescription }: ViewerInt
                 .eq("id", newTranscription.session_id)
                 .single()
               sessionInfo = sessionData
+              console.log("[v0] Session info:", sessionInfo)
             }
 
             setTranscriptions((prev) => {
-              if (
-                prev.some((t) => t.sequenceNumber === newTranscription.sequence_number) ||
-                newTranscription.sequence_number <= latestSequenceRef.current
-              ) {
-                console.log("[v0] Duplicate transcription detected, skipping")
+              if (prev.some((t) => t.id === newTranscription.id)) {
+                console.log("[v0] Duplicate transcription detected (by ID), skipping")
                 return prev
               }
 
@@ -173,12 +178,10 @@ export function ViewerInterface({ slug, eventName, eventDescription }: ViewerInt
           if (status === "started") {
             setIsStreaming(true)
             setStreamingStatusMessage("Streaming started")
-            // Clear message after 5 seconds
             setTimeout(() => setStreamingStatusMessage(null), 5000)
           } else if (status === "stopped") {
             setIsStreaming(false)
             setStreamingStatusMessage("Streaming stopped")
-            // Clear message after 5 seconds
             setTimeout(() => setStreamingStatusMessage(null), 5000)
           }
         })
@@ -192,75 +195,16 @@ export function ViewerInterface({ slug, eventName, eventDescription }: ViewerInt
           }
         })
 
-      pollInterval = setInterval(async () => {
-        if (!isSubscribed) return
-
-        const timeSinceLastTranscription = Date.now() - lastTranscriptionTimeRef.current
-
-        if (timeSinceLastTranscription > 5000) {
-          const lastSequence = latestSequenceRef.current
-
-          const { data: newTranscriptions } = await supabase
-            .from("transcriptions")
-            .select("*, event_sessions(name, session_number)")
-            .eq("event_id", event.id)
-            .gt("sequence_number", lastSequence)
-            .eq("is_final", true)
-            .order("sequence_number", { ascending: true })
-
-          if (newTranscriptions && newTranscriptions.length > 0) {
-            console.log("[v0] Polling found missed transcriptions:", newTranscriptions.length)
-            setTranscriptions((prev) => {
-              const newItems = newTranscriptions
-                .filter(
-                  (t) =>
-                    t.text &&
-                    t.text.trim() !== "" &&
-                    !prev.some((p) => p.sequenceNumber === t.sequence_number) &&
-                    t.sequence_number > latestSequenceRef.current,
-                )
-                .map((t) => ({
-                  id: t.id,
-                  text: t.text,
-                  isFinal: t.is_final,
-                  sequenceNumber: t.sequence_number,
-                  timestamp: new Date(t.created_at),
-                  sessionId: t.session_id,
-                  sessionInfo: t.event_sessions,
-                }))
-
-              if (newItems.length > 0) {
-                lastTranscriptionTimeRef.current = Date.now()
-                transcriptionsViewedRef.current += newItems.filter((t) => t.isFinal).length
-                latestSequenceRef.current = Math.max(
-                  latestSequenceRef.current,
-                  ...newItems.map((t) => t.sequenceNumber),
-                )
-              }
-
-              return [...prev, ...newItems].sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime())
-            })
-          }
+      return () => {
+        console.log("[v0] Cleaning up Supabase subscription")
+        isSubscribed = false
+        if (channel) {
+          supabase.removeChannel(channel)
         }
-      }, 2000)
-    }
-
-    setupRealtimeSubscription()
-
-    return () => {
-      console.log("[v0] Cleaning up Supabase subscription")
-      isSubscribed = false
-      if (pollInterval) {
-        clearInterval(pollInterval)
-      }
-      if (channel) {
-        const supabase = createClient()
-        supabase.removeChannel(channel)
-      }
-      if (reconnectTimeoutRef.current) {
-        clearTimeout(reconnectTimeoutRef.current)
       }
     }
+
+    initializeViewer()
   }, [slug])
 
   useEffect(() => {
@@ -282,7 +226,6 @@ export function ViewerInterface({ slug, eventName, eventDescription }: ViewerInt
 
   useEffect(() => {
     const sessionId = `viewer-${Date.now()}-${Math.random().toString(36).substring(7)}`
-    const supabase = createClient()
     let pingInterval: NodeJS.Timeout | null = null
 
     const setupViewerTracking = async () => {

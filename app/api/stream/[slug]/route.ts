@@ -43,12 +43,15 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       isFinal: t.is_final,
       sequenceNumber: t.sequence_number,
       timestamp: t.created_at,
+      id: t.id,
+      sessionId: t.session_id,
     })),
     metadata: {
       name: event.name,
       createdAt: event.created_at,
     },
     latestSequence: latest?.sequence_number || 0,
+    eventId: event.id,
   })
 }
 
