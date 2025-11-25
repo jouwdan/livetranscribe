@@ -25,7 +25,7 @@ interface ViewerInterfaceProps {
 
 type DisplayMode = "laptop" | "mobile" | "stage"
 
-const StreamingText = ({ text, onComplete }: { text: string; onComplete?: () => void }) => {
+function StreamingText({ text, onComplete }: { text: string; onComplete?: () => void }) {
   const [displayedText, setDisplayedText] = useState("")
   const [isComplete, setIsComplete] = useState(false)
 
@@ -54,17 +54,10 @@ const StreamingText = ({ text, onComplete }: { text: string; onComplete?: () => 
           onComplete?.()
         }, 100)
       }
-    }, 15)
+    }, 50) // Changed from 15ms to 50ms per character
 
     return () => clearInterval(interval)
   }, [text, onComplete])
-
-  return (
-    <span>
-      {displayedText}
-      {!isComplete && <span className="animate-pulse ml-1">▊</span>}
-    </span>
-  )
 }
 
 const TranscriptionText = ({
