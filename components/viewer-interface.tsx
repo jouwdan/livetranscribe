@@ -40,6 +40,7 @@ export function ViewerInterface({ slug, eventName, eventDescription }: ViewerInt
   const lastTranscriptionTimeRef = useRef(Date.now())
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const latestSequenceRef = useRef(0)
+  const userHasScrolledRef = useRef(false)
   const [currentSession, setCurrentSession] = useState<any | null>(null)
   const [description, setDescription] = useState<string | null>(eventDescription)
   const [error, setError] = useState<string | null>(null)
@@ -275,8 +276,17 @@ export function ViewerInterface({ slug, eventName, eventDescription }: ViewerInt
   }, [slug])
 
   useEffect(() => {
-    if (autoScroll && scrollAreaRef.current) {
-      scrollAreaRef.current.scrollTop = scrollAreaRef.current.scrollHeight
+    if (!autoScroll || !scrollAreaRef.current || userHasScrolledRef.current) return
+
+    const scrollContainer = scrollAreaRef.current
+    const isNearBottom = scrollContainer.scrollHeight - scrollContainer.scrollTop - scrollContainer.clientHeight < 100
+
+    // Only auto-scroll if already near the bottom
+    if (isNearBottom) {
+      scrollContainer.scrollTo({
+        top: scrollContainer.scrollHeight,
+        behavior: "smooth",
+      })
     }
   }, [transcriptions, currentInterim, autoScroll])
 
@@ -286,6 +296,12 @@ export function ViewerInterface({ slug, eventName, eventDescription }: ViewerInt
 
       const { scrollTop, scrollHeight, clientHeight } = scrollAreaRef.current
       const isAtBottom = scrollHeight - scrollTop - clientHeight < 50
+
+      if (!isAtBottom && autoScroll) {
+        userHasScrolledRef.current = true
+      } else if (isAtBottom) {
+        userHasScrolledRef.current = false
+      }
 
       setAutoScroll(isAtBottom)
     }
