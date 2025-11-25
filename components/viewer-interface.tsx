@@ -189,6 +189,9 @@ export function ViewerInterface({ slug, eventName, eventDescription }: ViewerInt
 
               if (initialLoadCompleteRef.current) {
                 setNewestTranscriptionId(newTranscription.id)
+                setTimeout(() => {
+                  setNewestTranscriptionId(null)
+                }, 3000) // Clear after 3 seconds to allow next transcription to animate
               }
 
               return [...prev, newItem].sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime())
