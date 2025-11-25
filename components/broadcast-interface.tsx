@@ -41,9 +41,9 @@ export function BroadcastInterface({ slug, eventName, eventId, userId }: Broadca
   const [sessions, setSessions] = useState<Array<{ id: string; name: string; session_number: number }>>([])
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null)
   const [lastSequenceNumber, setLastSequenceNumber] = useState(0)
-
   const transcriberRef = useRef<OpenAITranscriber | null>(null)
   const viewerUrl = `${typeof window !== "undefined" ? window.location.origin : ""}/view/${slug}`
+  const broadcastChannelRef = useRef<any>(null)
 
   useEffect(() => {
     if (!isStreaming || !sessionStartTime) return
@@ -152,6 +152,44 @@ export function BroadcastInterface({ slug, eventName, eventId, userId }: Broadca
     fetchLastSequence()
   }, [currentSessionId])
 
+  useEffect(() => {
+    const initBroadcastChannel = async () => {
+      const supabase = createBrowserClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      )
+      const channelName = `transcriptions-${slug}`
+
+      console.log("[v0] Initializing broadcast channel:", channelName)
+
+      const channel = supabase.channel(channelName, {
+        config: {
+          broadcast: { self: false },
+        },
+      })
+
+      await channel.subscribe((status) => {
+        console.log("[v0] Broadcast channel status:", status)
+      })
+
+      broadcastChannelRef.current = channel
+    }
+
+    initBroadcastChannel()
+
+    return () => {
+      if (broadcastChannelRef.current) {
+        console.log("[v0] Cleaning up broadcast channel")
+        const supabase = createBrowserClient(
+          process.env.NEXT_PUBLIC_SUPABASE_URL!,
+          process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+        )
+        supabase.removeChannel(broadcastChannelRef.current)
+        broadcastChannelRef.current = null
+      }
+    }
+  }, [slug])
+
   const copyToClipboard = async () => {
     await navigator.clipboard.writeText(viewerUrl)
     setCopied(true)
@@ -224,19 +262,16 @@ export function BroadcastInterface({ slug, eventName, eventId, userId }: Broadca
     }
 
     try {
-      if (!isFinal) {
-        const supabase = createBrowserClient(
-          process.env.NEXT_PUBLIC_SUPABASE_URL!,
-          process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-        )
-        const channelName = `transcriptions-${slug}`
-        await supabase.channel(channelName).send({
+      if (!isFinal && broadcastChannelRef.current) {
+        console.log("[v0] Sending interim transcription via broadcast channel")
+        await broadcastChannelRef.current.send({
           type: "broadcast",
           event: "interim_transcription",
           payload: {
             text,
             sequence: adjustedSequence,
             sessionId: currentSessionId,
+            timestamp: new Date().toISOString(),
           },
         })
       }
@@ -304,16 +339,18 @@ export function BroadcastInterface({ slug, eventName, eventId, userId }: Broadca
         await supabase.from("event_sessions").update({ started_at: startTime.toISOString() }).eq("id", currentSessionId)
       }
 
-      const channel = supabase.channel(`event-${slug}`)
-      await channel.send({
-        type: "broadcast",
-        event: "streaming_status",
-        payload: {
-          status: "started",
-          sessionId: currentSessionId,
-          timestamp: startTime.toISOString(),
-        },
-      })
+      if (broadcastChannelRef.current) {
+        console.log("[v0] Broadcasting streaming started event")
+        await broadcastChannelRef.current.send({
+          type: "broadcast",
+          event: "streaming_status",
+          payload: {
+            status: "started",
+            sessionId: currentSessionId,
+            timestamp: startTime.toISOString(),
+          },
+        })
+      }
 
       const response = await fetch("/api/transcribe-ws", {
         method: "POST",
@@ -357,16 +394,18 @@ export function BroadcastInterface({ slug, eventName, eventId, userId }: Broadca
         process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
       )
 
-      const channel = supabase.channel(`event-${slug}`)
-      await channel.send({
-        type: "broadcast",
-        event: "streaming_status",
-        payload: {
-          status: "stopped",
-          sessionId: currentSessionId,
-          timestamp: endTime.toISOString(),
-        },
-      })
+      if (broadcastChannelRef.current) {
+        console.log("[v0] Broadcasting streaming stopped event")
+        broadcastChannelRef.current.send({
+          type: "broadcast",
+          event: "streaming_status",
+          payload: {
+            status: "stopped",
+            sessionId: currentSessionId,
+            timestamp: endTime.toISOString(),
+          },
+        })
+      }
 
       await supabase
         .from("event_sessions")
