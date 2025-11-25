@@ -99,7 +99,7 @@ export function ViewerInterface({
   const [newestTranscriptionId, setNewestTranscriptionId] = useState<string | null>(null)
   const scrollAreaRef = useRef<HTMLDivElement>(null)
   const lastTranscriptionRef = useRef<HTMLDivElement>(null)
-  const transcriptionsViewedRef = useRef(0)
+  const transcriptionsViewedRef = useRef(new Set<string>())
   const lastTranscriptionTimeRef = useRef(Date.now())
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const latestSequenceRef = useRef(0)
@@ -108,6 +108,13 @@ export function ViewerInterface({
   const [error, setError] = useState<string | null>(null)
   const initialLoadCompleteRef = useRef(false)
   const supabase = createClient()
+  const scrollCountRef = useRef(0)
+  const visibilityChangesRef = useRef(0)
+  const activeTimeRef = useRef(0)
+  const lastActiveTimeRef = useRef(Date.now())
+  const sessionIdRef = useRef<string | null>(null)
+  const eventIdRef = useRef<string | null>(null)
+  const isReturningViewerRef = useRef(false)
 
   useEffect(() => {
     let isSubscribed = true
@@ -136,7 +143,8 @@ export function ViewerInterface({
             sessionId: t.sessionId,
           })),
         )
-        transcriptionsViewedRef.current = filtered.filter((t: any) => t.isFinal).length
+        filtered.forEach((t: any) => transcriptionsViewedRef.current.add(t.id))
+        transcriptionsViewedRef.current.size = filtered.filter((t: any) => t.isFinal).length
         if (filtered.length > 0) {
           latestSequenceRef.current = Math.max(...filtered.map((t: any) => t.sequenceNumber))
         }
@@ -186,7 +194,8 @@ export function ViewerInterface({
                 return prev
               }
 
-              transcriptionsViewedRef.current += 1
+              transcriptionsViewedRef.current.add(newTranscription.id)
+              transcriptionsViewedRef.current.size += 1
               latestSequenceRef.current = Math.max(latestSequenceRef.current, newTranscription.sequence_number)
 
               const newItem = {
@@ -246,64 +255,130 @@ export function ViewerInterface({
   }, [slug])
 
   useEffect(() => {
-    const sessionId = `viewer-${Date.now()}-${Math.random().toString(36).substring(7)}`
+    // Get or create a persistent viewer ID stored in localStorage
+    const getOrCreateViewerId = (): string => {
+      const storageKey = `viewer-id-${slug}`
+      let viewerId = localStorage.getItem(storageKey)
+      if (!viewerId) {
+        viewerId = `viewer-${Date.now()}-${Math.random().toString(36).substring(7)}`
+        localStorage.setItem(storageKey, viewerId)
+      }
+      return viewerId
+    }
+
+    const sessionId = getOrCreateViewerId()
+    sessionIdRef.current = sessionId
     let pingInterval: NodeJS.Timeout | null = null
+    let activeTimeInterval: NodeJS.Timeout | null = null
 
     const setupViewerTracking = async () => {
       const { data: event } = await supabase.from("events").select("id").eq("slug", slug).single()
 
       if (!event) return
+      eventIdRef.current = event.id
 
-      await supabase.from("viewer_sessions").insert({
-        event_id: event.id,
-        session_id: sessionId,
-        joined_at: new Date().toISOString(),
-        last_ping: new Date().toISOString(),
-        scroll_events: 0,
-        visibility_changes: 0,
-        total_active_time_seconds: 0,
-        transcriptions_viewed: 0,
-      })
+      const { data: existingSession } = await supabase
+        .from("viewer_sessions")
+        .select("id, scroll_events, visibility_changes, total_active_time_seconds, transcriptions_viewed")
+        .eq("event_id", event.id)
+        .eq("session_id", sessionId)
+        .single()
 
+      if (existingSession) {
+        // Returning viewer - restore their accumulated metrics
+        isReturningViewerRef.current = true
+        scrollCountRef.current = existingSession.scroll_events || 0
+        visibilityChangesRef.current = existingSession.visibility_changes || 0
+        activeTimeRef.current = existingSession.total_active_time_seconds || 0
+
+        // Update the session to show they're back
+        await supabase
+          .from("viewer_sessions")
+          .update({
+            last_ping: new Date().toISOString(),
+            last_activity_at: new Date().toISOString(),
+            left_at: null, // Clear left_at since they're back
+          })
+          .eq("id", existingSession.id)
+      } else {
+        // New unique viewer - insert initial viewer session
+        isReturningViewerRef.current = false
+        await supabase.from("viewer_sessions").insert({
+          event_id: event.id,
+          session_id: sessionId,
+          joined_at: new Date().toISOString(),
+          last_ping: new Date().toISOString(),
+          scroll_events: 0,
+          visibility_changes: 0,
+          total_active_time_seconds: 0,
+          transcriptions_viewed: 0,
+        })
+      }
+
+      // Track active time when page is visible
+      activeTimeInterval = setInterval(() => {
+        if (document.visibilityState === "visible") {
+          activeTimeRef.current += 1
+        }
+      }, 1000)
+
+      // Ping server with accumulated metrics every 15 seconds
       pingInterval = setInterval(async () => {
         await supabase
           .from("viewer_sessions")
           .update({
             last_ping: new Date().toISOString(),
             last_activity_at: new Date().toISOString(),
-            scroll_events: 0,
-            visibility_changes: 0,
-            total_active_time_seconds: 0,
-            transcriptions_viewed: 0,
+            scroll_events: scrollCountRef.current,
+            visibility_changes: visibilityChangesRef.current,
+            total_active_time_seconds: activeTimeRef.current,
+            transcriptions_viewed: transcriptionsViewedRef.current.size,
           })
           .eq("event_id", event.id)
           .eq("session_id", sessionId)
       }, 15000)
     }
 
+    // Track scroll events
+    const handleScroll = () => {
+      scrollCountRef.current += 1
+    }
+
+    // Track visibility changes
+    const handleVisibilityChange = () => {
+      visibilityChangesRef.current += 1
+    }
+
+    window.addEventListener("scroll", handleScroll, { passive: true })
+    document.addEventListener("visibilitychange", handleVisibilityChange)
+
     setupViewerTracking()
 
     return () => {
-      clearInterval(pingInterval)
+      window.removeEventListener("scroll", handleScroll)
+      document.removeEventListener("visibilitychange", handleVisibilityChange)
+      if (pingInterval) clearInterval(pingInterval)
+      if (activeTimeInterval) clearInterval(activeTimeInterval)
+
+      // Final update on cleanup
       const cleanup = async () => {
-        const { data: event } = await supabase.from("events").select("id").eq("slug", slug).single()
-        if (event) {
+        if (eventIdRef.current && sessionIdRef.current) {
           await supabase
             .from("viewer_sessions")
             .update({
               left_at: new Date().toISOString(),
-              scroll_events: 0,
-              visibility_changes: 0,
-              total_active_time_seconds: 0,
-              transcriptions_viewed: 0,
+              scroll_events: scrollCountRef.current,
+              visibility_changes: visibilityChangesRef.current,
+              total_active_time_seconds: activeTimeRef.current,
+              transcriptions_viewed: transcriptionsViewedRef.current.size,
             })
-            .eq("event_id", event.id)
-            .eq("session_id", sessionId)
+            .eq("event_id", eventIdRef.current)
+            .eq("session_id", sessionIdRef.current)
         }
       }
       cleanup()
     }
-  }, [slug])
+  }, [slug, supabase])
 
   useEffect(() => {
     if (!autoScroll || !scrollAreaRef.current) return

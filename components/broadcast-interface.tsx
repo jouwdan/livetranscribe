@@ -210,6 +210,28 @@ export function BroadcastInterface({ slug, eventName, eventId, userId }: Broadca
     return () => clearInterval(interval)
   }, [isStreaming, currentSessionId])
 
+  useEffect(() => {
+    if (!isStreaming || !eventId) return
+
+    const updateViewerCount = async () => {
+      try {
+        await fetch("/api/update-viewer-count", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ eventId }),
+        })
+      } catch (error) {
+        console.error("Failed to update viewer count:", error)
+      }
+    }
+
+    // Update immediately and then every 30 seconds
+    updateViewerCount()
+    const interval = setInterval(updateViewerCount, 30000)
+
+    return () => clearInterval(interval)
+  }, [isStreaming, eventId])
+
   const copyToClipboard = async () => {
     await navigator.clipboard.writeText(viewerUrl)
     setCopied(true)

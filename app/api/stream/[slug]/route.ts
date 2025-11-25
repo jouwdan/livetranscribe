@@ -63,7 +63,6 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const { text, isFinal, sequenceNumber, sessionId } = data
 
     if (!isFinal) {
-      console.log("[v0] Skipping interim transcription save (not final)")
       return Response.json({ success: true, skipped: true })
     }
 
@@ -106,7 +105,33 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       return Response.json({ error: "Failed to save transcription" }, { status: 500 })
     }
 
-    console.log("[v0] Final transcription saved to database:", { slug, sequenceNumber, sessionId })
+    const wordCount = text ? text.split(/\s+/).filter((w: string) => w.length > 0).length : 0
+
+    await supabase
+      .from("events")
+      .update({
+        total_words: (event.total_words || 0) + wordCount,
+        total_transcriptions: (event.total_transcriptions || 0) + 1,
+      })
+      .eq("id", event.id)
+
+    if (sessionId) {
+      const { data: session } = await supabase
+        .from("event_sessions")
+        .select("total_words, total_transcriptions")
+        .eq("id", sessionId)
+        .single()
+
+      if (session) {
+        await supabase
+          .from("event_sessions")
+          .update({
+            total_words: (session.total_words || 0) + wordCount,
+            total_transcriptions: (session.total_transcriptions || 0) + 1,
+          })
+          .eq("id", sessionId)
+      }
+    }
 
     return Response.json({ success: true })
   } catch (error) {
