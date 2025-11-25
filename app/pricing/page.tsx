@@ -127,7 +127,7 @@ export default function PricingPage() {
                           <span className="text-sm font-medium text-foreground">{plan.duration}</span>
                         </div>
                         <div className="text-right">
-                          <span className="text-2xl font-bold text-purple-400">${plan.price}</span>
+                          <span className="text-2xl font-bold text-purple-400">€{plan.price}</span>
                           <span className="text-sm text-muted-foreground ml-1">flat</span>
                         </div>
                       </div>
