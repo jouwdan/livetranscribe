@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Radio, ArrowDownToLine, Pause, Monitor, Smartphone, Tv } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
 import { setEventName } from "@/utils/set-event-name" // Assuming setEventName is declared in this file or imported from another file
+import type { RealtimeChannel } from "@supabase/supabase-js"
 
 interface Transcription {
   id: string
@@ -58,6 +59,18 @@ const StreamingText = ({ text }: { text: string }) => {
   )
 }
 
+const TranscriptionText = ({ text, transcriptionId }: { text: string; transcriptionId?: string }) => {
+  const [newestTranscriptionId, setNewestTranscriptionId] = useState<string | null>(null)
+
+  const shouldAnimate = transcriptionId && transcriptionId === newestTranscriptionId
+
+  if (shouldAnimate) {
+    return <StreamingText text={text} />
+  }
+
+  return <span>{text}</span>
+}
+
 export function ViewerInterface({ slug, eventName, eventDescription }: ViewerInterfaceProps) {
   const [transcriptions, setTranscriptions] = useState<Transcription[]>([])
   const [isConnected, setIsConnected] = useState(false)
@@ -74,11 +87,13 @@ export function ViewerInterface({ slug, eventName, eventDescription }: ViewerInt
   const [currentSession, setCurrentSession] = useState<any | null>(null)
   const [description, setDescription] = useState<string | null>(eventDescription)
   const [error, setError] = useState<string | null>(null)
+  const initialLoadCompleteRef = useRef(false)
   const supabase = createClient()
+  const setNewestTranscriptionId = (id: string) => {} // Declare the variable here
 
   useEffect(() => {
     let isSubscribed = true
-    let channel: any
+    let channel: RealtimeChannel | null = null
 
     const initializeViewer = async () => {
       const response = await fetch(`/api/stream/${slug}`)
@@ -107,6 +122,7 @@ export function ViewerInterface({ slug, eventName, eventDescription }: ViewerInt
         if (filtered.length > 0) {
           latestSequenceRef.current = Math.max(...filtered.map((t: any) => t.sequenceNumber))
         }
+        initialLoadCompleteRef.current = true
       }
 
       const channelName = `transcriptions-${slug}`
@@ -163,6 +179,10 @@ export function ViewerInterface({ slug, eventName, eventDescription }: ViewerInt
                 timestamp: new Date(newTranscription.created_at),
                 sessionId: newTranscription.session_id,
                 sessionInfo,
+              }
+
+              if (initialLoadCompleteRef.current) {
+                setNewestTranscriptionId(newTranscription.id)
               }
 
               return [...prev, newItem].sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime())
@@ -439,12 +459,26 @@ export function ViewerInterface({ slug, eventName, eventDescription }: ViewerInt
                       {formatTimestamp(group.timestamp)}
                     </div>
                     <div className="text-5xl md:text-6xl lg:text-7xl leading-tight text-white font-bold space-y-4">
-                      {group.texts.map((text, textIndex) => (
-                        <span key={textIndex}>
-                          <StreamingText text={text} />
-                          {textIndex < group.texts.length - 1 && " "}
-                        </span>
-                      ))}
+                      {group.texts.map((text, textIndex) => {
+                        const transcriptionIndex = displayTranscriptions.findIndex((t) =>
+                          group.texts
+                            .slice(0, textIndex + 1)
+                            .join(" ")
+                            .includes(t.text),
+                        )
+                        const transcriptionId =
+                          transcriptionIndex >= 0 ? displayTranscriptions[transcriptionIndex].id : undefined
+
+                        return (
+                          <span key={textIndex}>
+                            <TranscriptionText
+                              text={text}
+                              transcriptionId={textIndex === group.texts.length - 1 ? transcriptionId : undefined}
+                            />
+                            {textIndex < group.texts.length - 1 && " "}
+                          </span>
+                        )
+                      })}
                     </div>
                   </div>
                 </div>
@@ -564,12 +598,26 @@ export function ViewerInterface({ slug, eventName, eventDescription }: ViewerInt
                       {formatTimestamp(group.timestamp)}
                     </div>
                     <div className="text-base leading-relaxed text-foreground space-y-1">
-                      {group.texts.map((text, textIndex) => (
-                        <span key={textIndex}>
-                          <StreamingText text={text} />
-                          {textIndex < group.texts.length - 1 && " "}
-                        </span>
-                      ))}
+                      {group.texts.map((text, textIndex) => {
+                        const transcriptionIndex = displayTranscriptions.findIndex((t) =>
+                          group.texts
+                            .slice(0, textIndex + 1)
+                            .join(" ")
+                            .includes(t.text),
+                        )
+                        const transcriptionId =
+                          transcriptionIndex >= 0 ? displayTranscriptions[transcriptionIndex].id : undefined
+
+                        return (
+                          <span key={textIndex}>
+                            <TranscriptionText
+                              text={text}
+                              transcriptionId={textIndex === group.texts.length - 1 ? transcriptionId : undefined}
+                            />
+                            {textIndex < group.texts.length - 1 && " "}
+                          </span>
+                        )
+                      })}
                     </div>
                   </div>
                 </div>
@@ -693,7 +741,7 @@ export function ViewerInterface({ slug, eventName, eventDescription }: ViewerInt
                           {formatTimestamp(new Date(t.timestamp))}
                         </span>
                         <div className="flex-1 text-base leading-relaxed">
-                          <StreamingText text={t.text} />
+                          <TranscriptionText text={t.text} transcriptionId={t.id} />
                         </div>
                       </div>
                     </div>

@@ -8,6 +8,7 @@ import { AppNav } from "@/components/app-nav"
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
 import { archiveEvent, unarchiveEvent } from "./actions"
 import { DeleteEventDialog } from "@/components/delete-event-dialog"
+import { DownloadTranscriptionsButton } from "@/components/download-transcriptions-button"
 
 export const dynamic = "force-dynamic"
 export const revalidate = 0
@@ -218,6 +219,7 @@ export default async function DashboardPage() {
                           Metrics
                         </Button>
                       </Link>
+                      <DownloadTranscriptionsButton eventId={event.id} variant="outline" />
                       <Link href={`/edit/${event.slug}`}>
                         <Button variant="outline">Edit</Button>
                       </Link>

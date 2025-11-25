@@ -9,6 +9,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { PlusCircle, Edit2, Trash2, Calendar, Clock } from "lucide-react"
 import { createSession, updateSession, deleteSession } from "@/app/sessions/actions"
 import { Badge } from "@/components/ui/badge"
+import { DownloadTranscriptionsButton } from "@/components/download-transcriptions-button"
 
 interface Session {
   id: string
@@ -188,6 +189,14 @@ export function SessionManager({ eventId, eventSlug, eventName, sessions }: Sess
                 </div>
                 {editingSession !== session.id && (
                   <div className="flex gap-2">
+                    {session.total_transcriptions > 0 && (
+                      <DownloadTranscriptionsButton
+                        eventId={eventId}
+                        sessionId={session.id}
+                        variant="ghost"
+                        size="sm"
+                      />
+                    )}
                     <Button variant="ghost" size="sm" onClick={() => startEdit(session)}>
                       <Edit2 className="h-4 w-4" />
                     </Button>
