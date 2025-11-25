@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useRef, useCallback } from "react"
+import { useState, useEffect, useRef } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -30,10 +30,8 @@ type DisplayMode = "laptop" | "mobile" | "stage"
 
 const StreamingText = ({
   text,
-  onComplete,
 }: {
   text: string
-  onComplete?: () => void
 }) => {
   const [displayedText, setDisplayedText] = useState("")
   const [isComplete, setIsComplete] = useState(false)
@@ -44,7 +42,6 @@ const StreamingText = ({
     setIsComplete(false)
 
     if (text.length === 0) {
-      onComplete?.()
       return
     }
 
@@ -57,15 +54,11 @@ const StreamingText = ({
         console.log("[v0] StreamingText animation complete")
         setIsComplete(true)
         clearInterval(interval)
-        onComplete?.()
       }
     }, 30) // 30ms per character
 
     return () => {
       clearInterval(interval)
-      if (!isComplete) {
-        onComplete?.()
-      }
     }
   }, [text])
 
@@ -79,19 +72,13 @@ const StreamingText = ({
 
 const TranscriptionText = ({
   text,
-  transcriptionId,
-  currentlyAnimatingId,
-  onAnimationComplete,
+  shouldAnimate,
 }: {
   text: string
-  transcriptionId?: string
-  currentlyAnimatingId?: string | null
-  onAnimationComplete?: () => void
+  shouldAnimate?: boolean
 }) => {
-  const shouldAnimate = transcriptionId && transcriptionId === currentlyAnimatingId
-
   if (shouldAnimate) {
-    return <StreamingText text={text} onComplete={onAnimationComplete} />
+    return <StreamingText text={text} />
   }
 
   return <span>{text}</span>
@@ -109,8 +96,7 @@ export function ViewerInterface({
   const [isConnected, setIsConnected] = useState(false)
   const [autoScroll, setAutoScroll] = useState(true)
   const [viewMode, setViewMode] = useState<DisplayMode>(initialViewMode)
-  const [animationQueue, setAnimationQueue] = useState<string[]>([])
-  const [currentlyAnimatingId, setCurrentlyAnimatingId] = useState<string | null>(null)
+  const [newestTranscriptionId, setNewestTranscriptionId] = useState<string | null>(null)
   const scrollAreaRef = useRef<HTMLDivElement>(null)
   const lastTranscriptionRef = useRef<HTMLDivElement>(null)
   const transcriptionsViewedRef = useRef(0)
@@ -122,36 +108,6 @@ export function ViewerInterface({
   const [error, setError] = useState<string | null>(null)
   const initialLoadCompleteRef = useRef(false)
   const supabase = createClient()
-  const animationQueueRef = useRef<string[]>([])
-
-  const handleAnimationComplete = useCallback(() => {
-    console.log("[v0] Animation complete, clearing currentlyAnimatingId")
-    setCurrentlyAnimatingId(null)
-  }, [])
-
-  const queueTranscriptionAnimation = useCallback((id: string) => {
-    console.log("[v0] Queuing transcription for animation:", id)
-    setAnimationQueue((prev) => {
-      const newQueue = [...prev, id]
-      console.log("[v0] Queue after adding:", newQueue)
-      return newQueue
-    })
-  }, [])
-
-  useEffect(() => {
-    console.log(
-      "[v0] Queue check - currentlyAnimatingId:",
-      currentlyAnimatingId,
-      "queue length:",
-      animationQueue.length,
-    )
-    if (currentlyAnimatingId === null && animationQueue.length > 0) {
-      const nextId = animationQueue[0]
-      console.log("[v0] Starting animation for:", nextId)
-      setCurrentlyAnimatingId(nextId)
-      setAnimationQueue((prev) => prev.slice(1))
-    }
-  }, [currentlyAnimatingId, animationQueue])
 
   useEffect(() => {
     let isSubscribed = true
@@ -244,7 +200,10 @@ export function ViewerInterface({
               }
 
               if (initialLoadCompleteRef.current) {
-                queueTranscriptionAnimation(newTranscription.id)
+                setNewestTranscriptionId(newTranscription.id)
+                setTimeout(() => {
+                  setNewestTranscriptionId(null)
+                }, 2000)
               }
 
               return [...prev, newItem].sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime())
@@ -284,7 +243,7 @@ export function ViewerInterface({
     }
 
     initializeViewer()
-  }, [slug, queueTranscriptionAnimation])
+  }, [slug])
 
   useEffect(() => {
     const sessionId = `viewer-${Date.now()}-${Math.random().toString(36).substring(7)}`
@@ -351,7 +310,14 @@ export function ViewerInterface({
 
     const scrollContainer = scrollAreaRef.current
     scrollContainer.scrollTop = scrollContainer.scrollHeight
-  }, [transcriptions.length, autoScroll])
+  }, [transcriptions, autoScroll, newestTranscriptionId])
+
+  useEffect(() => {
+    if (scrollAreaRef.current && initialLoadCompleteRef.current) {
+      const scrollContainer = scrollAreaRef.current
+      scrollContainer.scrollTop = scrollContainer.scrollHeight
+    }
+  }, [initialLoadCompleteRef.current])
 
   useEffect(() => {
     const handleScroll = () => {
@@ -522,23 +488,17 @@ export function ViewerInterface({
                     </div>
                     <div className="text-5xl md:text-6xl lg:text-7xl leading-tight text-white font-bold space-y-4">
                       {group.texts.map((text, textIndex) => {
-                        const transcriptionIndex = displayTranscriptions.findIndex((t) =>
-                          group.texts
-                            .slice(0, textIndex + 1)
-                            .join(" ")
-                            .includes(t.text),
-                        )
-                        const transcriptionId =
-                          transcriptionIndex >= 0 ? displayTranscriptions[transcriptionIndex].id : undefined
+                        const transcriptionIndex = displayTranscriptions.findIndex((t) => t.text === text)
+                        const transcription =
+                          transcriptionIndex >= 0 ? displayTranscriptions[transcriptionIndex] : undefined
+                        const isLastInGroup = textIndex === group.texts.length - 1
+                        const isLastGroup = index === groupedTranscriptions.slice(-5).length - 1
+                        const shouldAnimate =
+                          isLastInGroup && isLastGroup && transcription?.id === newestTranscriptionId
 
                         return (
                           <span key={textIndex}>
-                            <TranscriptionText
-                              text={text}
-                              transcriptionId={textIndex === group.texts.length - 1 ? transcriptionId : undefined}
-                              currentlyAnimatingId={currentlyAnimatingId}
-                              onAnimationComplete={handleAnimationComplete}
-                            />
+                            <TranscriptionText text={text} shouldAnimate={shouldAnimate} />
                             {textIndex < group.texts.length - 1 && " "}
                           </span>
                         )
@@ -663,23 +623,13 @@ export function ViewerInterface({
                     </div>
                     <div className="text-base leading-relaxed text-foreground space-y-1">
                       {group.texts.map((text, textIndex) => {
-                        const transcriptionIndex = displayTranscriptions.findIndex((t) =>
-                          group.texts
-                            .slice(0, textIndex + 1)
-                            .join(" ")
-                            .includes(t.text),
-                        )
+                        const transcriptionIndex = displayTranscriptions.findIndex((t) => t.text === text)
                         const transcriptionId =
                           transcriptionIndex >= 0 ? displayTranscriptions[transcriptionIndex].id : undefined
 
                         return (
                           <span key={textIndex}>
-                            <TranscriptionText
-                              text={text}
-                              transcriptionId={textIndex === group.texts.length - 1 ? transcriptionId : undefined}
-                              currentlyAnimatingId={currentlyAnimatingId}
-                              onAnimationComplete={handleAnimationComplete}
-                            />
+                            <TranscriptionText text={text} transcriptionId={transcriptionId} />
                             {textIndex < group.texts.length - 1 && " "}
                           </span>
                         )
@@ -807,12 +757,7 @@ export function ViewerInterface({
                           {formatTimestamp(new Date(t.timestamp))}
                         </span>
                         <div className="flex-1 text-base leading-relaxed">
-                          <TranscriptionText
-                            text={t.text}
-                            transcriptionId={t.id}
-                            currentlyAnimatingId={currentlyAnimatingId}
-                            onAnimationComplete={handleAnimationComplete}
-                          />
+                          <TranscriptionText text={t.text} />
                         </div>
                       </div>
                     </div>
