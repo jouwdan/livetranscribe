@@ -14,6 +14,7 @@ export class OpenAITranscriber {
   private lastTranscriptionTime: number = Date.now()
   private lastAudioActivityTime: number = Date.now()
   private lastDeltaTime: number = Date.now()
+  private hasAudioInBuffer = false // Added flag to track if buffer has audio
   private maxAudioDurationMs = 8000 // Force transcription after 8 seconds
   private naturalPauseThresholdMs = 200 // Consider it a natural pause after 200ms of low activity
   private durationCheckInterval: NodeJS.Timeout | null = null
@@ -61,6 +62,7 @@ export class OpenAITranscriber {
         const base64Audio = this.arrayBufferToBase64(int16Data.buffer)
 
         this.ws.send(JSON.stringify({ type: "input_audio_buffer.append", audio: base64Audio }))
+        this.hasAudioInBuffer = true
       }
 
       source.connect(this.processor)
@@ -82,13 +84,20 @@ export class OpenAITranscriber {
       const timeSinceLastDelta = Date.now() - this.lastDeltaTime
 
       // Only force commit if we've exceeded max duration AND we're in a natural pause
-      // (no audio activity for 400ms OR no deltas for 400ms)
+      // (no audio activity for 200ms OR no deltas for 200ms)
       const inNaturalPause =
         timeSinceLastActivity > this.naturalPauseThresholdMs || timeSinceLastDelta > this.naturalPauseThresholdMs
 
-      if (timeSinceLastTranscription > this.maxAudioDurationMs && inNaturalPause && this.ws && this.isConnected) {
+      if (
+        timeSinceLastTranscription > this.maxAudioDurationMs &&
+        inNaturalPause &&
+        this.hasAudioInBuffer &&
+        this.ws &&
+        this.isConnected
+      ) {
         this.ws.send(JSON.stringify({ type: "input_audio_buffer.commit" }))
         this.lastTranscriptionTime = Date.now()
+        this.hasAudioInBuffer = false // Reset flag after commit
       }
     }, 200) // Check every 200ms for more responsive detection
   }
@@ -185,6 +194,7 @@ export class OpenAITranscriber {
         if (typeof message.transcript === "string") {
           this.lastTranscriptionTime = Date.now()
           this.lastDeltaTime = Date.now()
+          this.hasAudioInBuffer = false
 
           this.onTranscription(message.transcript, true, this.sequenceNumber++)
           this.accumulatedText = ""
