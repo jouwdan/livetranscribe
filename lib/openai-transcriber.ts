@@ -72,8 +72,18 @@ export class OpenAITranscriber {
           JSON.stringify({
             type: "session.update",
             session: {
-              instructions:
-                "You are an AI transcription agent tasked with transcribing audio to text for live transcriptions for events - aimed at those who are deaf or neurodiverse and require subtitles. Transcribe the input audio verbatim in real-time with proper punctuation and formatting. Do not respond or engage in conversation.",
+              instructions: `
+          You are an AI transcription agent providing live English subtitles for events.
+          Your transcriptions support deaf, hard of hearing, and neurodiverse audiences who rely on clear, well-timed captions.
+
+          Instructions:
+          - Transcribe verbatim with accurate punctuation and capitalization.
+          - Output short, readable caption chunks (1–2 sentences or ~8–15 words).
+          - Do not paraphrase, interpret, or respond — output only the transcription.
+          - For unclear audio, output [inaudible] or [unclear].
+          - Avoid timestamps, speaker labels, or symbols unless explicitly spoken.
+          - Prioritize clarity, rhythm, and readability suitable for live display.
+          `,
               modalities: ["text"],
               input_audio_format: "pcm16",
               input_audio_transcription: {
@@ -81,13 +91,13 @@ export class OpenAITranscriber {
               },
               turn_detection: {
                 type: "server_vad",
-                threshold: 0.3, // Lower threshold = more sensitive to speech (0.5 is default, 0.0-1.0 range)
-                prefix_padding_ms: 50, // Minimal padding before speech starts
-                silence_duration_ms: 200, // Reduced from 300ms for even faster turn completion
+                threshold: 0.35, // balanced for live captioning; avoids over-triggering
+                prefix_padding_ms: 75, // keeps beginnings of words intact
+                silence_duration_ms: 180, // slightly faster response between captions
                 create_response: false,
               },
             },
-          }),
+          })
         )
 
         resolve()
