@@ -7,8 +7,18 @@ import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Loader2, CheckCircle2, XCircle, AlertCircle } from "lucide-react"
+import { Loader2, CheckCircle2, XCircle, CreditCard, Clock, Users } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
+
+interface EventCredit {
+  id: string
+  credits_minutes: number
+  max_attendees: number
+  notes: string | null
+  created_at: string
+}
 
 export function CreateEventForm() {
   const [eventName, setEventName] = useState("")
@@ -17,11 +27,12 @@ export function CreateEventForm() {
   const [checkingSlug, setCheckingSlug] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [hasCredits, setHasCredits] = useState<boolean>(true)
   const router = useRouter()
+  const [availableCredits, setAvailableCredits] = useState<EventCredit[]>([])
+  const [selectedCreditId, setSelectedCreditId] = useState<string>("")
 
   useEffect(() => {
-    const checkCredits = async () => {
+    const fetchCredits = async () => {
       const supabase = createClient()
       const {
         data: { user },
@@ -29,16 +40,25 @@ export function CreateEventForm() {
 
       if (!user) return
 
-      const { data: profile } = await supabase
-        .from("user_profiles")
-        .select("credits_minutes")
-        .eq("id", user.id)
-        .single()
+      const { data, error } = await supabase
+        .from("event_credits")
+        .select("*")
+        .eq("user_id", user.id)
+        .is("allocated_to_event_id", null)
+        .order("created_at", { ascending: false })
 
-      setHasCredits(profile ? profile.credits_minutes > 0 : false)
+      if (error) {
+        console.error("Error fetching credits:", error)
+        return
+      }
+
+      setAvailableCredits(data || [])
+      if (data && data.length > 0) {
+        setSelectedCreditId(data[0].id)
+      }
     }
 
-    checkCredits()
+    fetchCredits()
   }, [])
 
   useEffect(() => {
@@ -108,14 +128,15 @@ export function CreateEventForm() {
         return
       }
 
-      const { data: profile } = await supabase
-        .from("user_profiles")
-        .select("credits_minutes")
-        .eq("id", user.id)
-        .single()
+      if (!selectedCreditId) {
+        setError("Please select an event credit to use")
+        setIsLoading(false)
+        return
+      }
 
-      if (!profile || profile.credits_minutes <= 0) {
-        setError("Insufficient credits. Please add more minutes to your account before creating an event.")
+      const selectedCredit = availableCredits.find((c) => c.id === selectedCreditId)
+      if (!selectedCredit) {
+        setError("Invalid credit selection")
         setIsLoading(false)
         return
       }
@@ -141,11 +162,23 @@ export function CreateEventForm() {
           user_id: user.id,
           organizer_key: Math.random().toString(36).substring(7),
           is_active: true,
+          credits_minutes: selectedCredit.credits_minutes,
+          max_attendees: selectedCredit.max_attendees,
         })
         .select()
         .single()
 
       if (createError) throw createError
+
+      const { error: updateError } = await supabase
+        .from("event_credits")
+        .update({
+          allocated_to_event_id: event.id,
+          allocated_at: new Date().toISOString(),
+        })
+        .eq("id", selectedCreditId)
+
+      if (updateError) throw updateError
 
       router.push(`/broadcast/${slug}`)
     } catch (err) {
@@ -157,16 +190,54 @@ export function CreateEventForm() {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
-      {!hasCredits && (
-        <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-lg flex items-start gap-3">
-          <AlertCircle className="h-5 w-5 text-red-400 mt-0.5" />
-          <div>
-            <p className="text-sm text-red-400 font-semibold">Insufficient Credits</p>
-            <p className="text-sm text-red-300 mt-1">
-              You don't have enough credits to create an event. Please contact us to add more minutes to your account.
-            </p>
-          </div>
-        </div>
+      {availableCredits.length > 0 ? (
+        <Card className="bg-card/50 backdrop-blur-sm border-border/80">
+          <CardHeader>
+            <CardTitle className="text-white flex items-center gap-2">
+              <CreditCard className="h-5 w-5" />
+              Select Event Credit
+            </CardTitle>
+            <CardDescription>Choose which credit to use for this event</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <RadioGroup value={selectedCreditId} onValueChange={setSelectedCreditId} className="space-y-3">
+              {availableCredits.map((credit) => (
+                <div key={credit.id} className="flex items-center space-x-2">
+                  <RadioGroupItem value={credit.id} id={credit.id} />
+                  <Label
+                    htmlFor={credit.id}
+                    className="flex-1 cursor-pointer p-3 rounded-lg border border-border/50 bg-black/30 hover:bg-black/50 transition-colors"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="space-y-1">
+                        {credit.notes && <div className="font-medium text-white">{credit.notes}</div>}
+                        <div className="flex items-center gap-4 text-sm text-slate-400">
+                          <span className="flex items-center gap-1">
+                            <Clock className="h-3 w-3" />
+                            {credit.credits_minutes} minutes
+                          </span>
+                          <span className="flex items-center gap-1">
+                            <Users className="h-3 w-3" />
+                            {credit.max_attendees} attendees
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </Label>
+                </div>
+              ))}
+            </RadioGroup>
+          </CardContent>
+        </Card>
+      ) : (
+        <Card className="bg-card/50 backdrop-blur-sm border-border/80 border-red-500/50">
+          <CardHeader>
+            <CardTitle className="text-white">No Event Credits Available</CardTitle>
+            <CardDescription className="text-red-400">
+              You need to purchase event credits before you can create an event.
+            </CardDescription>
+          </CardHeader>
+        </Card>
       )}
 
       <div className="space-y-2">
@@ -178,7 +249,7 @@ export function CreateEventForm() {
           value={eventName}
           onChange={(e) => setEventName(e.target.value)}
           required
-          disabled={isLoading}
+          disabled={isLoading || availableCredits.length === 0}
         />
         <p className="text-sm text-muted-foreground">This will be visible to attendees</p>
       </div>
@@ -192,7 +263,7 @@ export function CreateEventForm() {
             placeholder="my-event"
             value={customSlug}
             onChange={(e) => setCustomSlug(sanitizeSlug(e.target.value))}
-            disabled={isLoading}
+            disabled={isLoading || availableCredits.length === 0}
             className="pr-10"
           />
           {customSlug && (
@@ -222,7 +293,9 @@ export function CreateEventForm() {
 
       <Button
         type="submit"
-        disabled={isLoading || !eventName || (customSlug !== "" && slugAvailable !== true) || !hasCredits}
+        disabled={
+          isLoading || !eventName || (customSlug !== "" && slugAvailable !== true) || availableCredits.length === 0
+        }
         className="w-full"
       >
         {isLoading ? (

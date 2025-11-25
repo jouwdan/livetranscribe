@@ -3,7 +3,7 @@ import { redirect } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import Link from "next/link"
-import { PlusCircle, Clock, Archive, ArchiveRestore, BarChart3, List } from "lucide-react"
+import { PlusCircle, Clock, Archive, ArchiveRestore, BarChart3, List, Users } from "lucide-react"
 import { AppNav } from "@/components/app-nav"
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
 import { archiveEvent, unarchiveEvent } from "./actions"
@@ -23,20 +23,33 @@ export default async function DashboardPage() {
     redirect("/auth/login")
   }
 
-  const { data: profile } = await supabase
-    .from("user_profiles")
-    .select("credits_minutes, max_attendees")
-    .eq("id", user.id)
-    .maybeSingle()
+  const { data: eventCredits } = await supabase
+    .from("event_credits")
+    .select("*")
+    .eq("user_id", user.id)
+    .order("created_at", { ascending: false })
 
-  if (!profile) {
-    await supabase.from("user_profiles").insert({
-      id: user.id,
-      email: user.email,
-      credits_minutes: 15,
-      max_attendees: 25,
-    })
-  }
+  const availableCredits = eventCredits?.filter((c) => !c.allocated_to_event_id) || []
+  const allocatedCredits = eventCredits?.filter((c) => c.allocated_to_event_id) || []
+
+  const groupedCredits = availableCredits.reduce(
+    (acc, credit) => {
+      const key = `${credit.credits_minutes}-${credit.max_attendees}`
+      if (!acc[key]) {
+        acc[key] = {
+          credits_minutes: credit.credits_minutes,
+          max_attendees: credit.max_attendees,
+          count: 0,
+          notes: credit.notes,
+        }
+      }
+      acc[key].count++
+      return acc
+    },
+    {} as Record<string, { credits_minutes: number; max_attendees: number; count: number; notes: string | null }>,
+  )
+
+  const creditGroups = Object.values(groupedCredits)
 
   const { data: activeEvents } = await supabase
     .from("events")
@@ -60,8 +73,6 @@ export default async function DashboardPage() {
 
   const totalMinutes = usage?.reduce((sum, log) => sum + (log.duration_minutes || 0), 0) || 0
   const totalSessions = usage?.length || 0
-  const creditsMinutes = profile?.credits_minutes || 15
-  const maxAttendees = profile?.max_attendees || 25
 
   return (
     <div className="min-h-screen bg-black">
@@ -75,39 +86,60 @@ export default async function DashboardPage() {
             </div>
           </div>
 
-          <Card className="bg-gradient-to-br from-purple-500/10 to-blue-500/10 border-purple-500/20">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Clock className="h-5 w-5 text-purple-400" />
-                Available Credits
-              </CardTitle>
-              <CardDescription>Your remaining transcription time and capacity</CardDescription>
-            </CardHeader>
-            <CardContent className="grid grid-cols-2 gap-4">
-              <div>
-                <div className="text-3xl font-bold text-purple-400">{creditsMinutes} min</div>
-                <p className="text-sm text-muted-foreground mt-1">Minutes remaining</p>
-              </div>
-              <div>
-                <div className="text-3xl font-bold text-blue-400">{maxAttendees}</div>
-                <p className="text-sm text-muted-foreground mt-1">Max attendees</p>
-              </div>
-            </CardContent>
-          </Card>
+          <div className="flex flex-wrap gap-3">
+            {creditGroups.length > 0 ? (
+              creditGroups.map((group, idx) => (
+                <Card
+                  key={idx}
+                  className="bg-gradient-to-br from-purple-500/10 to-blue-500/10 border-purple-500/20 flex-shrink-0"
+                >
+                  <CardContent className="pt-4 pb-3 px-4">
+                    <div className="flex items-center gap-3">
+                      <div className="h-10 w-10 rounded-full bg-purple-500/20 flex items-center justify-center flex-shrink-0">
+                        <span className="text-lg font-bold text-purple-400">{group.count}</span>
+                      </div>
+                      <div className="flex flex-col gap-1">
+                        <div className="flex items-center gap-3 text-xs text-slate-300">
+                          <span className="flex items-center gap-1">
+                            <Clock className="h-3 w-3" />
+                            {group.credits_minutes} min
+                          </span>
+                          <span className="flex items-center gap-1">
+                            <Users className="h-3 w-3" />
+                            {group.max_attendees} attendees
+                          </span>
+                        </div>
+                        <div className="text-xs text-slate-500">
+                          {group.count === 1 ? "1 event credit" : `${group.count} event credits`}
+                        </div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))
+            ) : (
+              <Card className="bg-card/50 backdrop-blur-sm border-red-500/50 w-full">
+                <CardContent className="pt-4 pb-3 px-4">
+                  <p className="text-center text-red-400 text-sm">
+                    No event credits available. Contact support to purchase credits.
+                  </p>
+                </CardContent>
+              </Card>
+            )}
+          </div>
 
           <Card className="bg-card border-border">
-            <CardHeader>
-              <CardTitle>Usage Summary</CardTitle>
-              <CardDescription>Your transcription usage statistics</CardDescription>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base">Usage Summary</CardTitle>
             </CardHeader>
-            <CardContent className="grid grid-cols-2 gap-4">
+            <CardContent className="grid grid-cols-2 gap-4 pt-0">
               <div>
-                <div className="text-3xl font-bold text-foreground">{totalMinutes}</div>
-                <p className="text-sm text-muted-foreground mt-1">Total minutes used</p>
+                <div className="text-2xl font-bold text-foreground">{totalMinutes}</div>
+                <p className="text-xs text-muted-foreground mt-1">Total minutes used</p>
               </div>
               <div>
-                <div className="text-3xl font-bold text-foreground">{totalSessions}</div>
-                <p className="text-sm text-muted-foreground mt-1">Sessions</p>
+                <div className="text-2xl font-bold text-foreground">{totalSessions}</div>
+                <p className="text-xs text-muted-foreground mt-1">Sessions</p>
               </div>
             </CardContent>
           </Card>
@@ -115,18 +147,18 @@ export default async function DashboardPage() {
           <div className="flex items-center justify-between">
             <h2 className="text-2xl font-bold text-white">Your Events</h2>
             <Link href="/create">
-              <Button className="gap-2" disabled={creditsMinutes <= 0}>
+              <Button className="gap-2" disabled={availableCredits.length === 0}>
                 <PlusCircle className="h-4 w-4" />
                 Create Event
               </Button>
             </Link>
           </div>
 
-          {creditsMinutes <= 0 && (
-            <Card className="bg-red-500/10 border-red-500/20">
+          {availableCredits.length === 0 && (
+            <Card className="bg-card/50 backdrop-blur-sm border-red-500/50">
               <CardContent className="pt-6">
-                <p className="text-red-400 text-sm">
-                  You've used all your available credits. Contact us to add more minutes to your account.
+                <p className="text-center text-red-400">
+                  You need event credits to create events. Contact support to purchase credits.
                 </p>
               </CardContent>
             </Card>
@@ -138,7 +170,19 @@ export default async function DashboardPage() {
                 <Card key={event.id} className="bg-card border-border">
                   <CardHeader>
                     <div className="flex items-center justify-between">
-                      <CardTitle className="text-foreground">{event.name}</CardTitle>
+                      <div>
+                        <CardTitle className="text-foreground">{event.name}</CardTitle>
+                        <div className="flex items-center gap-4 mt-2">
+                          <span className="text-sm text-muted-foreground">
+                            Credits:{" "}
+                            <span className="text-purple-400 font-semibold">{event.credits_minutes || 0} min</span>
+                          </span>
+                          <span className="text-sm text-muted-foreground">
+                            Max attendees:{" "}
+                            <span className="text-blue-400 font-semibold">{event.max_attendees || 0}</span>
+                          </span>
+                        </div>
+                      </div>
                       <div className="flex gap-2">
                         {event.session_active && (
                           <span className="px-2 py-1 bg-green-500/10 text-green-400 text-xs rounded-full border border-green-500/20">

@@ -84,7 +84,7 @@ export function BroadcastInterface({ slug, eventName, eventId, userId }: Broadca
   useEffect(() => {
     const fetchCredits = async () => {
       const supabase = createClient()
-      const { data } = await supabase.from("user_profiles").select("credits_minutes").eq("id", userId).single()
+      const { data } = await supabase.from("events").select("credits_minutes").eq("id", eventId).single()
 
       if (data) {
         setCreditsRemaining(data.credits_minutes)
@@ -92,7 +92,7 @@ export function BroadcastInterface({ slug, eventName, eventId, userId }: Broadca
     }
 
     fetchCredits()
-  }, [userId])
+  }, [eventId])
 
   useEffect(() => {
     const fetchSessions = async () => {
@@ -222,10 +222,12 @@ export function BroadcastInterface({ slug, eventName, eventId, userId }: Broadca
       }
 
       const supabase = createClient()
-      const { data: profile } = await supabase.from("user_profiles").select("credits_minutes").eq("id", userId).single()
+      const { data: event } = await supabase.from("events").select("credits_minutes").eq("id", eventId).single()
 
-      if (!profile || profile.credits_minutes <= 0) {
-        setError("Insufficient credits. Please add more minutes to your account to continue broadcasting.")
+      if (!event || event.credits_minutes <= 0) {
+        setError(
+          "This event has insufficient credits. Please purchase more time for this event to continue broadcasting.",
+        )
         return
       }
 
@@ -281,22 +283,18 @@ export function BroadcastInterface({ slug, eventName, eventId, userId }: Broadca
         })
         .eq("id", currentSessionId)
 
-      const { error: deductError } = await supabase.rpc("deduct_user_credits", {
-        p_user_id: userId,
+      const { error: deductError } = await supabase.rpc("deduct_event_credits", {
+        p_event_id: eventId,
         p_duration_minutes: durationMinutes,
       })
 
       if (deductError) {
         console.error("[v0] Failed to deduct credits:", deductError)
       } else {
-        const { data: profile } = await supabase
-          .from("user_profiles")
-          .select("credits_minutes")
-          .eq("id", userId)
-          .single()
+        const { data: event } = await supabase.from("events").select("credits_minutes").eq("id", eventId).single()
 
-        if (profile) {
-          setCreditsRemaining(profile.credits_minutes)
+        if (event) {
+          setCreditsRemaining(event.credits_minutes)
         }
       }
     }
