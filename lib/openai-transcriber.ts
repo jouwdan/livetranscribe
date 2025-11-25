@@ -146,6 +146,7 @@ export class OpenAITranscriber {
           - Transcribe verbatim with accurate punctuation and capitalization.
           - Output short, readable caption chunks (1–2 sentences or ~8–15 words).
           - Do not paraphrase, interpret, or respond — output only the transcription.
+          - Do not use a language other than English.
           - For unclear audio, output [inaudible] or [unclear].
           - Avoid timestamps, speaker labels, or symbols unless explicitly spoken.
           - Prioritize clarity, rhythm, and readability suitable for live display.
