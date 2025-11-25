@@ -185,7 +185,7 @@ export function BroadcastInterface({ slug, eventName, eventId, userId }: Broadca
     }
 
     try {
-      console.log("[v0] Sending transcription to API:", { text, isFinal, sequence, slug })
+      console.log("[v0] Sending transcription to API:", { text, isFinal, sequence, slug, sessionId: currentSessionId })
 
       const response = await fetch(`/api/stream/${slug}`, {
         method: "POST",
@@ -195,6 +195,7 @@ export function BroadcastInterface({ slug, eventName, eventId, userId }: Broadca
           isFinal,
           sequenceNumber: sequence,
           eventName,
+          sessionId: currentSessionId,
         }),
       })
 

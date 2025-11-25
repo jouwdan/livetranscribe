@@ -6,13 +6,14 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Radio, ArrowDownToLine, Pause, Monitor, Smartphone, Tv } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
-import { LiveTranscriptionDisplay } from "@/components/live-transcription-display"
 
 interface Transcription {
   text: string
   isFinal: boolean
   sequenceNumber: number
   timestamp: string
+  sessionId?: string
+  sessionInfo?: any
 }
 
 interface ViewerInterfaceProps {
@@ -66,7 +67,7 @@ export function ViewerInterface({ slug, eventName, eventDescription }: ViewerInt
       console.log("[v0] Fetching initial transcriptions for event_id:", event.id)
       const { data: initialTranscriptions, error: transcriptionsError } = await supabase
         .from("transcriptions")
-        .select("*")
+        .select("*, event_sessions(name, session_number)")
         .eq("event_id", event.id)
         .order("sequence_number", { ascending: true })
 
@@ -84,6 +85,8 @@ export function ViewerInterface({ slug, eventName, eventDescription }: ViewerInt
             isFinal: t.is_final,
             sequenceNumber: t.sequence_number,
             timestamp: t.created_at,
+            sessionId: t.session_id,
+            sessionInfo: t.event_sessions,
           })),
         )
         transcriptionsViewedRef.current = filtered.filter((t) => t.is_final).length
@@ -107,13 +110,23 @@ export function ViewerInterface({ slug, eventName, eventDescription }: ViewerInt
             table: "transcriptions",
             filter: `event_id=eq.${event.id}`,
           },
-          (payload) => {
+          async (payload) => {
             console.log("[v0] Real-time transcription INSERT received:", payload)
             const newTranscription = payload.new as any
 
             if (!newTranscription.text || newTranscription.text.trim() === "") {
               console.log("[v0] Skipping empty transcription")
               return
+            }
+
+            let sessionInfo = null
+            if (newTranscription.session_id) {
+              const { data: sessionData } = await supabase
+                .from("event_sessions")
+                .select("name, session_number")
+                .eq("id", newTranscription.session_id)
+                .single()
+              sessionInfo = sessionData
             }
 
             setTranscriptions((prev) => {
@@ -135,6 +148,8 @@ export function ViewerInterface({ slug, eventName, eventDescription }: ViewerInt
                   isFinal: newTranscription.is_final,
                   sequenceNumber: newTranscription.sequence_number,
                   timestamp: newTranscription.created_at,
+                  sessionId: newTranscription.session_id,
+                  sessionInfo,
                 },
               ].sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())
             })
@@ -178,7 +193,7 @@ export function ViewerInterface({ slug, eventName, eventDescription }: ViewerInt
   useEffect(() => {
     activityIntervalRef.current = setInterval(() => {
       if (!document.hidden) {
-        activeTimeRef.current += 1 // Increment by 1 second
+        activeTimeRef.current += 1
         lastActivityRef.current = Date.now()
       }
     }, 1000)
@@ -203,7 +218,6 @@ export function ViewerInterface({ slug, eventName, eventDescription }: ViewerInt
 
       if (!event) return
 
-      // Register viewer session
       await supabase.from("viewer_sessions").insert({
         event_id: event.id,
         session_id: sessionIdRef.current,
@@ -235,7 +249,6 @@ export function ViewerInterface({ slug, eventName, eventDescription }: ViewerInt
 
     return () => {
       clearInterval(pingInterval)
-      // Mark session as left with final engagement metrics
       const cleanup = async () => {
         const { data: event } = await supabase.from("events").select("id").eq("slug", slug).single()
         if (event) {
@@ -286,42 +299,60 @@ export function ViewerInterface({ slug, eventName, eventDescription }: ViewerInt
     })
   }
 
-  const groupTranscriptionsByTime = (transcriptions: Transcription[]) => {
+  const groupTranscriptionsBySessionAndTime = (transcriptions: Transcription[]) => {
     const sorted = [...transcriptions].sort((a, b) => {
       return new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
     })
 
-    return sorted.reduce(
-      (acc, curr, index) => {
-        if (index === 0) {
-          acc.push({
+    const groups: Array<{
+      timestamp: string
+      texts: string[]
+      sessionId?: string
+      sessionInfo?: any
+      isSessionStart?: boolean
+    }> = []
+
+    let lastSessionId: string | undefined = undefined
+
+    sorted.forEach((curr, index) => {
+      const isNewSession = curr.sessionId && curr.sessionId !== lastSessionId
+
+      if (index === 0 || isNewSession) {
+        groups.push({
+          timestamp: curr.timestamp,
+          texts: [curr.text],
+          sessionId: curr.sessionId,
+          sessionInfo: curr.sessionInfo,
+          isSessionStart: isNewSession && index > 0,
+        })
+        lastSessionId = curr.sessionId
+      } else {
+        const prevTimestamp = new Date(sorted[index - 1].timestamp).getTime()
+        const currTimestamp = new Date(curr.timestamp).getTime()
+        const timeDiff = (currTimestamp - prevTimestamp) / 1000
+
+        if (timeDiff > 10) {
+          groups.push({
             timestamp: curr.timestamp,
             texts: [curr.text],
+            sessionId: curr.sessionId,
+            sessionInfo: curr.sessionInfo,
+            isSessionStart: false,
           })
         } else {
-          const prevTimestamp = new Date(sorted[index - 1].timestamp).getTime()
-          const currTimestamp = new Date(curr.timestamp).getTime()
-          const timeDiff = (currTimestamp - prevTimestamp) / 1000
-
-          if (timeDiff > 10) {
-            acc.push({
-              timestamp: curr.timestamp,
-              texts: [curr.text],
-            })
-          } else {
-            acc[acc.length - 1].texts.push(curr.text)
-          }
+          groups[groups.length - 1].texts.push(curr.text)
         }
-        return acc
-      },
-      [] as Array<{ timestamp: string; texts: string[] }>,
-    )
+      }
+    })
+
+    return groups
   }
 
-  if (displayMode === "stage") {
-    const groupedTranscriptions = groupTranscriptionsByTime(displayTranscriptions.slice(-8))
+  const groupedTranscriptions = groupTranscriptionsBySessionAndTime(
+    transcriptions.filter((t) => t.isFinal && t.text.trim() !== ""),
+  )
 
-    // Stage TV Display - Large text, minimal UI, high contrast
+  if (displayMode === "stage") {
     return (
       <div className="flex flex-col h-screen bg-black overflow-hidden">
         <div className="bg-black border-b border-purple-500/30 flex-shrink-0">
@@ -389,10 +420,8 @@ export function ViewerInterface({ slug, eventName, eventDescription }: ViewerInt
           </div>
         </div>
 
-        {/* Full screen transcription display */}
         <div className="flex-1 overflow-hidden px-12 py-8">
           <div ref={containerRef} onScroll={handleScroll} className="h-full overflow-y-auto">
-            {/* Latest interim text - very large */}
             {latestInterim && (
               <div className="mb-12 p-8 bg-purple-500/10 border-l-4 border-purple-500 rounded-lg">
                 <p className="text-5xl md:text-6xl lg:text-7xl font-medium text-white leading-tight tracking-wide">
@@ -402,15 +431,25 @@ export function ViewerInterface({ slug, eventName, eventDescription }: ViewerInt
             )}
 
             <div className="space-y-8">
-              {groupedTranscriptions.map((group, index) => (
-                <div key={index} className="space-y-3">
-                  <div className="text-xs font-medium text-purple-400/60 uppercase tracking-wide">
-                    {formatTimestamp(group.timestamp)}
-                  </div>
-                  <div className="p-6 bg-white/5 rounded-lg backdrop-blur-sm">
-                    <p className="text-3xl md:text-4xl lg:text-5xl text-white/90 leading-relaxed tracking-wide">
-                      {group.texts.join(" ")}
-                    </p>
+              {groupedTranscriptions.slice(-5).map((group, index) => (
+                <div key={index}>
+                  {group.isSessionStart && group.sessionInfo && (
+                    <div className="mb-6 py-4 px-6 bg-purple-500/30 border-2 border-purple-400/50 rounded-xl">
+                      <div className="flex items-center gap-3 text-purple-200 text-2xl font-bold">
+                        <Radio className="h-6 w-6" />
+                        New Session: {group.sessionInfo.name}
+                      </div>
+                    </div>
+                  )}
+                  <div className="space-y-2">
+                    <div className="text-sm text-purple-400/60 uppercase tracking-wider">
+                      {formatTimestamp(group.timestamp)}
+                    </div>
+                    <div className="text-5xl md:text-6xl lg:text-7xl leading-tight text-white font-bold space-y-4">
+                      {group.texts.map((text, i) => (
+                        <p key={i}>{text}</p>
+                      ))}
+                    </div>
                   </div>
                 </div>
               ))}
@@ -419,7 +458,6 @@ export function ViewerInterface({ slug, eventName, eventDescription }: ViewerInt
           </div>
         </div>
 
-        {/* Minimal footer */}
         <div className="bg-black border-t border-purple-500/30 flex-shrink-0">
           <div className="px-8 py-4">
             <p className="text-center text-sm text-foreground/40">
@@ -432,9 +470,6 @@ export function ViewerInterface({ slug, eventName, eventDescription }: ViewerInt
   }
 
   if (displayMode === "mobile") {
-    const groupedTranscriptions = groupTranscriptionsByTime(displayTranscriptions)
-
-    // Mobile optimized - Compact, touch-friendly
     return (
       <div className="flex flex-col h-screen bg-black overflow-hidden">
         <div className="bg-black border-b border-border flex-shrink-0">
@@ -479,11 +514,9 @@ export function ViewerInterface({ slug, eventName, eventDescription }: ViewerInt
           </div>
         </div>
 
-        {/* Streamlined mobile content */}
         <div className="flex-1 overflow-y-auto">
           <div className="p-4">
-            <div ref={containerRef} onScroll={handleScroll} className="space-y-3">
-              {/* Current interim - prominent */}
+            <div ref={containerRef} onScroll={handleScroll} className="space-y-4">
               {latestInterim && (
                 <div className="p-4 bg-purple-500/20 border-l-2 border-purple-500 rounded">
                   <p className="text-lg font-medium text-white leading-relaxed">{latestInterim.text}</p>
@@ -491,12 +524,24 @@ export function ViewerInterface({ slug, eventName, eventDescription }: ViewerInt
               )}
 
               {groupedTranscriptions.map((group, index) => (
-                <div key={index} className="space-y-2">
-                  <div className="text-xs font-medium text-foreground/40 uppercase tracking-wide">
-                    {formatTimestamp(group.timestamp)}
-                  </div>
-                  <div className="p-3 bg-white/5 rounded backdrop-blur-sm">
-                    <p className="text-base text-white/90 leading-relaxed">{group.texts.join(" ")}</p>
+                <div key={index}>
+                  {group.isSessionStart && group.sessionInfo && (
+                    <div className="mb-3 py-2 px-3 bg-purple-500/20 border border-purple-500/30 rounded-lg">
+                      <div className="flex items-center gap-2 text-purple-300 text-sm font-semibold">
+                        <Radio className="h-3 w-3" />
+                        New Session: {group.sessionInfo.name}
+                      </div>
+                    </div>
+                  )}
+                  <div className="space-y-1">
+                    <div className="text-xs text-purple-400/60 uppercase tracking-wide">
+                      {formatTimestamp(group.timestamp)}
+                    </div>
+                    <div className="text-base leading-relaxed text-foreground space-y-1">
+                      {group.texts.map((text, i) => (
+                        <p key={i}>{text}</p>
+                      ))}
+                    </div>
                   </div>
                 </div>
               ))}
@@ -505,7 +550,6 @@ export function ViewerInterface({ slug, eventName, eventDescription }: ViewerInt
           </div>
         </div>
 
-        {/* Fixed mobile controls */}
         <div className="bg-black border-t border-border flex-shrink-0">
           <div className="px-4 py-3 flex items-center justify-between">
             <Button
@@ -535,10 +579,8 @@ export function ViewerInterface({ slug, eventName, eventDescription }: ViewerInt
     )
   }
 
-  // Default laptop/desktop view
   return (
     <div className="flex flex-col h-screen bg-black overflow-hidden">
-      {/* Header */}
       <div className="bg-black border-b border-border flex-shrink-0">
         <div className="px-4 sm:px-6 lg:px-8 py-4 max-w-7xl mx-auto">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -558,7 +600,6 @@ export function ViewerInterface({ slug, eventName, eventDescription }: ViewerInt
                   "Offline"
                 )}
               </Badge>
-              {/* Display mode toggles */}
               <div className="flex gap-1 border-l border-border pl-3">
                 <Button variant="outline" size="sm" className="gap-2 border-purple-500/30 bg-purple-500/10">
                   <Monitor className="h-4 w-4" />
@@ -613,7 +654,28 @@ export function ViewerInterface({ slug, eventName, eventDescription }: ViewerInt
             </CardHeader>
             <CardContent className="flex-1 overflow-y-auto p-6">
               <div ref={containerRef} onScroll={handleScroll} className="h-full">
-                <LiveTranscriptionDisplay transcriptions={displayTranscriptions} interimText={latestInterim?.text} />
+                {groupedTranscriptions.map((group, index) => (
+                  <div key={index}>
+                    {group.isSessionStart && group.sessionInfo && (
+                      <div className="mb-4 py-3 px-4 bg-purple-500/20 border border-purple-500/30 rounded-lg">
+                        <div className="flex items-center gap-2 text-purple-300 font-semibold">
+                          <Radio className="h-4 w-4" />
+                          New Session Started: {group.sessionInfo.name}
+                        </div>
+                      </div>
+                    )}
+                    <div className="space-y-2">
+                      <div className="text-xs text-muted-foreground uppercase tracking-wide">
+                        {formatTimestamp(group.timestamp)}
+                      </div>
+                      <div className="text-lg leading-relaxed text-foreground space-y-2">
+                        {group.texts.map((text, i) => (
+                          <p key={i}>{text}</p>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                ))}
                 <div ref={transcriptionEndRef} />
               </div>
             </CardContent>

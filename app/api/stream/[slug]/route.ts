@@ -57,7 +57,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
   try {
     const data = await request.json()
-    const { text, isFinal, sequenceNumber } = data
+    const { text, isFinal, sequenceNumber, sessionId } = data
 
     const supabase = await createClient()
 
@@ -71,7 +71,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         .insert({
           slug,
           name: data.eventName || "Live Event",
-          organizer_key: `auto-${slug}`, // Provide organizer_key to satisfy NOT NULL constraint
+          organizer_key: `auto-${slug}`,
           is_active: true,
         })
         .select()
@@ -91,6 +91,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       text,
       is_final: isFinal,
       sequence_number: sequenceNumber,
+      session_id: sessionId || null,
     })
 
     if (insertError) {
@@ -98,7 +99,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       return Response.json({ error: "Failed to save transcription" }, { status: 500 })
     }
 
-    console.log("[v0] Transcription saved to database:", { slug, sequenceNumber })
+    console.log("[v0] Transcription saved to database:", { slug, sequenceNumber, sessionId })
 
     return Response.json({ success: true })
   } catch (error) {
