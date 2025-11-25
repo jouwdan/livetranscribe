@@ -59,9 +59,15 @@ const StreamingText = ({ text }: { text: string }) => {
   )
 }
 
-const TranscriptionText = ({ text, transcriptionId }: { text: string; transcriptionId?: string }) => {
-  const [newestTranscriptionId, setNewestTranscriptionId] = useState<string | null>(null)
-
+const TranscriptionText = ({
+  text,
+  transcriptionId,
+  newestTranscriptionId,
+}: {
+  text: string
+  transcriptionId?: string
+  newestTranscriptionId?: string | null
+}) => {
   const shouldAnimate = transcriptionId && transcriptionId === newestTranscriptionId
 
   if (shouldAnimate) {
@@ -73,11 +79,12 @@ const TranscriptionText = ({ text, transcriptionId }: { text: string; transcript
 
 export function ViewerInterface({ slug, eventName, eventDescription }: ViewerInterfaceProps) {
   const [transcriptions, setTranscriptions] = useState<Transcription[]>([])
-  const [isConnected, setIsConnected] = useState(false)
   const [isStreaming, setIsStreaming] = useState(false)
   const [streamingStatusMessage, setStreamingStatusMessage] = useState<string | null>(null)
-  const [displayMode, setDisplayMode] = useState<"laptop" | "mobile" | "stage">("laptop")
+  const [isConnected, setIsConnected] = useState(false)
   const [autoScroll, setAutoScroll] = useState(true)
+  const [viewMode, setViewMode] = useState<"laptop" | "mobile" | "stage">("laptop")
+  const [newestTranscriptionId, setNewestTranscriptionId] = useState<string | null>(null)
   const scrollAreaRef = useRef<HTMLDivElement>(null)
   const lastTranscriptionRef = useRef<HTMLDivElement>(null)
   const transcriptionsViewedRef = useRef(0)
@@ -89,7 +96,6 @@ export function ViewerInterface({ slug, eventName, eventDescription }: ViewerInt
   const [error, setError] = useState<string | null>(null)
   const initialLoadCompleteRef = useRef(false)
   const supabase = createClient()
-  const setNewestTranscriptionId = (id: string) => {} // Declare the variable here
 
   useEffect(() => {
     let isSubscribed = true
@@ -370,7 +376,7 @@ export function ViewerInterface({ slug, eventName, eventDescription }: ViewerInt
 
   const groupedTranscriptions = groupTranscriptionsBySessionAndTime(allDisplayItems)
 
-  if (displayMode === "stage") {
+  if (viewMode === "stage") {
     return (
       <div className="flex flex-col h-screen bg-black overflow-hidden">
         <div className="bg-black border-b border-purple-500/30 flex-shrink-0">
@@ -415,7 +421,7 @@ export function ViewerInterface({ slug, eventName, eventDescription }: ViewerInt
                   <Button
                     variant="ghost"
                     size="sm"
-                    onClick={() => setDisplayMode("laptop")}
+                    onClick={() => setViewMode("laptop")}
                     className="h-8 w-8 p-0 hover:bg-foreground/5 text-white"
                   >
                     <Monitor className="h-3 w-3" />
@@ -423,7 +429,7 @@ export function ViewerInterface({ slug, eventName, eventDescription }: ViewerInt
                   <Button
                     variant="ghost"
                     size="sm"
-                    onClick={() => setDisplayMode("mobile")}
+                    onClick={() => setViewMode("mobile")}
                     className="h-8 w-8 p-0 hover:bg-foreground/5 text-white"
                   >
                     <Smartphone className="h-3 w-3" />
@@ -474,6 +480,7 @@ export function ViewerInterface({ slug, eventName, eventDescription }: ViewerInt
                             <TranscriptionText
                               text={text}
                               transcriptionId={textIndex === group.texts.length - 1 ? transcriptionId : undefined}
+                              newestTranscriptionId={newestTranscriptionId}
                             />
                             {textIndex < group.texts.length - 1 && " "}
                           </span>
@@ -513,7 +520,7 @@ export function ViewerInterface({ slug, eventName, eventDescription }: ViewerInt
     )
   }
 
-  if (displayMode === "mobile") {
+  if (viewMode === "mobile") {
     return (
       <div className="flex flex-col h-screen bg-black overflow-hidden">
         <div className="bg-black border-b border-border flex-shrink-0">
@@ -547,7 +554,7 @@ export function ViewerInterface({ slug, eventName, eventDescription }: ViewerInt
                 <Button
                   variant="ghost"
                   size="icon"
-                  onClick={() => setDisplayMode("laptop")}
+                  onClick={() => setViewMode("laptop")}
                   className="h-8 w-8 hover:bg-foreground/5"
                 >
                   <Monitor className="h-4 w-4" />
@@ -555,7 +562,7 @@ export function ViewerInterface({ slug, eventName, eventDescription }: ViewerInt
                 <Button
                   variant="ghost"
                   size="icon"
-                  onClick={() => setDisplayMode("stage")}
+                  onClick={() => setViewMode("stage")}
                   className="h-8 w-8 hover:bg-foreground/5"
                 >
                   <Tv className="h-4 w-4" />
@@ -613,6 +620,7 @@ export function ViewerInterface({ slug, eventName, eventDescription }: ViewerInt
                             <TranscriptionText
                               text={text}
                               transcriptionId={textIndex === group.texts.length - 1 ? transcriptionId : undefined}
+                              newestTranscriptionId={newestTranscriptionId}
                             />
                             {textIndex < group.texts.length - 1 && " "}
                           </span>
@@ -672,7 +680,7 @@ export function ViewerInterface({ slug, eventName, eventDescription }: ViewerInt
                   variant="ghost"
                   size="icon"
                   className="h-8 w-8 hover:bg-foreground/5 flex-shrink-0"
-                  onClick={() => setDisplayMode("mobile")}
+                  onClick={() => setViewMode("mobile")}
                 >
                   <Smartphone className="h-4 w-4" />
                 </Button>
@@ -680,7 +688,7 @@ export function ViewerInterface({ slug, eventName, eventDescription }: ViewerInt
                   variant="ghost"
                   size="icon"
                   className="h-8 w-8 hover:bg-foreground/5 flex-shrink-0"
-                  onClick={() => setDisplayMode("stage")}
+                  onClick={() => setViewMode("stage")}
                 >
                   <Tv className="h-4 w-4" />
                 </Button>
@@ -741,7 +749,11 @@ export function ViewerInterface({ slug, eventName, eventDescription }: ViewerInt
                           {formatTimestamp(new Date(t.timestamp))}
                         </span>
                         <div className="flex-1 text-base leading-relaxed">
-                          <TranscriptionText text={t.text} transcriptionId={t.id} />
+                          <TranscriptionText
+                            text={t.text}
+                            transcriptionId={t.id}
+                            newestTranscriptionId={newestTranscriptionId}
+                          />
                         </div>
                       </div>
                     </div>
