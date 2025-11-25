@@ -112,17 +112,22 @@ export function EditEventForm({ event }: EditEventFormProps) {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="description">Short Description</Label>
+            <Label htmlFor="description">Event Description (Optional)</Label>
             <Textarea
               id="description"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              placeholder="Brief description of your event (optional)"
-              rows={3}
-              maxLength={200}
+              placeholder="Describe your event, topics, speakers, or specialized terms that will be discussed..."
+              rows={5}
+              maxLength={2000}
               className="resize-none"
             />
-            <p className="text-xs text-foreground/60">{description.length}/200 characters</p>
+            <p className="text-xs text-foreground/60">
+              {description.length}/2000 characters.{" "}
+              <strong>This description is provided to the AI transcription system</strong> to help it better understand
+              specialized terminology, proper nouns, speaker names, and topics being discussed, resulting in more
+              accurate transcriptions.
+            </p>
           </div>
 
           <div className="space-y-2">
