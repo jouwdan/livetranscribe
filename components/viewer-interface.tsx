@@ -21,6 +21,9 @@ interface Transcription {
 
 interface ViewerInterfaceProps {
   slug: string
+  eventName: string
+  eventDescription: string
+  initialViewMode?: "laptop" | "mobile" | "stage"
 }
 
 type DisplayMode = "laptop" | "mobile" | "stage"
@@ -94,13 +97,18 @@ const TranscriptionText = ({
   return <span>{text}</span>
 }
 
-export function ViewerInterface({ slug }: ViewerInterfaceProps) {
+export function ViewerInterface({
+  slug,
+  eventName,
+  eventDescription,
+  initialViewMode = "laptop",
+}: ViewerInterfaceProps) {
   const [transcriptions, setTranscriptions] = useState<Transcription[]>([])
   const [isStreaming, setIsStreaming] = useState(false)
   const [streamingStatusMessage, setStreamingStatusMessage] = useState<string | null>(null)
   const [isConnected, setIsConnected] = useState(false)
   const [autoScroll, setAutoScroll] = useState(true)
-  const [viewMode, setViewMode] = useState<"laptop" | "mobile" | "stage">("laptop")
+  const [viewMode, setViewMode] = useState<DisplayMode>(initialViewMode)
   const [animationQueue, setAnimationQueue] = useState<string[]>([])
   const [currentlyAnimatingId, setCurrentlyAnimatingId] = useState<string | null>(null)
   const scrollAreaRef = useRef<HTMLDivElement>(null)
@@ -144,7 +152,7 @@ export function ViewerInterface({ slug }: ViewerInterfaceProps) {
         return
       }
 
-      setEventName(result.metadata?.name || "Live Event")
+      setEventName(result.metadata?.name || eventName)
 
       if (result.transcriptions) {
         const filtered = result.transcriptions.filter((t: any) => t.isFinal)
@@ -446,7 +454,7 @@ export function ViewerInterface({ slug }: ViewerInterfaceProps) {
                     "OFFLINE"
                   )}
                 </Badge>
-                <h1 className="text-2xl font-bold text-white">Live Event</h1>
+                <h1 className="text-2xl font-bold text-white">{eventName}</h1>
               </div>
               <div className="flex gap-2 items-center">
                 <Button
@@ -591,7 +599,7 @@ export function ViewerInterface({ slug }: ViewerInterfaceProps) {
                     "Offline"
                   )}
                 </Badge>
-                <h1 className="text-base font-bold text-white truncate">Live Event</h1>
+                <h1 className="text-base font-bold text-white truncate">{eventName}</h1>
               </div>
               <div className="flex gap-1 flex-shrink-0">
                 <Button
@@ -620,7 +628,7 @@ export function ViewerInterface({ slug }: ViewerInterfaceProps) {
                 </Button>
               </div>
             </div>
-            {description && <p className="text-sm text-slate-300 mb-3">{description}</p>}
+            {eventDescription && <p className="text-sm text-slate-300 mb-3">{eventDescription}</p>}
             {currentSession && (
               <div className="flex items-center gap-2 p-2 bg-purple-500/10 border border-purple-500/30 rounded-md">
                 <span className="text-xs font-medium text-purple-200">Session:</span>
@@ -706,9 +714,9 @@ export function ViewerInterface({ slug }: ViewerInterfaceProps) {
         <div className="px-4 sm:px-6 lg:px-8 py-4 max-w-7xl mx-auto">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div className="min-w-0 flex-1">
-              <h1 className="text-xl sm:text-2xl font-bold text-white truncate">Live Event</h1>
-              {description && <p className="text-sm text-foreground/60 mt-1">{description}</p>}
-              {!description && <p className="text-sm text-foreground/60">Live Transcription</p>}
+              <h1 className="text-xl sm:text-2xl font-bold text-white truncate">{eventName}</h1>
+              {eventDescription && <p className="text-sm text-foreground/60 mt-1">{eventDescription}</p>}
+              {!eventDescription && <p className="text-sm text-foreground/60">Live Transcription</p>}
             </div>
             <div className="flex items-center gap-3 flex-shrink-0">
               <Badge
