@@ -25,7 +25,13 @@ interface ViewerInterfaceProps {
 
 type DisplayMode = "laptop" | "mobile" | "stage"
 
-function StreamingText({ text, onComplete }: { text: string; onComplete?: () => void }) {
+const StreamingText = ({
+  text,
+  onComplete,
+}: {
+  text: string
+  onComplete?: () => void
+}) => {
   const [displayedText, setDisplayedText] = useState("")
   const [isComplete, setIsComplete] = useState(false)
 
@@ -45,19 +51,27 @@ function StreamingText({ text, onComplete }: { text: string; onComplete?: () => 
       if (currentIndex < text.length) {
         setDisplayedText(text.slice(0, currentIndex + 1))
         currentIndex++
+        console.log("[v0] Streaming progress:", currentIndex, "/", text.length)
       } else {
         setIsComplete(true)
         clearInterval(interval)
-        console.log("[v0] Animation complete, calling onComplete after 100ms")
+        console.log("[v0] Animation complete, calling onComplete after 200ms")
         setTimeout(() => {
           console.log("[v0] Calling onComplete now")
           onComplete?.()
-        }, 100)
+        }, 200)
       }
-    }, 50) // Changed from 15ms to 50ms per character
+    }, 80) // Slowed down to 80ms per character for visibility
 
     return () => clearInterval(interval)
   }, [text, onComplete])
+
+  return (
+    <span className="inline">
+      {displayedText}
+      {!isComplete && <span className="inline-block w-[2px] h-5 bg-purple-500 ml-1 animate-pulse" />}
+    </span>
+  )
 }
 
 const TranscriptionText = ({
