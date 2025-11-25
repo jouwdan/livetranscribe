@@ -39,6 +39,7 @@ const StreamingText = ({
   const [isComplete, setIsComplete] = useState(false)
 
   useEffect(() => {
+    console.log("[v0] StreamingText starting animation for text:", text.substring(0, 20) + "...")
     setDisplayedText("")
     setIsComplete(false)
 
@@ -53,23 +54,25 @@ const StreamingText = ({
         setDisplayedText(text.slice(0, currentIndex + 1))
         currentIndex++
       } else {
+        console.log("[v0] StreamingText animation complete")
         setIsComplete(true)
         clearInterval(interval)
         onComplete?.()
       }
-    }, 30)
+    }, 30) // 30ms per character
 
-    return () => clearInterval(interval)
-  }, [text, onComplete])
-
-  if (isComplete) {
-    return <span>{text}</span>
-  }
+    return () => {
+      clearInterval(interval)
+      if (!isComplete) {
+        onComplete?.()
+      }
+    }
+  }, [text])
 
   return (
     <span>
       {displayedText}
-      <span className="animate-pulse">|</span>
+      {!isComplete && <span className="animate-pulse">|</span>}
     </span>
   )
 }
@@ -122,16 +125,29 @@ export function ViewerInterface({
   const animationQueueRef = useRef<string[]>([])
 
   const handleAnimationComplete = useCallback(() => {
+    console.log("[v0] Animation complete, clearing currentlyAnimatingId")
     setCurrentlyAnimatingId(null)
   }, [])
 
   const queueTranscriptionAnimation = useCallback((id: string) => {
-    setAnimationQueue((prev) => [...prev, id])
+    console.log("[v0] Queuing transcription for animation:", id)
+    setAnimationQueue((prev) => {
+      const newQueue = [...prev, id]
+      console.log("[v0] Queue after adding:", newQueue)
+      return newQueue
+    })
   }, [])
 
   useEffect(() => {
+    console.log(
+      "[v0] Queue check - currentlyAnimatingId:",
+      currentlyAnimatingId,
+      "queue length:",
+      animationQueue.length,
+    )
     if (currentlyAnimatingId === null && animationQueue.length > 0) {
       const nextId = animationQueue[0]
+      console.log("[v0] Starting animation for:", nextId)
       setCurrentlyAnimatingId(nextId)
       setAnimationQueue((prev) => prev.slice(1))
     }
