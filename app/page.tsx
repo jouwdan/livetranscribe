@@ -1,7 +1,22 @@
 "use client"
 
 import { Button } from "@/components/ui/button"
-import { ArrowRight, Mic, Users, Zap, Clock, Globe, CheckCircle2, AudioLines, BarChart3, Menu, X } from "lucide-react"
+import {
+  ArrowRight,
+  Mic,
+  Users,
+  Zap,
+  Clock,
+  Globe,
+  CheckCircle2,
+  AudioLines,
+  BarChart3,
+  Menu,
+  X,
+  Heart,
+  Ear,
+  Brain,
+} from "lucide-react"
 import Link from "next/link"
 import { useState } from "react"
 
@@ -101,6 +116,60 @@ export default function Home() {
                     View Dashboard
                   </Button>
                 </Link>
+              </div>
+            </div>
+          </section>
+
+          <section className="container mx-auto px-4 py-16 max-w-6xl">
+            <div className="glass-card p-8 md:p-12 relative overflow-hidden">
+              <div className="absolute inset-0 bg-gradient-to-br from-purple-500/2 to-pink-500/2" />
+              <div className="relative z-10">
+                <div className="text-center mb-10">
+                  <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-purple-500/30 bg-purple-500/10 backdrop-blur-sm mb-4">
+                    <Heart className="h-4 w-4 text-purple-400" />
+                    <span className="text-sm text-purple-300">Accessibility First</span>
+                  </div>
+                  <h2 className="text-3xl md:text-4xl font-bold mb-4">Designed for everyone</h2>
+                  <p className="text-muted-foreground max-w-2xl mx-auto leading-relaxed">
+                    LiveTranscribe ensures your events are accessible to deaf and hard-of-hearing attendees, plus
+                    supports neurodiverse audiences who benefit from reading along with speakers.
+                  </p>
+                </div>
+
+                <div className="grid md:grid-cols-3 gap-6">
+                  <div className="p-6 rounded-lg border border-white/10 bg-black/40 backdrop-blur-sm hover:bg-white/5 transition-all">
+                    <Ear className="h-10 w-10 mb-4 text-purple-400" />
+                    <h3 className="text-xl font-semibold mb-3">Deaf & Hard of Hearing</h3>
+                    <p className="text-muted-foreground text-sm leading-relaxed">
+                      Provide real-time captions so every attendee can follow along, regardless of hearing ability. No
+                      one should miss out on important content.
+                    </p>
+                  </div>
+
+                  <div className="p-6 rounded-lg border border-white/10 bg-black/40 backdrop-blur-sm hover:bg-white/5 transition-all">
+                    <Brain className="h-10 w-10 mb-4 text-purple-400" />
+                    <h3 className="text-xl font-semibold mb-3">Neurodiverse Support</h3>
+                    <p className="text-muted-foreground text-sm leading-relaxed">
+                      Help attendees with ADHD, autism, or auditory processing differences by providing text they can
+                      read at their own pace while listening.
+                    </p>
+                  </div>
+
+                  <div className="p-6 rounded-lg border border-white/10 bg-black/40 backdrop-blur-sm hover:bg-white/5 transition-all">
+                    <Globe className="h-10 w-10 mb-4 text-purple-400" />
+                    <h3 className="text-xl font-semibold mb-3">Language Support</h3>
+                    <p className="text-muted-foreground text-sm leading-relaxed">
+                      Attendees who are non-native speakers or prefer reading can follow along more easily, improving
+                      comprehension and engagement.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="mt-8 text-center">
+                  <p className="text-sm text-muted-foreground italic">
+                    "Accessibility isn't a feature—it's a foundation. Every event deserves to be inclusive."
+                  </p>
+                </div>
               </div>
             </div>
           </section>
