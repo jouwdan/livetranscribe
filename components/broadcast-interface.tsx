@@ -261,6 +261,17 @@ export function BroadcastInterface({ slug, eventName, eventId, userId }: Broadca
         await supabase.from("event_sessions").update({ started_at: startTime.toISOString() }).eq("id", currentSessionId)
       }
 
+      const channel = supabase.channel(`event-${slug}`)
+      await channel.send({
+        type: "broadcast",
+        event: "streaming_status",
+        payload: {
+          status: "started",
+          sessionId: currentSessionId,
+          timestamp: startTime.toISOString(),
+        },
+      })
+
       const response = await fetch("/api/transcribe-ws", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -299,6 +310,17 @@ export function BroadcastInterface({ slug, eventName, eventId, userId }: Broadca
       const durationMinutes = Math.ceil((endTime.getTime() - sessionStartTime.getTime()) / 60000)
 
       const supabase = createClient()
+
+      const channel = supabase.channel(`event-${slug}`)
+      await channel.send({
+        type: "broadcast",
+        event: "streaming_status",
+        payload: {
+          status: "stopped",
+          sessionId: currentSessionId,
+          timestamp: endTime.toISOString(),
+        },
+      })
 
       await supabase
         .from("event_sessions")

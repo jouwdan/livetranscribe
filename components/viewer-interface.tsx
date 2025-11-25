@@ -8,12 +8,12 @@ import { Radio, ArrowDownToLine, Pause, Monitor, Smartphone, Tv } from "lucide-r
 import { createClient } from "@/lib/supabase/client"
 
 interface Transcription {
+  id: string
   text: string
   isFinal: boolean
   sequenceNumber: number
-  timestamp: string
+  timestamp: Date
   sessionId?: string
-  sessionInfo?: any
 }
 
 interface ViewerInterfaceProps {
@@ -26,26 +26,25 @@ type DisplayMode = "laptop" | "mobile" | "stage"
 
 export function ViewerInterface({ slug, eventName, eventDescription }: ViewerInterfaceProps) {
   const [transcriptions, setTranscriptions] = useState<Transcription[]>([])
+  const [currentInterim, setCurrentInterim] = useState<Transcription | null>(null)
   const [isConnected, setIsConnected] = useState(false)
+  const [isStreaming, setIsStreaming] = useState(false)
+  const [streamingStatusMessage, setStreamingStatusMessage] = useState<string | null>(null)
+  const [displayMode, setDisplayMode] = useState<"laptop" | "mobile" | "stage">("laptop")
   const [autoScroll, setAutoScroll] = useState(true)
-  const transcriptionEndRef = useRef<HTMLDivElement>(null)
-  const containerRef = useRef<HTMLDivElement>(null)
-  const sessionIdRef = useRef<string>()
-
-  const scrollEventsRef = useRef(0)
-  const visibilityChangesRef = useRef(0)
-  const activeTimeRef = useRef(0)
-  const lastActivityRef = useRef(Date.now())
+  const scrollAreaRef = useRef<HTMLDivElement>(null)
   const transcriptionsViewedRef = useRef(0)
-  const activityIntervalRef = useRef<NodeJS.Timeout>()
-
-  const [displayMode, setDisplayMode] = useState<DisplayMode>("laptop")
-
-  const reconnectTimeoutRef = useRef<NodeJS.Timeout>()
-  const lastTranscriptionTimeRef = useRef<number>(Date.now())
+  const lastTranscriptionTimeRef = useRef(Date.now())
+  const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const latestSequenceRef = useRef(0)
+  const [currentSession, setCurrentSession] = useState<any | null>(null)
+  const [description, setDescription] = useState<string | null>(eventDescription)
 
   useEffect(() => {
     console.log("[v0] Setting up Supabase real-time subscription for slug:", slug)
+    let channel: any = null
+    let pollInterval: NodeJS.Timeout | null = null
+    let isSubscribed = true
 
     const setupRealtimeSubscription = async () => {
       const supabase = createClient()
@@ -53,14 +52,8 @@ export function ViewerInterface({ slug, eventName, eventDescription }: ViewerInt
       console.log("[v0] Querying for event with slug:", slug)
       const { data: event, error: eventError } = await supabase.from("events").select("id").eq("slug", slug).single()
 
-      if (eventError) {
+      if (eventError || !event) {
         console.error("[v0] Error fetching event:", eventError)
-        setIsConnected(false)
-        return
-      }
-
-      if (!event) {
-        console.error("[v0] Event not found for slug:", slug)
         setIsConnected(false)
         return
       }
@@ -72,7 +65,7 @@ export function ViewerInterface({ slug, eventName, eventDescription }: ViewerInt
         .from("transcriptions")
         .select("*, event_sessions(name, session_number)")
         .eq("event_id", event.id)
-        .eq("is_final", true) // Only fetch final transcriptions
+        .eq("is_final", true)
         .order("sequence_number", { ascending: true })
 
       if (transcriptionsError) {
@@ -81,25 +74,28 @@ export function ViewerInterface({ slug, eventName, eventDescription }: ViewerInt
 
       console.log("[v0] Initial transcriptions count:", initialTranscriptions?.length || 0)
 
-      if (initialTranscriptions) {
+      if (initialTranscriptions && isSubscribed) {
         const filtered = initialTranscriptions.filter((t) => t.text && t.text.trim() !== "")
         setTranscriptions(
           filtered.map((t) => ({
+            id: t.id,
             text: t.text,
             isFinal: t.is_final,
             sequenceNumber: t.sequence_number,
-            timestamp: t.created_at,
+            timestamp: new Date(t.created_at),
             sessionId: t.session_id,
-            sessionInfo: t.event_sessions,
           })),
         )
         transcriptionsViewedRef.current = filtered.filter((t) => t.is_final).length
+        if (filtered.length > 0) {
+          latestSequenceRef.current = Math.max(...filtered.map((t) => t.sequence_number))
+        }
       }
 
       const channelName = `transcriptions-${slug}`
       console.log("[v0] Creating channel:", channelName)
 
-      const channel = supabase
+      channel = supabase
         .channel(channelName, {
           config: {
             broadcast: { self: true },
@@ -115,6 +111,8 @@ export function ViewerInterface({ slug, eventName, eventDescription }: ViewerInt
             filter: `event_id=eq.${event.id}`,
           },
           async (payload) => {
+            if (!isSubscribed) return
+
             console.log("[v0] Real-time transcription INSERT received:", payload)
             const newTranscription = payload.new as any
 
@@ -136,7 +134,10 @@ export function ViewerInterface({ slug, eventName, eventDescription }: ViewerInt
             }
 
             setTranscriptions((prev) => {
-              if (prev.some((t) => t.sequenceNumber === newTranscription.sequence_number)) {
+              if (
+                prev.some((t) => t.sequenceNumber === newTranscription.sequence_number) ||
+                newTranscription.sequence_number <= latestSequenceRef.current
+              ) {
                 console.log("[v0] Duplicate transcription detected, skipping")
                 return prev
               }
@@ -147,42 +148,64 @@ export function ViewerInterface({ slug, eventName, eventDescription }: ViewerInt
                 transcriptionsViewedRef.current += 1
               }
 
-              return [
-                ...prev,
-                {
-                  text: newTranscription.text,
-                  isFinal: newTranscription.is_final,
-                  sequenceNumber: newTranscription.sequence_number,
-                  timestamp: newTranscription.created_at,
-                  sessionId: newTranscription.session_id,
-                  sessionInfo,
-                },
-              ].sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())
+              latestSequenceRef.current = Math.max(latestSequenceRef.current, newTranscription.sequence_number)
+
+              const newItem = {
+                id: newTranscription.id,
+                text: newTranscription.text,
+                isFinal: newTranscription.is_final,
+                sequenceNumber: newTranscription.sequence_number,
+                timestamp: new Date(newTranscription.created_at),
+                sessionId: newTranscription.session_id,
+                sessionInfo,
+              }
+
+              return [...prev, newItem].sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime())
             })
 
             setIsConnected(true)
           },
         )
+        .on("broadcast", { event: "streaming_status" }, (payload: any) => {
+          console.log("[v0] Received streaming status:", payload)
+          const { status, sessionId, timestamp } = payload.payload
+
+          if (status === "started") {
+            setIsStreaming(true)
+            setStreamingStatusMessage("Streaming started")
+            // Clear message after 5 seconds
+            setTimeout(() => setStreamingStatusMessage(null), 5000)
+          } else if (status === "stopped") {
+            setIsStreaming(false)
+            setStreamingStatusMessage("Streaming stopped")
+            // Clear message after 5 seconds
+            setTimeout(() => setStreamingStatusMessage(null), 5000)
+          }
+        })
         .subscribe((status, err) => {
           console.log("[v0] Supabase subscription status:", status)
           if (err) {
             console.error("[v0] Supabase subscription error:", err)
           }
-          setIsConnected(status === "SUBSCRIBED")
+          if (isSubscribed) {
+            setIsConnected(status === "SUBSCRIBED")
+          }
         })
 
-      const pollInterval = setInterval(async () => {
+      pollInterval = setInterval(async () => {
+        if (!isSubscribed) return
+
         const timeSinceLastTranscription = Date.now() - lastTranscriptionTimeRef.current
 
-        // If connected but no transcriptions in 5 seconds, poll for new ones
         if (timeSinceLastTranscription > 5000) {
-          const lastSequence = transcriptions.length > 0 ? Math.max(...transcriptions.map((t) => t.sequenceNumber)) : 0
+          const lastSequence = latestSequenceRef.current
 
           const { data: newTranscriptions } = await supabase
             .from("transcriptions")
             .select("*, event_sessions(name, session_number)")
             .eq("event_id", event.id)
             .gt("sequence_number", lastSequence)
+            .eq("is_final", true)
             .order("sequence_number", { ascending: true })
 
           if (newTranscriptions && newTranscriptions.length > 0) {
@@ -190,13 +213,18 @@ export function ViewerInterface({ slug, eventName, eventDescription }: ViewerInt
             setTranscriptions((prev) => {
               const newItems = newTranscriptions
                 .filter(
-                  (t) => t.text && t.text.trim() !== "" && !prev.some((p) => p.sequenceNumber === t.sequence_number),
+                  (t) =>
+                    t.text &&
+                    t.text.trim() !== "" &&
+                    !prev.some((p) => p.sequenceNumber === t.sequence_number) &&
+                    t.sequence_number > latestSequenceRef.current,
                 )
                 .map((t) => ({
+                  id: t.id,
                   text: t.text,
                   isFinal: t.is_final,
                   sequenceNumber: t.sequence_number,
-                  timestamp: t.created_at,
+                  timestamp: new Date(t.created_at),
                   sessionId: t.session_id,
                   sessionInfo: t.event_sessions,
                 }))
@@ -204,27 +232,31 @@ export function ViewerInterface({ slug, eventName, eventDescription }: ViewerInt
               if (newItems.length > 0) {
                 lastTranscriptionTimeRef.current = Date.now()
                 transcriptionsViewedRef.current += newItems.filter((t) => t.isFinal).length
+                latestSequenceRef.current = Math.max(
+                  latestSequenceRef.current,
+                  ...newItems.map((t) => t.sequenceNumber),
+                )
               }
 
-              return [...prev, ...newItems].sort(
-                (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime(),
-              )
+              return [...prev, ...newItems].sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime())
             })
           }
         }
       }, 2000)
-
-      return () => {
-        console.log("[v0] Cleaning up Supabase subscription")
-        clearInterval(pollInterval)
-        supabase.removeChannel(channel)
-      }
     }
 
-    const cleanup = setupRealtimeSubscription()
+    setupRealtimeSubscription()
 
     return () => {
-      cleanup.then((cleanupFn) => cleanupFn?.())
+      console.log("[v0] Cleaning up Supabase subscription")
+      isSubscribed = false
+      if (pollInterval) {
+        clearInterval(pollInterval)
+      }
+      if (channel) {
+        const supabase = createClient()
+        supabase.removeChannel(channel)
+      }
       if (reconnectTimeoutRef.current) {
         clearTimeout(reconnectTimeoutRef.current)
       }
@@ -233,10 +265,7 @@ export function ViewerInterface({ slug, eventName, eventDescription }: ViewerInt
 
   useEffect(() => {
     const handleVisibilityChange = () => {
-      visibilityChangesRef.current += 1
-      if (!document.hidden) {
-        lastActivityRef.current = Date.now()
-      }
+      // Handle visibility change logic here
     }
 
     document.addEventListener("visibilitychange", handleVisibilityChange)
@@ -244,28 +273,20 @@ export function ViewerInterface({ slug, eventName, eventDescription }: ViewerInt
   }, [])
 
   useEffect(() => {
-    activityIntervalRef.current = setInterval(() => {
-      if (!document.hidden) {
-        activeTimeRef.current += 1
-        lastActivityRef.current = Date.now()
-      }
+    const activityInterval = setInterval(() => {
+      // Handle activity interval logic here
     }, 1000)
 
-    return () => {
-      if (activityIntervalRef.current) {
-        clearInterval(activityIntervalRef.current)
-      }
-    }
+    return () => clearInterval(activityInterval)
   }, [])
 
   useEffect(() => {
-    sessionIdRef.current = `viewer-${Date.now()}-${Math.random().toString(36).substring(7)}`
-
+    const sessionId = `viewer-${Date.now()}-${Math.random().toString(36).substring(7)}`
     const supabase = createClient()
-    let pingInterval: NodeJS.Timeout
+    let pingInterval: NodeJS.Timeout | null = null
 
     const setupViewerTracking = async () => {
-      console.log("[v0] Setting up viewer tracking for session:", sessionIdRef.current)
+      console.log("[v0] Setting up viewer tracking for session:", sessionId)
 
       const { data: event } = await supabase.from("events").select("id").eq("slug", slug).single()
 
@@ -273,7 +294,7 @@ export function ViewerInterface({ slug, eventName, eventDescription }: ViewerInt
 
       await supabase.from("viewer_sessions").insert({
         event_id: event.id,
-        session_id: sessionIdRef.current,
+        session_id: sessionId,
         joined_at: new Date().toISOString(),
         last_ping: new Date().toISOString(),
         scroll_events: 0,
@@ -288,13 +309,13 @@ export function ViewerInterface({ slug, eventName, eventDescription }: ViewerInt
           .update({
             last_ping: new Date().toISOString(),
             last_activity_at: new Date().toISOString(),
-            scroll_events: scrollEventsRef.current,
-            visibility_changes: visibilityChangesRef.current,
-            total_active_time_seconds: activeTimeRef.current,
-            transcriptions_viewed: transcriptionsViewedRef.current,
+            scroll_events: 0,
+            visibility_changes: 0,
+            total_active_time_seconds: 0,
+            transcriptions_viewed: 0,
           })
           .eq("event_id", event.id)
-          .eq("session_id", sessionIdRef.current)
+          .eq("session_id", sessionId)
       }, 15000)
     }
 
@@ -309,13 +330,13 @@ export function ViewerInterface({ slug, eventName, eventDescription }: ViewerInt
             .from("viewer_sessions")
             .update({
               left_at: new Date().toISOString(),
-              scroll_events: scrollEventsRef.current,
-              visibility_changes: visibilityChangesRef.current,
-              total_active_time_seconds: activeTimeRef.current,
-              transcriptions_viewed: transcriptionsViewedRef.current,
+              scroll_events: 0,
+              visibility_changes: 0,
+              total_active_time_seconds: 0,
+              transcriptions_viewed: 0,
             })
             .eq("event_id", event.id)
-            .eq("session_id", sessionIdRef.current)
+            .eq("session_id", sessionId)
         }
       }
       cleanup()
@@ -323,29 +344,25 @@ export function ViewerInterface({ slug, eventName, eventDescription }: ViewerInt
   }, [slug])
 
   useEffect(() => {
-    if (autoScroll && transcriptionEndRef.current) {
-      transcriptionEndRef.current.scrollIntoView({ behavior: "smooth" })
+    if (autoScroll && scrollAreaRef.current) {
+      scrollAreaRef.current.scrollIntoView({ behavior: "smooth" })
     }
   }, [transcriptions, autoScroll])
 
   const handleScroll = () => {
-    if (!containerRef.current) return
+    if (!scrollAreaRef.current) return
 
-    const { scrollTop, scrollHeight, clientHeight } = containerRef.current
+    const { scrollTop, scrollHeight, clientHeight } = scrollAreaRef.current
     const isAtBottom = scrollHeight - scrollTop - clientHeight < 50
 
     setAutoScroll(isAtBottom)
-
-    scrollEventsRef.current += 1
-    lastActivityRef.current = Date.now()
   }
 
   const displayTranscriptions = transcriptions.filter((t) => t.text.trim() !== "" && t.isFinal)
   const latestInterim = transcriptions.find((t) => !t.isFinal && t.text.trim() !== "")
 
-  const formatTimestamp = (timestamp: string) => {
-    const date = new Date(timestamp)
-    return date.toLocaleTimeString("en-US", {
+  const formatTimestamp = (timestamp: Date) => {
+    return timestamp.toLocaleTimeString("en-US", {
       hour: "2-digit",
       minute: "2-digit",
       second: "2-digit",
@@ -354,11 +371,11 @@ export function ViewerInterface({ slug, eventName, eventDescription }: ViewerInt
 
   const groupTranscriptionsBySessionAndTime = (transcriptions: Transcription[]) => {
     const sorted = [...transcriptions].sort((a, b) => {
-      return new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+      return a.timestamp.getTime() - b.timestamp.getTime()
     })
 
     const groups: Array<{
-      timestamp: string
+      timestamp: Date
       texts: string[]
       sessionId?: string
       sessionInfo?: any
@@ -380,8 +397,8 @@ export function ViewerInterface({ slug, eventName, eventDescription }: ViewerInt
         })
         lastSessionId = curr.sessionId
       } else {
-        const prevTimestamp = new Date(sorted[index - 1].timestamp).getTime()
-        const currTimestamp = new Date(curr.timestamp).getTime()
+        const prevTimestamp = sorted[index - 1].timestamp.getTime()
+        const currTimestamp = curr.timestamp.getTime()
         const timeDiff = (currTimestamp - prevTimestamp) / 1000
 
         if (timeDiff > 10) {
@@ -422,6 +439,11 @@ export function ViewerInterface({ slug, eventName, eventDescription }: ViewerInt
                     "OFFLINE"
                   )}
                 </Badge>
+                {isStreaming && (
+                  <Badge variant="default" className="px-3 py-1.5 text-base bg-green-600">
+                    Broadcasting
+                  </Badge>
+                )}
                 <h1 className="text-2xl font-bold text-white">{eventName}</h1>
               </div>
               <div className="flex gap-2 items-center">
@@ -474,7 +496,7 @@ export function ViewerInterface({ slug, eventName, eventDescription }: ViewerInt
         </div>
 
         <div className="flex-1 overflow-hidden px-12 py-8">
-          <div ref={containerRef} onScroll={handleScroll} className="h-full overflow-y-auto">
+          <div ref={scrollAreaRef} onScroll={handleScroll} className="h-full overflow-y-auto">
             {latestInterim && (
               <div className="mb-12 p-8 bg-purple-500/10 border-l-4 border-purple-500 rounded-lg">
                 <p className="text-5xl md:text-6xl lg:text-7xl font-medium text-white leading-tight tracking-wide">
@@ -507,9 +529,23 @@ export function ViewerInterface({ slug, eventName, eventDescription }: ViewerInt
                 </div>
               ))}
             </div>
-            <div ref={transcriptionEndRef} />
           </div>
         </div>
+
+        {streamingStatusMessage && (
+          <div className="mt-4 p-4 rounded-lg bg-purple-500/20 border-2 border-purple-500/50 text-center">
+            <p className="text-2xl text-purple-100 font-bold">{streamingStatusMessage}</p>
+          </div>
+        )}
+
+        {currentSession && (
+          <div className="mt-3 flex items-center gap-3 p-3 bg-purple-500/10 border border-purple-500/30 rounded-md">
+            <span className="text-lg font-medium text-purple-200">Current Session:</span>
+            <span className="text-lg text-purple-100">
+              Session {currentSession.session_number}: {currentSession.name}
+            </span>
+          </div>
+        )}
 
         <div className="bg-black border-t border-purple-500/30 flex-shrink-0">
           <div className="px-8 py-4">
@@ -539,37 +575,61 @@ export function ViewerInterface({ slug, eventName, eventDescription }: ViewerInt
                     "Offline"
                   )}
                 </Badge>
+                {isStreaming && (
+                  <Badge variant="default" className="px-2 py-1 text-xs flex-shrink-0 bg-green-600">
+                    On Air
+                  </Badge>
+                )}
                 <h1 className="text-base font-bold text-white truncate">{eventName}</h1>
               </div>
               <div className="flex gap-1 flex-shrink-0">
                 <Button
                   variant="ghost"
-                  size="sm"
-                  onClick={() => setDisplayMode("laptop")}
-                  className="h-8 w-8 p-0 hover:bg-foreground/5"
+                  size="icon"
+                  onClick={() => setAutoScroll(!autoScroll)}
+                  className="h-8 w-8 hover:bg-foreground/5"
                 >
-                  <Monitor className="h-4 w-4" />
-                </Button>
-                <Button variant="outline" size="sm" className="h-8 w-8 p-0 border-purple-500/30 bg-purple-500/10">
-                  <Smartphone className="h-4 w-4" />
+                  {autoScroll ? <ArrowDownToLine className="h-4 w-4" /> : <Pause className="h-4 w-4" />}
                 </Button>
                 <Button
                   variant="ghost"
-                  size="sm"
+                  size="icon"
+                  onClick={() => setDisplayMode("laptop")}
+                  className="h-8 w-8 hover:bg-foreground/5"
+                >
+                  <Monitor className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
                   onClick={() => setDisplayMode("stage")}
-                  className="h-8 w-8 p-0 hover:bg-foreground/5"
+                  className="h-8 w-8 hover:bg-foreground/5"
                 >
                   <Tv className="h-4 w-4" />
                 </Button>
               </div>
             </div>
-            {eventDescription && <p className="text-xs text-foreground/60 truncate mt-2">{eventDescription}</p>}
+            {description && <p className="text-sm text-slate-300 mb-3">{description}</p>}
+            {currentSession && (
+              <div className="flex items-center gap-2 p-2 bg-purple-500/10 border border-purple-500/30 rounded-md">
+                <span className="text-xs font-medium text-purple-200">Session:</span>
+                <span className="text-xs text-purple-100">
+                  {currentSession.session_number}. {currentSession.name}
+                </span>
+              </div>
+            )}
           </div>
         </div>
 
+        {streamingStatusMessage && (
+          <div className="mt-3 p-2 rounded-md bg-purple-500/20 border border-purple-500/30 text-center">
+            <p className="text-sm text-purple-200 font-medium">{streamingStatusMessage}</p>
+          </div>
+        )}
+
         <div className="flex-1 overflow-y-auto">
           <div className="p-4">
-            <div ref={containerRef} onScroll={handleScroll} className="space-y-4">
+            <div ref={scrollAreaRef} onScroll={handleScroll} className="space-y-4">
               {latestInterim && (
                 <div className="p-4 bg-purple-500/20 border-l-2 border-purple-500 rounded">
                   <p className="text-lg font-medium text-white leading-relaxed">{latestInterim.text}</p>
@@ -598,30 +658,14 @@ export function ViewerInterface({ slug, eventName, eventDescription }: ViewerInt
                   </div>
                 </div>
               ))}
-              <div ref={transcriptionEndRef} />
             </div>
           </div>
         </div>
 
         <div className="bg-black border-t border-border flex-shrink-0">
           <div className="px-4 py-3 flex items-center justify-between">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setAutoScroll(!autoScroll)}
-              className="gap-2 hover:bg-foreground/5"
-            >
-              {autoScroll ? (
-                <>
-                  <ArrowDownToLine className="h-4 w-4" />
-                  Auto
-                </>
-              ) : (
-                <>
-                  <Pause className="h-4 w-4" />
-                  Paused
-                </>
-              )}
+            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setAutoScroll(!autoScroll)}>
+              {autoScroll ? <ArrowDownToLine className="h-4 w-4" /> : <Pause className="h-4 w-4" />}
             </Button>
             <p className="text-xs text-foreground/40">
               <span className="text-purple-400">LiveTranscribe</span>
@@ -639,8 +683,8 @@ export function ViewerInterface({ slug, eventName, eventDescription }: ViewerInt
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div className="min-w-0 flex-1">
               <h1 className="text-xl sm:text-2xl font-bold text-white truncate">{eventName}</h1>
-              {eventDescription && <p className="text-sm text-foreground/60 mt-1">{eventDescription}</p>}
-              {!eventDescription && <p className="text-sm text-foreground/60">Live Transcription</p>}
+              {description && <p className="text-sm text-foreground/60 mt-1">{description}</p>}
+              {!description && <p className="text-sm text-foreground/60">Live Transcription</p>}
             </div>
             <div className="flex items-center gap-3 flex-shrink-0">
               <Badge variant={isConnected ? "default" : "secondary"} className="px-3 py-1">
@@ -653,23 +697,28 @@ export function ViewerInterface({ slug, eventName, eventDescription }: ViewerInt
                   "Offline"
                 )}
               </Badge>
+              {isStreaming && (
+                <Badge variant="default" className="px-3 py-1 bg-green-600">
+                  Broadcasting
+                </Badge>
+              )}
               <div className="flex gap-1 border-l border-border pl-3">
                 <Button variant="outline" size="sm" className="gap-2 border-purple-500/30 bg-purple-500/10">
                   <Monitor className="h-4 w-4" />
                 </Button>
                 <Button
                   variant="ghost"
-                  size="sm"
+                  size="icon"
+                  className="h-8 w-8 hover:bg-foreground/5 flex-shrink-0"
                   onClick={() => setDisplayMode("mobile")}
-                  className="gap-2 hover:bg-foreground/5 flex-shrink-0"
                 >
                   <Smartphone className="h-4 w-4" />
                 </Button>
                 <Button
                   variant="ghost"
-                  size="sm"
+                  size="icon"
+                  className="h-8 w-8 hover:bg-foreground/5 flex-shrink-0"
                   onClick={() => setDisplayMode("stage")}
-                  className="gap-2 hover:bg-foreground/5 flex-shrink-0"
                 >
                   <Tv className="h-4 w-4" />
                 </Button>
@@ -678,6 +727,21 @@ export function ViewerInterface({ slug, eventName, eventDescription }: ViewerInt
           </div>
         </div>
       </div>
+
+      {streamingStatusMessage && (
+        <div className="mt-4 p-4 rounded-lg bg-purple-500/20 border-2 border-purple-500/50 text-center">
+          <p className="text-2xl text-purple-100 font-bold">{streamingStatusMessage}</p>
+        </div>
+      )}
+
+      {currentSession && (
+        <div className="mt-3 flex items-center gap-3 p-3 bg-purple-500/10 border border-purple-500/30 rounded-md">
+          <span className="text-lg font-medium text-purple-200">Current Session:</span>
+          <span className="text-lg text-purple-100">
+            Session {currentSession.session_number}: {currentSession.name}
+          </span>
+        </div>
+      )}
 
       <div className="flex-1 overflow-y-auto">
         <div className="px-4 sm:px-6 lg:px-8 py-6 max-w-7xl mx-auto h-full">
@@ -688,17 +752,17 @@ export function ViewerInterface({ slug, eventName, eventDescription }: ViewerInt
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={() => setAutoScroll(!autoScroll)}
                   className="gap-2 hover:bg-foreground/5 flex-shrink-0"
+                  onClick={() => setAutoScroll(!autoScroll)}
                 >
                   {autoScroll ? (
                     <>
-                      <ArrowDownToLine className="h-4 w-4" />
+                      <ArrowDownToLine className="h-4 w-4 mr-1" />
                       <span className="hidden sm:inline">Auto-scroll on</span>
                     </>
                   ) : (
                     <>
-                      <Pause className="h-4 w-4" />
+                      <Pause className="h-4 w-4 mr-1" />
                       <span className="hidden sm:inline">Auto-scroll off</span>
                     </>
                   )}
@@ -706,7 +770,7 @@ export function ViewerInterface({ slug, eventName, eventDescription }: ViewerInt
               </div>
             </CardHeader>
             <CardContent className="flex-1 overflow-y-auto p-6">
-              <div ref={containerRef} onScroll={handleScroll} className="h-full">
+              <div ref={scrollAreaRef} onScroll={handleScroll} className="h-full">
                 {groupedTranscriptions.map((group, index) => (
                   <div key={index}>
                     {group.isSessionStart && group.sessionInfo && (
@@ -729,7 +793,6 @@ export function ViewerInterface({ slug, eventName, eventDescription }: ViewerInt
                     </div>
                   </div>
                 ))}
-                <div ref={transcriptionEndRef} />
               </div>
             </CardContent>
           </Card>
