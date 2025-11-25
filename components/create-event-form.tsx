@@ -269,7 +269,9 @@ export function CreateEventForm() {
           maxLength={2000}
         />
         <p className="text-sm text-muted-foreground">
-          Provide context to help AI better understand specialized terms and topics ({eventDescription.length}/2000)
+          <strong>This description is provided to the AI transcription system</strong> to help it understand specialized
+          terms, proper nouns, and topics. Better context leads to more accurate transcriptions. (
+          {eventDescription.length}/2000)
         </p>
       </div>
 

@@ -111,7 +111,8 @@ export function SessionManager({ eventId, eventSlug, eventName, sessions }: Sess
                 rows={5}
               />
               <p className="text-sm text-muted-foreground mt-1.5">
-                Provide context about speakers, topics, or specialized terminology to improve transcription accuracy
+                <strong>This description is shared with the AI transcription system</strong> to help it understand
+                speakers, topics, and specialized terminology for more accurate transcriptions
                 {formData.description ? ` (${formData.description.length} characters)` : ""}
               </p>
             </div>
@@ -157,6 +158,10 @@ export function SessionManager({ eventId, eventSlug, eventName, sessions }: Sess
                           className="mt-1.5"
                           rows={5}
                         />
+                        <p className="text-sm text-muted-foreground mt-1.5">
+                          <strong>This description is shared with the AI transcription system</strong> to improve
+                          accuracy
+                        </p>
                       </div>
                       <div className="flex gap-2">
                         <Button onClick={() => handleUpdate(session.id)} size="sm">
