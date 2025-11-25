@@ -15,6 +15,7 @@ interface Transcription {
   sequenceNumber: number
   timestamp: Date
   sessionId?: string
+  sessionInfo?: any
 }
 
 interface ViewerInterfaceProps {
@@ -34,6 +35,7 @@ export function ViewerInterface({ slug, eventName, eventDescription }: ViewerInt
   const [displayMode, setDisplayMode] = useState<"laptop" | "mobile" | "stage">("laptop")
   const [autoScroll, setAutoScroll] = useState(true)
   const scrollAreaRef = useRef<HTMLDivElement>(null)
+  const lastTranscriptionRef = useRef<HTMLDivElement>(null) // Added ref for the last transcription element to scroll to
   const transcriptionsViewedRef = useRef(0)
   const lastTranscriptionTimeRef = useRef(Date.now())
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null)
@@ -287,10 +289,10 @@ export function ViewerInterface({ slug, eventName, eventDescription }: ViewerInt
   }, [slug])
 
   useEffect(() => {
-    if (autoScroll && scrollAreaRef.current) {
-      scrollAreaRef.current.scrollIntoView({ behavior: "smooth" })
+    if (autoScroll && lastTranscriptionRef.current) {
+      lastTranscriptionRef.current.scrollIntoView({ behavior: "smooth", block: "end" })
     }
-  }, [transcriptions, autoScroll])
+  }, [transcriptions, currentInterim, autoScroll])
 
   const handleScroll = () => {
     if (!scrollAreaRef.current) return
