@@ -119,6 +119,7 @@ export class OpenAITranscriber {
   private handleServerMessage(message: AnyEvent) {
     switch (message.type) {
       case "conversation.item.input_audio_transcription.delta": {
+        console.log("[v0] OpenAI Delta received:", message.delta, "at", new Date().toISOString())
         if (typeof message.delta === "string" && message.item_id) {
           // If this is a new item, reset accumulated text
           if (this.currentItemId !== message.item_id) {
@@ -130,13 +131,16 @@ export class OpenAITranscriber {
           this.accumulatedText += message.delta
 
           // Send the accumulated text as interim transcription
+          console.log("[v0] Calling onTranscription with interim:", this.accumulatedText)
           this.onTranscription(this.accumulatedText, false, this.sequenceNumber)
         }
         break
       }
       case "conversation.item.input_audio_transcription.completed": {
+        console.log("[v0] OpenAI Completion received:", message.transcript, "at", new Date().toISOString())
         if (typeof message.transcript === "string") {
           // Send final transcription and increment sequence
+          console.log("[v0] Calling onTranscription with final:", message.transcript)
           this.onTranscription(message.transcript, true, this.sequenceNumber++)
 
           // Reset accumulated text for next item

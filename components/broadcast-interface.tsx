@@ -44,6 +44,8 @@ export function BroadcastInterface({ slug, eventName, eventId, userId }: Broadca
   const transcriberRef = useRef<OpenAITranscriber | null>(null)
   const viewerUrl = `${typeof window !== "undefined" ? window.location.origin : ""}/view/${slug}`
   const broadcastChannelRef = useRef<any>(null)
+  const lastInterimBroadcastRef = useRef<number>(0)
+  const pendingInterimRef = useRef<{ text: string; sequence: number } | null>(null)
 
   useEffect(() => {
     if (!isStreaming || !sessionStartTime) return
@@ -247,23 +249,26 @@ export function BroadcastInterface({ slug, eventName, eventId, userId }: Broadca
   const handleTranscription = async (text: string, isFinal: boolean, sequence: number) => {
     const adjustedSequence = lastSequenceNumber + sequence
 
-    console.log("[v0] Broadcasting transcription:", {
-      text: text.substring(0, 50),
-      isFinal,
-      sequence: adjustedSequence,
-      sessionId: currentSessionId,
-    })
-
     if (isFinal) {
       setTranscriptions((prev) => [...prev, { text, isFinal, sequence: adjustedSequence, timestamp: new Date() }])
       setCurrentInterim("")
+
+      pendingInterimRef.current = null
     } else {
       setCurrentInterim(text)
+
+      pendingInterimRef.current = { text, sequence: adjustedSequence }
+
+      const now = Date.now()
+      if (now - lastInterimBroadcastRef.current < 150) {
+        // Skip this broadcast, will send the accumulated text on next interval
+        return
+      }
+      lastInterimBroadcastRef.current = now
     }
 
     try {
       if (!isFinal && broadcastChannelRef.current) {
-        console.log("[v0] Sending interim transcription via broadcast channel")
         await broadcastChannelRef.current.send({
           type: "broadcast",
           event: "interim_transcription",
@@ -276,33 +281,61 @@ export function BroadcastInterface({ slug, eventName, eventId, userId }: Broadca
         })
       }
 
-      const response = await fetch(`/api/stream/${slug}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          text,
-          isFinal,
-          sequenceNumber: adjustedSequence,
-          eventName,
-          sessionId: currentSessionId,
-        }),
-      })
+      if (isFinal) {
+        const response = await fetch(`/api/stream/${slug}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            text,
+            isFinal,
+            sequenceNumber: adjustedSequence,
+            eventName,
+            sessionId: currentSessionId,
+          }),
+        })
 
-      if (!response.ok) {
-        console.error("[v0] Failed to broadcast transcription:", response.status)
-        const errorText = await response.text()
-        console.error("[v0] Error response:", errorText)
-      } else {
-        const result = await response.json()
-        if (isFinal && !result.skipped) {
-          setTranscriptionCount((prev) => prev + 1)
-          setLastSequenceNumber(adjustedSequence)
+        if (!response.ok) {
+          console.error("[v0] Failed to broadcast transcription:", response.status)
+          const errorText = await response.text()
+          console.error("[v0] Error response:", errorText)
+        } else {
+          const result = await response.json()
+          if (!result.skipped) {
+            setTranscriptionCount((prev) => prev + 1)
+            setLastSequenceNumber(adjustedSequence)
+          }
         }
       }
     } catch (error) {
       console.error("[v0] Error broadcasting transcription:", error)
     }
   }
+
+  useEffect(() => {
+    if (!isStreaming) return
+
+    const interval = setInterval(() => {
+      if (pendingInterimRef.current && broadcastChannelRef.current) {
+        const { text, sequence } = pendingInterimRef.current
+
+        broadcastChannelRef.current.send({
+          type: "broadcast",
+          event: "interim_transcription",
+          payload: {
+            text,
+            sequence,
+            sessionId: currentSessionId,
+            timestamp: new Date().toISOString(),
+          },
+        })
+
+        lastInterimBroadcastRef.current = Date.now()
+        pendingInterimRef.current = null
+      }
+    }, 150)
+
+    return () => clearInterval(interval)
+  }, [isStreaming, currentSessionId])
 
   const handleStartStreaming = async () => {
     try {
