@@ -40,6 +40,7 @@ export function BroadcastInterface({ slug, eventName, eventId, userId }: Broadca
   const [creditsRemaining, setCreditsRemaining] = useState<number | null>(null)
   const [sessions, setSessions] = useState<Array<{ id: string; name: string; session_number: number }>>([])
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null)
+  const [lastSequenceNumber, setLastSequenceNumber] = useState(0)
 
   const transcriberRef = useRef<OpenAITranscriber | null>(null)
   const viewerUrl = `${typeof window !== "undefined" ? window.location.origin : ""}/view/${slug}`
@@ -115,6 +116,27 @@ export function BroadcastInterface({ slug, eventName, eventId, userId }: Broadca
     fetchSessions()
   }, [eventId, currentSessionId])
 
+  useEffect(() => {
+    const fetchLastSequence = async () => {
+      if (!currentSessionId) return
+
+      const supabase = createClient()
+      const { data } = await supabase
+        .from("transcriptions")
+        .select("sequence_number")
+        .eq("session_id", currentSessionId)
+        .order("sequence_number", { ascending: false })
+        .limit(1)
+        .single()
+
+      const lastSeq = data?.sequence_number || 0
+      setLastSequenceNumber(lastSeq)
+      console.log("[v0] Last sequence number for session:", lastSeq)
+    }
+
+    fetchLastSequence()
+  }, [currentSessionId])
+
   const copyToClipboard = async () => {
     await navigator.clipboard.writeText(viewerUrl)
     setCopied(true)
@@ -170,8 +192,10 @@ export function BroadcastInterface({ slug, eventName, eventId, userId }: Broadca
   }
 
   const handleTranscription = async (text: string, isFinal: boolean, sequence: number) => {
+    const adjustedSequence = lastSequenceNumber + sequence
+
     if (isFinal) {
-      setTranscriptions((prev) => [...prev, { text, isFinal, sequence, timestamp: new Date() }])
+      setTranscriptions((prev) => [...prev, { text, isFinal, sequence: adjustedSequence, timestamp: new Date() }])
       setCurrentInterim("")
     } else {
       setCurrentInterim(text)
@@ -184,7 +208,7 @@ export function BroadcastInterface({ slug, eventName, eventId, userId }: Broadca
         body: JSON.stringify({
           text,
           isFinal,
-          sequenceNumber: sequence,
+          sequenceNumber: adjustedSequence,
           eventName,
           sessionId: currentSessionId,
         }),
@@ -197,6 +221,7 @@ export function BroadcastInterface({ slug, eventName, eventId, userId }: Broadca
       } else {
         if (isFinal) {
           setTranscriptionCount((prev) => prev + 1)
+          setLastSequenceNumber(adjustedSequence)
         }
       }
     } catch (error) {
@@ -226,7 +251,15 @@ export function BroadcastInterface({ slug, eventName, eventId, userId }: Broadca
       const startTime = new Date()
       setSessionStartTime(startTime)
 
-      await supabase.from("event_sessions").update({ started_at: startTime.toISOString() }).eq("id", currentSessionId)
+      const { data: existingSession } = await supabase
+        .from("event_sessions")
+        .select("started_at")
+        .eq("id", currentSessionId)
+        .single()
+
+      if (!existingSession?.started_at) {
+        await supabase.from("event_sessions").update({ started_at: startTime.toISOString() }).eq("id", currentSessionId)
+      }
 
       const response = await fetch("/api/transcribe-ws", {
         method: "POST",

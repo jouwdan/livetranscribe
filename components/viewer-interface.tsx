@@ -72,6 +72,7 @@ export function ViewerInterface({ slug, eventName, eventDescription }: ViewerInt
         .from("transcriptions")
         .select("*, event_sessions(name, session_number)")
         .eq("event_id", event.id)
+        .eq("is_final", true) // Only fetch final transcriptions
         .order("sequence_number", { ascending: true })
 
       if (transcriptionsError) {
