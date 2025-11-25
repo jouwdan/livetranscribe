@@ -83,8 +83,6 @@ export class OpenAITranscriber {
       const timeSinceLastActivity = Date.now() - this.lastAudioActivityTime
       const timeSinceLastDelta = Date.now() - this.lastDeltaTime
 
-      // Only force commit if we've exceeded max duration AND we're in a natural pause
-      // (no audio activity for 200ms OR no deltas for 200ms)
       const inNaturalPause =
         timeSinceLastActivity > this.naturalPauseThresholdMs || timeSinceLastDelta > this.naturalPauseThresholdMs
 
@@ -95,11 +93,17 @@ export class OpenAITranscriber {
         this.ws &&
         this.isConnected
       ) {
-        this.ws.send(JSON.stringify({ type: "input_audio_buffer.commit" }))
-        this.lastTranscriptionTime = Date.now()
-        this.hasAudioInBuffer = false // Reset flag after commit
+        try {
+          this.ws.send(JSON.stringify({ type: "input_audio_buffer.commit" }))
+          this.lastTranscriptionTime = Date.now()
+          this.hasAudioInBuffer = false
+        } catch (error) {
+          // Silently ignore commit errors - buffer may have been auto-committed by VAD
+          console.log("[v0] Buffer commit skipped (likely already committed)")
+          this.hasAudioInBuffer = false
+        }
       }
-    }, 200) // Check every 200ms for more responsive detection
+    }, 200)
   }
 
   private async connectWebSocket() {
@@ -176,16 +180,12 @@ export class OpenAITranscriber {
         if (typeof message.delta === "string" && message.item_id) {
           this.lastDeltaTime = Date.now()
 
-          // If this is a new item, reset accumulated text
           if (this.currentItemId !== message.item_id) {
             this.currentItemId = message.item_id
             this.accumulatedText = ""
           }
 
-          // Accumulate the delta
           this.accumulatedText += message.delta
-
-          // Send the accumulated text as interim transcription
           this.onTranscription(this.accumulatedText, false, this.sequenceNumber)
         }
         break
@@ -203,6 +203,13 @@ export class OpenAITranscriber {
         break
       }
 
+      case "input_audio_buffer.committed": {
+        // OpenAI's VAD committed the buffer, so reset our flag
+        this.hasAudioInBuffer = false
+        this.lastTranscriptionTime = Date.now()
+        break
+      }
+
       case "response.created":
       case "response.output_text.delta":
       case "response.completed":
@@ -211,8 +218,13 @@ export class OpenAITranscriber {
       }
 
       case "error": {
-        console.error("[v0] OpenAI error:", message.error)
-        this.onError(message?.error?.message || "OpenAI error")
+        if (message.error?.code === "input_audio_buffer_commit_empty") {
+          console.log("[v0] Buffer commit ignored - buffer was empty")
+          this.hasAudioInBuffer = false
+        } else {
+          console.error("[v0] OpenAI error:", message.error)
+          this.onError(message?.error?.message || "OpenAI error")
+        }
         break
       }
 
