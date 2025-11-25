@@ -26,6 +26,57 @@ interface ViewerInterfaceProps {
 
 type DisplayMode = "laptop" | "mobile" | "stage"
 
+const StreamingText = ({ text, isInterim }: { text: string; isInterim?: boolean }) => {
+  const [displayedText, setDisplayedText] = useState("")
+  const [isComplete, setIsComplete] = useState(false)
+
+  useEffect(() => {
+    if (!isInterim) {
+      setDisplayedText(text)
+      setIsComplete(true)
+      return
+    }
+
+    // For interim text, animate it streaming in
+    if (text.length === 0) {
+      setDisplayedText("")
+      setIsComplete(false)
+      return
+    }
+
+    // If text is shorter than displayed (replacement), reset and start fresh
+    if (text.length < displayedText.length) {
+      setDisplayedText("")
+      setIsComplete(false)
+    }
+
+    // If already complete and text hasn't changed, don't re-animate
+    if (isComplete && text === displayedText) return
+
+    setIsComplete(false)
+    let currentIndex = displayedText.length
+
+    const interval = setInterval(() => {
+      if (currentIndex < text.length) {
+        setDisplayedText(text.slice(0, currentIndex + 1))
+        currentIndex++
+      } else {
+        setIsComplete(true)
+        clearInterval(interval)
+      }
+    }, 30) // 30ms per character for smooth streaming effect
+
+    return () => clearInterval(interval)
+  }, [text, isInterim])
+
+  return (
+    <span className={isInterim && !isComplete ? "opacity-70" : ""}>
+      {displayedText}
+      {isInterim && !isComplete && <span className="animate-pulse ml-1">▊</span>}
+    </span>
+  )
+}
+
 export function ViewerInterface({ slug, eventName, eventDescription }: ViewerInterfaceProps) {
   const [transcriptions, setTranscriptions] = useState<Transcription[]>([])
   const [currentInterim, setCurrentInterim] = useState<Transcription | null>(null)
@@ -199,23 +250,6 @@ export function ViewerInterface({ slug, eventName, eventDescription }: ViewerInt
   }, [slug])
 
   useEffect(() => {
-    const handleVisibilityChange = () => {
-      // Handle visibility change logic here
-    }
-
-    document.addEventListener("visibilitychange", handleVisibilityChange)
-    return () => document.removeEventListener("visibilitychange", handleVisibilityChange)
-  }, [])
-
-  useEffect(() => {
-    const activityInterval = setInterval(() => {
-      // Handle activity interval logic here
-    }, 1000)
-
-    return () => clearInterval(activityInterval)
-  }, [])
-
-  useEffect(() => {
     const sessionId = `viewer-${Date.now()}-${Math.random().toString(36).substring(7)}`
     let pingInterval: NodeJS.Timeout | null = null
 
@@ -276,19 +310,11 @@ export function ViewerInterface({ slug, eventName, eventDescription }: ViewerInt
   }, [slug])
 
   useEffect(() => {
-    if (!autoScroll || !scrollAreaRef.current || userHasScrolledRef.current) return
+    if (!autoScroll || !scrollAreaRef.current) return
 
     const scrollContainer = scrollAreaRef.current
-    const isNearBottom = scrollContainer.scrollHeight - scrollContainer.scrollTop - scrollContainer.clientHeight < 100
-
-    // Only auto-scroll if already near the bottom
-    if (isNearBottom) {
-      scrollContainer.scrollTo({
-        top: scrollContainer.scrollHeight,
-        behavior: "smooth",
-      })
-    }
-  }, [transcriptions, currentInterim, autoScroll])
+    scrollContainer.scrollTop = scrollContainer.scrollHeight
+  }, [transcriptions.length, currentInterim?.text, autoScroll])
 
   useEffect(() => {
     const handleScroll = () => {
@@ -297,25 +323,15 @@ export function ViewerInterface({ slug, eventName, eventDescription }: ViewerInt
       const { scrollTop, scrollHeight, clientHeight } = scrollAreaRef.current
       const isAtBottom = scrollHeight - scrollTop - clientHeight < 50
 
-      if (!isAtBottom && autoScroll) {
-        userHasScrolledRef.current = true
-      } else if (isAtBottom) {
-        userHasScrolledRef.current = false
-      }
-
       setAutoScroll(isAtBottom)
     }
 
-    if (scrollAreaRef.current) {
-      scrollAreaRef.current.addEventListener("scroll", handleScroll)
+    const scrollContainer = scrollAreaRef.current
+    if (scrollContainer) {
+      scrollContainer.addEventListener("scroll", handleScroll)
+      return () => scrollContainer.removeEventListener("scroll", handleScroll)
     }
-
-    return () => {
-      if (scrollAreaRef.current) {
-        scrollAreaRef.current.removeEventListener("scroll", handleScroll)
-      }
-    }
-  }, [autoScroll])
+  }, [])
 
   const displayTranscriptions = transcriptions.filter((t) => t.text.trim() !== "" && t.isFinal)
   const allDisplayItems = currentInterim ? [...displayTranscriptions, currentInterim] : displayTranscriptions
@@ -476,8 +492,17 @@ export function ViewerInterface({ slug, eventName, eventDescription }: ViewerInt
                       {formatTimestamp(group.timestamp)}
                     </div>
                     <div className="text-5xl md:text-6xl lg:text-7xl leading-tight text-white font-bold space-y-4">
-                      {group.texts.map((text, i) => (
-                        <p key={i}>{text}</p>
+                      {group.texts.map((text, textIndex) => (
+                        <span key={textIndex}>
+                          <StreamingText
+                            text={text}
+                            isInterim={
+                              group === groupedTranscriptions[groupedTranscriptions.length - 1] &&
+                              currentInterim !== null
+                            }
+                          />
+                          {textIndex < group.texts.length - 1 && " "}
+                        </span>
                       ))}
                     </div>
                   </div>
@@ -604,8 +629,17 @@ export function ViewerInterface({ slug, eventName, eventDescription }: ViewerInt
                       {formatTimestamp(group.timestamp)}
                     </div>
                     <div className="text-base leading-relaxed text-foreground space-y-1">
-                      {group.texts.map((text, i) => (
-                        <p key={i}>{text}</p>
+                      {group.texts.map((text, textIndex) => (
+                        <span key={textIndex}>
+                          <StreamingText
+                            text={text}
+                            isInterim={
+                              group === groupedTranscriptions[groupedTranscriptions.length - 1] &&
+                              currentInterim !== null
+                            }
+                          />
+                          {textIndex < group.texts.length - 1 && " "}
+                        </span>
                       ))}
                     </div>
                   </div>
@@ -737,8 +771,17 @@ export function ViewerInterface({ slug, eventName, eventDescription }: ViewerInt
                         {formatTimestamp(group.timestamp)}
                       </div>
                       <div className="text-lg leading-relaxed text-foreground space-y-2">
-                        {group.texts.map((text, i) => (
-                          <p key={i}>{text}</p>
+                        {group.texts.map((text, textIndex) => (
+                          <span key={textIndex}>
+                            <StreamingText
+                              text={text}
+                              isInterim={
+                                group === groupedTranscriptions[groupedTranscriptions.length - 1] &&
+                                currentInterim !== null
+                              }
+                            />
+                            {textIndex < group.texts.length - 1 && " "}
+                          </span>
                         ))}
                       </div>
                     </div>
