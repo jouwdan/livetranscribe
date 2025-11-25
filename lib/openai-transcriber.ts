@@ -131,7 +131,7 @@ export class OpenAITranscriber {
               modalities: ["text"],
               input_audio_format: "pcm16",
               input_audio_transcription: {
-                model: "gpt-4o-mini-transcribe",
+                model: "gpt-4o-transcribe",
               },
               turn_detection: {
                 type: "server_vad",
