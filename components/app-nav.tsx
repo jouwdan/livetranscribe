@@ -54,6 +54,18 @@ export function AppNav() {
               <span className="hidden sm:inline">LiveTranscribe</span>
             </Link>
             <div className="hidden md:flex gap-2">
+              <Link href="/pricing">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className={cn(
+                    "gap-2 text-slate-400 hover:text-white hover:bg-white/5",
+                    isActive("/pricing") && "text-white bg-white/10",
+                  )}
+                >
+                  Pricing
+                </Button>
+              </Link>
               <Link href="/dashboard">
                 <Button
                   variant="ghost"
@@ -116,6 +128,18 @@ export function AppNav() {
         {mobileMenuOpen && (
           <div className="md:hidden border-t border-border pb-4">
             <div className="flex flex-col gap-2 pt-4">
+              <Link href="/pricing" onClick={() => setMobileMenuOpen(false)}>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className={cn(
+                    "w-full justify-start gap-2 text-slate-400 hover:text-white hover:bg-white/5",
+                    isActive("/pricing") && "text-white bg-white/10",
+                  )}
+                >
+                  Pricing
+                </Button>
+              </Link>
               <Link href="/dashboard" onClick={() => setMobileMenuOpen(false)}>
                 <Button
                   variant="ghost"

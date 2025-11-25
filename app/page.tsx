@@ -11,18 +11,14 @@ import {
   CheckCircle2,
   AudioLines,
   BarChart3,
-  Menu,
-  X,
   Heart,
   Ear,
   Brain,
 } from "lucide-react"
 import Link from "next/link"
-import { useState } from "react"
+import { PublicNav } from "@/components/public-nav"
 
 export default function Home() {
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
-
   return (
     <div className="min-h-screen bg-black relative overflow-hidden">
       <div className="absolute inset-0 bg-gradient-to-br from-purple-900/20 via-black to-blue-900/20" />
@@ -30,59 +26,7 @@ export default function Home() {
       <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-blue-500/30 rounded-full blur-3xl animate-float-2" />
 
       <div className="relative z-10">
-        <header className="sticky top-0 z-50 backdrop-blur-xl bg-black/50 border-b border-white/10">
-          <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-            <Link href="/" className="text-xl font-semibold flex items-center gap-2">
-              <AudioLines className="h-5 w-5 text-purple-400" />
-              LiveTranscribe
-            </Link>
-            <nav className="hidden md:flex items-center gap-6">
-              <Link href="/dashboard" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
-                Dashboard
-              </Link>
-              <Link href="/auth/login">
-                <Button variant="ghost" size="sm">
-                  Login
-                </Button>
-              </Link>
-              <Link href="/auth/sign-up">
-                <Button size="sm" className="bg-primary hover:bg-primary/90">
-                  Sign Up
-                </Button>
-              </Link>
-            </nav>
-            <button
-              className="md:hidden p-2 text-white hover:bg-white/10 rounded-lg transition-colors"
-              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              aria-label="Toggle menu"
-            >
-              {mobileMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
-            </button>
-          </div>
-          {mobileMenuOpen && (
-            <div className="md:hidden border-t border-white/10 bg-black/95 backdrop-blur-xl">
-              <nav className="container mx-auto px-4 py-4 flex flex-col gap-3">
-                <Link
-                  href="/dashboard"
-                  className="text-sm text-muted-foreground hover:text-foreground transition-colors py-2"
-                  onClick={() => setMobileMenuOpen(false)}
-                >
-                  Dashboard
-                </Link>
-                <Link href="/auth/login" onClick={() => setMobileMenuOpen(false)}>
-                  <Button variant="ghost" size="sm" className="w-full justify-start">
-                    Login
-                  </Button>
-                </Link>
-                <Link href="/auth/sign-up" onClick={() => setMobileMenuOpen(false)}>
-                  <Button size="sm" className="w-full bg-primary hover:bg-primary/90">
-                    Sign Up
-                  </Button>
-                </Link>
-              </nav>
-            </div>
-          )}
-        </header>
+        <PublicNav />
 
         <main>
           <section className="container mx-auto px-4 py-24 md:py-32 max-w-6xl">
@@ -304,6 +248,9 @@ export default function Home() {
                 <span className="font-semibold">LiveTranscribe</span>
               </div>
               <div className="flex gap-8 text-sm text-muted-foreground">
+                <Link href="/pricing" className="hover:text-foreground transition-colors">
+                  Pricing
+                </Link>
                 <Link href="/dashboard" className="hover:text-foreground transition-colors">
                   Dashboard
                 </Link>
