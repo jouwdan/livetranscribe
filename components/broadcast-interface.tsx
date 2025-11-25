@@ -226,8 +226,8 @@ export function BroadcastInterface({ slug, eventName, eventId, userId }: Broadca
         const errorText = await response.text()
         console.error("[v0] Error response:", errorText)
       } else {
-        console.log("[v0] Transcription broadcast successful")
-        if (isFinal) {
+        const result = await response.json()
+        if (isFinal && !result.skipped) {
           setTranscriptionCount((prev) => prev + 1)
           setLastSequenceNumber(adjustedSequence)
         }

@@ -62,6 +62,11 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const data = await request.json()
     const { text, isFinal, sequenceNumber, sessionId } = data
 
+    if (!isFinal) {
+      console.log("[v0] Skipping interim transcription save (not final)")
+      return Response.json({ success: true, skipped: true })
+    }
+
     const supabase = await createClient()
 
     const { data: events } = await supabase.from("events").select("*").eq("slug", slug)
@@ -88,7 +93,6 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       event = newEvent
     }
 
-    // Insert transcription
     const { error: insertError } = await supabase.from("transcriptions").insert({
       event_id: event.id,
       text,
@@ -102,7 +106,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       return Response.json({ error: "Failed to save transcription" }, { status: 500 })
     }
 
-    console.log("[v0] Transcription saved to database:", { slug, sequenceNumber, sessionId })
+    console.log("[v0] Final transcription saved to database:", { slug, sequenceNumber, sessionId })
 
     return Response.json({ success: true })
   } catch (error) {

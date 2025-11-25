@@ -289,19 +289,31 @@ export function ViewerInterface({ slug, eventName, eventDescription }: ViewerInt
   }, [slug])
 
   useEffect(() => {
-    if (autoScroll && lastTranscriptionRef.current) {
-      lastTranscriptionRef.current.scrollIntoView({ behavior: "smooth", block: "end" })
+    if (autoScroll && scrollAreaRef.current) {
+      scrollAreaRef.current.scrollTop = scrollAreaRef.current.scrollHeight
     }
   }, [transcriptions, currentInterim, autoScroll])
 
-  const handleScroll = () => {
-    if (!scrollAreaRef.current) return
+  useEffect(() => {
+    const handleScroll = () => {
+      if (!scrollAreaRef.current) return
 
-    const { scrollTop, scrollHeight, clientHeight } = scrollAreaRef.current
-    const isAtBottom = scrollHeight - scrollTop - clientHeight < 50
+      const { scrollTop, scrollHeight, clientHeight } = scrollAreaRef.current
+      const isAtBottom = scrollHeight - scrollTop - clientHeight < 50
 
-    setAutoScroll(isAtBottom)
-  }
+      setAutoScroll(isAtBottom)
+    }
+
+    if (scrollAreaRef.current) {
+      scrollAreaRef.current.addEventListener("scroll", handleScroll)
+    }
+
+    return () => {
+      if (scrollAreaRef.current) {
+        scrollAreaRef.current.removeEventListener("scroll", handleScroll)
+      }
+    }
+  }, [autoScroll])
 
   const displayTranscriptions = transcriptions.filter((t) => t.text.trim() !== "" && t.isFinal)
   const latestInterim = transcriptions.find((t) => !t.isFinal && t.text.trim() !== "")
@@ -374,21 +386,19 @@ export function ViewerInterface({ slug, eventName, eventDescription }: ViewerInt
           <div className="px-6 py-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <Badge variant={isConnected ? "default" : "secondary"} className="px-3 py-1.5 text-base">
-                  {isConnected ? (
+                <Badge
+                  variant={isStreaming ? "default" : "secondary"}
+                  className={`px-3 py-1.5 text-base ${isStreaming ? "bg-red-600 animate-pulse" : ""}`}
+                >
+                  {isStreaming ? (
                     <>
-                      <Radio className="h-4 w-4 mr-2 animate-pulse" />
+                      <Radio className="h-4 w-4 mr-2" />
                       LIVE
                     </>
                   ) : (
                     "OFFLINE"
                   )}
                 </Badge>
-                {isStreaming && (
-                  <Badge variant="default" className="px-3 py-1.5 text-base bg-green-600">
-                    Broadcasting
-                  </Badge>
-                )}
                 <h1 className="text-2xl font-bold text-white">{eventName}</h1>
               </div>
               <div className="flex gap-2 items-center">
@@ -441,7 +451,7 @@ export function ViewerInterface({ slug, eventName, eventDescription }: ViewerInt
         </div>
 
         <div className="flex-1 overflow-hidden px-12 py-8">
-          <div ref={scrollAreaRef} onScroll={handleScroll} className="h-full overflow-y-auto">
+          <div ref={scrollAreaRef} className="h-full overflow-y-auto">
             {latestInterim && (
               <div className="mb-12 p-8 bg-purple-500/10 border-l-4 border-purple-500 rounded-lg">
                 <p className="text-5xl md:text-6xl lg:text-7xl font-medium text-white leading-tight tracking-wide">
@@ -510,8 +520,11 @@ export function ViewerInterface({ slug, eventName, eventDescription }: ViewerInt
           <div className="px-4 py-3">
             <div className="flex items-center justify-between gap-2">
               <div className="flex items-center gap-2 min-w-0 flex-1">
-                <Badge variant={isConnected ? "default" : "secondary"} className="px-2 py-1 text-xs flex-shrink-0">
-                  {isConnected ? (
+                <Badge
+                  variant={isStreaming ? "default" : "secondary"}
+                  className={`px-2 py-1 text-xs flex-shrink-0 ${isStreaming ? "bg-red-600" : ""}`}
+                >
+                  {isStreaming ? (
                     <>
                       <Radio className="h-3 w-3 mr-1 animate-pulse" />
                       Live
@@ -520,11 +533,6 @@ export function ViewerInterface({ slug, eventName, eventDescription }: ViewerInt
                     "Offline"
                   )}
                 </Badge>
-                {isStreaming && (
-                  <Badge variant="default" className="px-2 py-1 text-xs flex-shrink-0 bg-green-600">
-                    On Air
-                  </Badge>
-                )}
                 <h1 className="text-base font-bold text-white truncate">{eventName}</h1>
               </div>
               <div className="flex gap-1 flex-shrink-0">
@@ -574,7 +582,7 @@ export function ViewerInterface({ slug, eventName, eventDescription }: ViewerInt
 
         <div className="flex-1 overflow-y-auto">
           <div className="p-4">
-            <div ref={scrollAreaRef} onScroll={handleScroll} className="space-y-4">
+            <div ref={scrollAreaRef} className="space-y-4">
               {latestInterim && (
                 <div className="p-4 bg-purple-500/20 border-l-2 border-purple-500 rounded">
                   <p className="text-lg font-medium text-white leading-relaxed">{latestInterim.text}</p>
@@ -632,8 +640,11 @@ export function ViewerInterface({ slug, eventName, eventDescription }: ViewerInt
               {!description && <p className="text-sm text-foreground/60">Live Transcription</p>}
             </div>
             <div className="flex items-center gap-3 flex-shrink-0">
-              <Badge variant={isConnected ? "default" : "secondary"} className="px-3 py-1">
-                {isConnected ? (
+              <Badge
+                variant={isStreaming ? "default" : "secondary"}
+                className={`px-3 py-1 ${isStreaming ? "bg-red-600" : ""}`}
+              >
+                {isStreaming ? (
                   <>
                     <Radio className="h-3 w-3 mr-2 animate-pulse" />
                     Live
@@ -642,11 +653,6 @@ export function ViewerInterface({ slug, eventName, eventDescription }: ViewerInt
                   "Offline"
                 )}
               </Badge>
-              {isStreaming && (
-                <Badge variant="default" className="px-3 py-1 bg-green-600">
-                  Broadcasting
-                </Badge>
-              )}
               <div className="flex gap-1 border-l border-border pl-3">
                 <Button variant="outline" size="sm" className="gap-2 border-purple-500/30 bg-purple-500/10">
                   <Monitor className="h-4 w-4" />
@@ -715,7 +721,7 @@ export function ViewerInterface({ slug, eventName, eventDescription }: ViewerInt
               </div>
             </CardHeader>
             <CardContent className="flex-1 overflow-y-auto p-6">
-              <div ref={scrollAreaRef} onScroll={handleScroll} className="h-full">
+              <div ref={scrollAreaRef} className="h-full overflow-y-auto">
                 {groupedTranscriptions.map((group, index) => (
                   <div key={index}>
                     {group.isSessionStart && group.sessionInfo && (
