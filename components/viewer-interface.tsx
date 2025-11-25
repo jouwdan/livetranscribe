@@ -39,12 +39,10 @@ const StreamingText = ({
   const [isComplete, setIsComplete] = useState(false)
 
   useEffect(() => {
-    console.log("[v0] StreamingText started for text:", text.substring(0, 50))
     setDisplayedText("")
     setIsComplete(false)
 
     if (text.length === 0) {
-      console.log("[v0] Empty text, calling onComplete")
       onComplete?.()
       return
     }
@@ -54,25 +52,24 @@ const StreamingText = ({
       if (currentIndex < text.length) {
         setDisplayedText(text.slice(0, currentIndex + 1))
         currentIndex++
-        console.log("[v0] Streaming progress:", currentIndex, "/", text.length)
       } else {
         setIsComplete(true)
         clearInterval(interval)
-        console.log("[v0] Animation complete, calling onComplete after 200ms")
-        setTimeout(() => {
-          console.log("[v0] Calling onComplete now")
-          onComplete?.()
-        }, 200)
+        onComplete?.()
       }
-    }, 80) // Slowed down to 80ms per character for visibility
+    }, 30)
 
     return () => clearInterval(interval)
   }, [text, onComplete])
 
+  if (isComplete) {
+    return <span>{text}</span>
+  }
+
   return (
-    <span className="inline">
+    <span>
       {displayedText}
-      {!isComplete && <span className="inline-block w-[2px] h-5 bg-purple-500 ml-1 animate-pulse" />}
+      <span className="animate-pulse">|</span>
     </span>
   )
 }
@@ -125,19 +122,20 @@ export function ViewerInterface({
   const animationQueueRef = useRef<string[]>([])
 
   const handleAnimationComplete = useCallback(() => {
-    console.log("[v0] handleAnimationComplete called, clearing currentlyAnimatingId")
     setCurrentlyAnimatingId(null)
   }, [])
 
   const queueTranscriptionAnimation = useCallback((id: string) => {
-    console.log("[v0] Queueing animation for transcription:", id)
-    setAnimationQueue((prev) => {
-      const newQueue = [...prev, id]
-      animationQueueRef.current = newQueue
-      console.log("[v0] Animation queue updated:", newQueue)
-      return newQueue
-    })
+    setAnimationQueue((prev) => [...prev, id])
   }, [])
+
+  useEffect(() => {
+    if (currentlyAnimatingId === null && animationQueue.length > 0) {
+      const nextId = animationQueue[0]
+      setCurrentlyAnimatingId(nextId)
+      setAnimationQueue((prev) => prev.slice(1))
+    }
+  }, [currentlyAnimatingId, animationQueue])
 
   useEffect(() => {
     let isSubscribed = true
@@ -355,22 +353,6 @@ export function ViewerInterface({
       return () => scrollContainer.removeEventListener("scroll", handleScroll)
     }
   }, [])
-
-  useEffect(() => {
-    console.log(
-      "[v0] Animation queue effect - currentlyAnimatingId:",
-      currentlyAnimatingId,
-      "queue length:",
-      animationQueue.length,
-    )
-    if (currentlyAnimatingId === null && animationQueue.length > 0) {
-      const nextId = animationQueue[0]
-      console.log("[v0] Starting animation for next transcription:", nextId)
-      setCurrentlyAnimatingId(nextId)
-      setAnimationQueue((prev) => prev.slice(1))
-      animationQueueRef.current = animationQueue.slice(1)
-    }
-  }, [animationQueue, currentlyAnimatingId])
 
   const displayTranscriptions = transcriptions.filter((t) => t.text.trim() !== "" && t.isFinal)
   const allDisplayItems = displayTranscriptions
