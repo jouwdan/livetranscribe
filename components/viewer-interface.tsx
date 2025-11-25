@@ -1,13 +1,14 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect, useRef, useCallback } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Radio, ArrowDownToLine, Pause, Monitor, Smartphone, Tv } from "lucide-react"
+import { Radio, ArrowDownToLine, Pause, Monitor, Smartphone, Tv, WifiOff } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
 import { setEventName } from "@/utils/set-event-name" // Assuming setEventName is declared in this file or imported from another file
 import type { RealtimeChannel } from "@supabase/supabase-js"
+import { cn } from "@/lib/utils"
 
 interface Transcription {
   id: string
@@ -30,18 +31,25 @@ type DisplayMode = "laptop" | "mobile" | "stage"
 
 const StreamingText = ({
   text,
+  onComplete,
 }: {
   text: string
+  onComplete?: () => void
 }) => {
   const [displayedText, setDisplayedText] = useState("")
   const [isComplete, setIsComplete] = useState(false)
+  const hasCalledComplete = useRef(false)
 
   useEffect(() => {
-    console.log("[v0] StreamingText starting animation for text:", text.substring(0, 20) + "...")
     setDisplayedText("")
     setIsComplete(false)
+    hasCalledComplete.current = false
 
     if (text.length === 0) {
+      if (!hasCalledComplete.current) {
+        hasCalledComplete.current = true
+        onComplete?.()
+      }
       return
     }
 
@@ -51,11 +59,14 @@ const StreamingText = ({
         setDisplayedText(text.slice(0, currentIndex + 1))
         currentIndex++
       } else {
-        console.log("[v0] StreamingText animation complete")
         setIsComplete(true)
         clearInterval(interval)
+        if (!hasCalledComplete.current) {
+          hasCalledComplete.current = true
+          onComplete?.()
+        }
       }
-    }, 30) // 30ms per character
+    }, 30)
 
     return () => {
       clearInterval(interval)
@@ -73,12 +84,21 @@ const StreamingText = ({
 const TranscriptionText = ({
   text,
   shouldAnimate,
+  onComplete,
 }: {
   text: string
   shouldAnimate?: boolean
+  onComplete?: () => void
 }) => {
+  // If not animating, call onComplete immediately
+  useEffect(() => {
+    if (!shouldAnimate && onComplete) {
+      onComplete()
+    }
+  }, [shouldAnimate, onComplete])
+
   if (shouldAnimate) {
-    return <StreamingText text={text} />
+    return <StreamingText text={text} onComplete={onComplete} />
   }
 
   return <span>{text}</span>
@@ -115,12 +135,30 @@ export function ViewerInterface({
   const sessionIdRef = useRef<string | null>(null)
   const eventIdRef = useRef<string | null>(null)
   const isReturningViewerRef = useRef(false)
+  const [reconnectAttempts, setReconnectAttempts] = useState(0)
+  const maxReconnectAttempts = 5
+  const channelRef = useRef<RealtimeChannel | null>(null)
+
+  const [animationQueue, setAnimationQueue] = useState<string[]>([])
+  const [currentlyAnimatingId, setCurrentlyAnimatingId] = useState<string | null>(null)
+  const isAnimatingRef = useRef(false)
 
   useEffect(() => {
     let isSubscribed = true
     let channel: RealtimeChannel | null = null
+    let reconnectTimeout: NodeJS.Timeout | null = null
 
-    const initializeViewer = async () => {
+    const setupChannel = async (isReconnect = false) => {
+      if (!isSubscribed) return
+
+      if (isReconnect) {
+        setReconnectAttempts((prev) => prev + 1)
+        if (reconnectAttempts >= maxReconnectAttempts) {
+          setError("Connection lost. Please refresh the page.")
+          return
+        }
+      }
+
       const response = await fetch(`/api/stream/${slug}`)
       const result = await response.json()
 
@@ -131,7 +169,7 @@ export function ViewerInterface({
 
       setEventName(result.metadata?.name || eventName)
 
-      if (result.transcriptions) {
+      if (result.transcriptions && !isReconnect) {
         const filtered = result.transcriptions.filter((t: any) => t.isFinal)
         setTranscriptions(
           filtered.map((t: any) => ({
@@ -144,7 +182,6 @@ export function ViewerInterface({
           })),
         )
         filtered.forEach((t: any) => transcriptionsViewedRef.current.add(t.id))
-        transcriptionsViewedRef.current.size = filtered.filter((t: any) => t.isFinal).length
         if (filtered.length > 0) {
           latestSequenceRef.current = Math.max(...filtered.map((t: any) => t.sequenceNumber))
         }
@@ -152,6 +189,10 @@ export function ViewerInterface({
       }
 
       const channelName = `transcriptions-${slug}`
+
+      if (channelRef.current) {
+        supabase.removeChannel(channelRef.current)
+      }
 
       channel = supabase
         .channel(channelName, {
@@ -174,6 +215,7 @@ export function ViewerInterface({
             const newTranscription = payload.new as any
 
             lastTranscriptionTimeRef.current = Date.now()
+            setReconnectAttempts(0)
 
             if (!newTranscription.text || newTranscription.text.trim() === "" || !newTranscription.is_final) {
               return
@@ -195,7 +237,6 @@ export function ViewerInterface({
               }
 
               transcriptionsViewedRef.current.add(newTranscription.id)
-              transcriptionsViewedRef.current.size += 1
               latestSequenceRef.current = Math.max(latestSequenceRef.current, newTranscription.sequence_number)
 
               const newItem = {
@@ -209,10 +250,7 @@ export function ViewerInterface({
               }
 
               if (initialLoadCompleteRef.current) {
-                setNewestTranscriptionId(newTranscription.id)
-                setTimeout(() => {
-                  setNewestTranscriptionId(null)
-                }, 2000)
+                queueAnimation(newTranscription.id)
               }
 
               return [...prev, newItem].sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime())
@@ -237,25 +275,51 @@ export function ViewerInterface({
         .subscribe((status, err) => {
           if (err) {
             console.error("Supabase subscription error:", err)
+            if (isSubscribed && reconnectAttempts < maxReconnectAttempts) {
+              reconnectTimeout = setTimeout(
+                () => {
+                  setupChannel(true)
+                },
+                2000 * (reconnectAttempts + 1),
+              )
+            }
           }
           if (isSubscribed) {
             setIsConnected(status === "SUBSCRIBED")
+            if (status === "SUBSCRIBED") {
+              setReconnectAttempts(0)
+            }
           }
         })
 
-      return () => {
-        isSubscribed = false
-        if (channel) {
-          supabase.removeChannel(channel)
-        }
-      }
+      channelRef.current = channel
     }
 
-    initializeViewer()
-  }, [slug])
+    setupChannel()
+
+    const healthCheckInterval = setInterval(() => {
+      if (channelRef.current) {
+        const state = channelRef.current.state
+        if (state !== "joined" && state !== "joining") {
+          console.log("[v0] Channel unhealthy, reconnecting...")
+          setupChannel(true)
+        }
+      }
+    }, 30000)
+
+    return () => {
+      isSubscribed = false
+      clearInterval(healthCheckInterval)
+      if (reconnectTimeout) {
+        clearTimeout(reconnectTimeout)
+      }
+      if (channelRef.current) {
+        supabase.removeChannel(channelRef.current)
+      }
+    }
+  }, [slug, eventName, supabase])
 
   useEffect(() => {
-    // Get or create a persistent viewer ID stored in localStorage
     const getOrCreateViewerId = (): string => {
       const storageKey = `viewer-id-${slug}`
       let viewerId = localStorage.getItem(storageKey)
@@ -282,47 +346,69 @@ export function ViewerInterface({
         .select("id, scroll_events, visibility_changes, total_active_time_seconds, transcriptions_viewed")
         .eq("event_id", event.id)
         .eq("session_id", sessionId)
-        .single()
+        .maybeSingle()
 
       if (existingSession) {
-        // Returning viewer - restore their accumulated metrics
+        // Returning viewer - restore their session data
         isReturningViewerRef.current = true
         scrollCountRef.current = existingSession.scroll_events || 0
         visibilityChangesRef.current = existingSession.visibility_changes || 0
         activeTimeRef.current = existingSession.total_active_time_seconds || 0
 
-        // Update the session to show they're back
         await supabase
           .from("viewer_sessions")
           .update({
             last_ping: new Date().toISOString(),
             last_activity_at: new Date().toISOString(),
-            left_at: null, // Clear left_at since they're back
+            left_at: null,
           })
           .eq("id", existingSession.id)
       } else {
-        // New unique viewer - insert initial viewer session
+        // New viewer - try to create session
         isReturningViewerRef.current = false
-        await supabase.from("viewer_sessions").insert({
-          event_id: event.id,
-          session_id: sessionId,
-          joined_at: new Date().toISOString(),
-          last_ping: new Date().toISOString(),
-          scroll_events: 0,
-          visibility_changes: 0,
-          total_active_time_seconds: 0,
-          transcriptions_viewed: 0,
-        })
+        const { data: newSession, error } = await supabase
+          .from("viewer_sessions")
+          .insert({
+            event_id: event.id,
+            session_id: sessionId,
+            joined_at: new Date().toISOString(),
+            last_ping: new Date().toISOString(),
+            scroll_events: 0,
+            visibility_changes: 0,
+            total_active_time_seconds: 0,
+            transcriptions_viewed: 0,
+          })
+          .select()
+          .maybeSingle()
+
+        // If duplicate error (race condition), fetch the session that was just created
+        if (error && error.code === "23505") {
+          console.log("[v0] Viewer session race condition detected, fetching existing session")
+          const { data: raceSession } = await supabase
+            .from("viewer_sessions")
+            .select("id, scroll_events, visibility_changes, total_active_time_seconds, transcriptions_viewed")
+            .eq("event_id", event.id)
+            .eq("session_id", sessionId)
+            .maybeSingle()
+
+          if (raceSession) {
+            isReturningViewerRef.current = true
+            scrollCountRef.current = raceSession.scroll_events || 0
+            visibilityChangesRef.current = raceSession.visibility_changes || 0
+            activeTimeRef.current = raceSession.total_active_time_seconds || 0
+          }
+        } else if (error) {
+          console.error("Error creating viewer session:", error)
+          return // Exit early if there's a real error
+        }
       }
 
-      // Track active time when page is visible
       activeTimeInterval = setInterval(() => {
         if (document.visibilityState === "visible") {
           activeTimeRef.current += 1
         }
       }, 1000)
 
-      // Ping server with accumulated metrics every 15 seconds
       pingInterval = setInterval(async () => {
         await supabase
           .from("viewer_sessions")
@@ -339,12 +425,10 @@ export function ViewerInterface({
       }, 15000)
     }
 
-    // Track scroll events
     const handleScroll = () => {
       scrollCountRef.current += 1
     }
 
-    // Track visibility changes
     const handleVisibilityChange = () => {
       visibilityChangesRef.current += 1
     }
@@ -360,7 +444,6 @@ export function ViewerInterface({
       if (pingInterval) clearInterval(pingInterval)
       if (activeTimeInterval) clearInterval(activeTimeInterval)
 
-      // Final update on cleanup
       const cleanup = async () => {
         if (eventIdRef.current && sessionIdRef.current) {
           await supabase
@@ -409,6 +492,27 @@ export function ViewerInterface({
       scrollContainer.addEventListener("scroll", handleScroll)
       return () => scrollContainer.removeEventListener("scroll", handleScroll)
     }
+  }, [])
+
+  useEffect(() => {
+    if (animationQueue.length > 0 && !isAnimatingRef.current) {
+      const nextId = animationQueue[0]
+      isAnimatingRef.current = true
+      setCurrentlyAnimatingId(nextId)
+      setAnimationQueue((prev) => prev.slice(1))
+    }
+  }, [animationQueue, currentlyAnimatingId])
+
+  const handleAnimationComplete = useCallback(() => {
+    isAnimatingRef.current = false
+    setCurrentlyAnimatingId(null)
+  }, [])
+
+  const queueAnimation = useCallback((id: string) => {
+    setAnimationQueue((prev) => {
+      if (prev.includes(id)) return prev
+      return [...prev, id]
+    })
   }, [])
 
   const displayTranscriptions = transcriptions.filter((t) => t.text.trim() !== "" && t.isFinal)
@@ -568,12 +672,15 @@ export function ViewerInterface({
                           transcriptionIndex >= 0 ? displayTranscriptions[transcriptionIndex] : undefined
                         const isLastInGroup = textIndex === group.texts.length - 1
                         const isLastGroup = index === groupedTranscriptions.slice(-5).length - 1
-                        const shouldAnimate =
-                          isLastInGroup && isLastGroup && transcription?.id === newestTranscriptionId
+                        const shouldAnimate = isLastInGroup && isLastGroup && transcription?.id === currentlyAnimatingId
 
                         return (
                           <span key={textIndex}>
-                            <TranscriptionText text={text} shouldAnimate={shouldAnimate} />
+                            <TranscriptionText
+                              text={text}
+                              shouldAnimate={shouldAnimate}
+                              onComplete={handleAnimationComplete}
+                            />
                             {textIndex < group.texts.length - 1 && " "}
                           </span>
                         )
@@ -585,6 +692,15 @@ export function ViewerInterface({
             </div>
           </div>
         </div>
+
+        {reconnectAttempts > 0 && reconnectAttempts < maxReconnectAttempts && (
+          <div className="bg-yellow-100 border-b border-yellow-200 px-4 py-2 flex items-center gap-2">
+            <WifiOff className="h-4 w-4 text-yellow-600 animate-pulse" />
+            <span className="text-sm text-yellow-700">
+              Reconnecting... (attempt {reconnectAttempts}/{maxReconnectAttempts})
+            </span>
+          </div>
+        )}
 
         {streamingStatusMessage && (
           <div className="mt-4 p-4 rounded-lg bg-purple-500/20 border-2 border-purple-500/50 text-center">
@@ -673,6 +789,15 @@ export function ViewerInterface({
           </div>
         </div>
 
+        {reconnectAttempts > 0 && reconnectAttempts < maxReconnectAttempts && (
+          <div className="bg-yellow-100 border-b border-yellow-200 px-4 py-2 flex items-center gap-2">
+            <WifiOff className="h-4 w-4 text-yellow-600 animate-pulse" />
+            <span className="text-sm text-yellow-700">
+              Reconnecting... (attempt {reconnectAttempts}/{maxReconnectAttempts})
+            </span>
+          </div>
+        )}
+
         {streamingStatusMessage && (
           <div className="mt-3 p-2 rounded-md bg-purple-500/20 border border-purple-500/30 text-center">
             <p className="text-sm text-purple-200 font-medium">{streamingStatusMessage}</p>
@@ -704,7 +829,12 @@ export function ViewerInterface({
 
                         return (
                           <span key={textIndex}>
-                            <TranscriptionText text={text} transcriptionId={transcriptionId} />
+                            <TranscriptionText
+                              text={text}
+                              transcriptionId={transcriptionId}
+                              shouldAnimate={transcriptionId === currentlyAnimatingId}
+                              onComplete={handleAnimationComplete}
+                            />
                             {textIndex < group.texts.length - 1 && " "}
                           </span>
                         )
@@ -732,7 +862,7 @@ export function ViewerInterface({
   }
 
   return (
-    <div className="flex flex-col h-screen bg-black overflow-hidden">
+    <div className={cn("flex flex-col h-screen" /* ... */)}>
       <div className="bg-black border-b border-border flex-shrink-0">
         <div className="px-4 sm:px-6 lg:px-8 py-4 max-w-7xl mx-auto">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -780,6 +910,15 @@ export function ViewerInterface({
           </div>
         </div>
       </div>
+
+      {reconnectAttempts > 0 && reconnectAttempts < maxReconnectAttempts && (
+        <div className="bg-yellow-100 border-b border-yellow-200 px-4 py-2 flex items-center gap-2">
+          <WifiOff className="h-4 w-4 text-yellow-600 animate-pulse" />
+          <span className="text-sm text-yellow-700">
+            Reconnecting... (attempt {reconnectAttempts}/{maxReconnectAttempts})
+          </span>
+        </div>
+      )}
 
       {streamingStatusMessage && (
         <div className="mt-4 p-4 rounded-lg bg-purple-500/20 border-2 border-purple-500/50 text-center">
@@ -832,7 +971,11 @@ export function ViewerInterface({
                           {formatTimestamp(new Date(t.timestamp))}
                         </span>
                         <div className="flex-1 text-base leading-relaxed">
-                          <TranscriptionText text={t.text} />
+                          <TranscriptionText
+                            text={t.text}
+                            shouldAnimate={t.id === currentlyAnimatingId}
+                            onComplete={handleAnimationComplete}
+                          />
                         </div>
                       </div>
                     </div>

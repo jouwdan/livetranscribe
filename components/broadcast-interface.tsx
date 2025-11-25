@@ -46,6 +46,11 @@ export function BroadcastInterface({ slug, eventName, eventId, userId }: Broadca
   const broadcastChannelRef = useRef<any>(null)
   const lastInterimBroadcastRef = useRef<number>(0)
   const pendingInterimRef = useRef<{ text: string; sequence: number } | null>(null)
+  const [connectionStatus, setConnectionStatus] = useState<"connected" | "disconnected" | "reconnecting">(
+    "disconnected",
+  )
+  const [apiRetryCount, setApiRetryCount] = useState(0)
+  const maxApiRetries = 3
 
   useEffect(() => {
     if (!isStreaming || !sessionStartTime) return
@@ -286,22 +291,57 @@ export function BroadcastInterface({ slug, eventName, eventId, userId }: Broadca
     }
   }
 
+  const sendTranscriptionWithRetry = async (
+    text: string,
+    isFinal: boolean,
+    sequenceNumber: number,
+    retries = 0,
+  ): Promise<boolean> => {
+    try {
+      const response = await fetch(`/api/stream/${slug}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          text,
+          isFinal,
+          sequenceNumber,
+          eventName,
+          sessionId: currentSessionId,
+        }),
+      })
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`)
+      }
+
+      const result = await response.json()
+      setApiRetryCount(0)
+      return !result.skipped
+    } catch (error) {
+      console.error(`[v0] API call failed (attempt ${retries + 1}):`, error)
+
+      if (retries < maxApiRetries) {
+        await new Promise((resolve) => setTimeout(resolve, 1000 * (retries + 1)))
+        return sendTranscriptionWithRetry(text, isFinal, sequenceNumber, retries + 1)
+      }
+
+      setApiRetryCount((prev) => prev + 1)
+      return false
+    }
+  }
+
   const handleTranscription = async (text: string, isFinal: boolean, sequence: number) => {
-    const adjustedSequence = lastSequenceNumber + sequence
+    const adjustedSequence = lastSequenceNumber + sequence + 1
+    const newTranscription = { text, isFinal, sequence: adjustedSequence, timestamp: new Date() }
 
-    if (isFinal) {
-      setTranscriptions((prev) => [...prev, { text, isFinal, sequence: adjustedSequence, timestamp: new Date() }])
-      setCurrentInterim("")
+    setTranscriptions((prev) => [...prev, newTranscription])
 
-      pendingInterimRef.current = null
-    } else {
+    if (!isFinal) {
       setCurrentInterim(text)
-
       pendingInterimRef.current = { text, sequence: adjustedSequence }
 
       const now = Date.now()
       if (now - lastInterimBroadcastRef.current < 150) {
-        // Skip this broadcast, will send the accumulated text on next interval
         return
       }
       lastInterimBroadcastRef.current = now
@@ -322,28 +362,10 @@ export function BroadcastInterface({ slug, eventName, eventId, userId }: Broadca
       }
 
       if (isFinal) {
-        const response = await fetch(`/api/stream/${slug}`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            text,
-            isFinal,
-            sequenceNumber: adjustedSequence,
-            eventName,
-            sessionId: currentSessionId,
-          }),
-        })
-
-        if (!response.ok) {
-          console.error("[v0] Failed to broadcast transcription:", response.status)
-          const errorText = await response.text()
-          console.error("[v0] Error response:", errorText)
-        } else {
-          const result = await response.json()
-          if (!result.skipped) {
-            setTranscriptionCount((prev) => prev + 1)
-            setLastSequenceNumber(adjustedSequence)
-          }
+        const success = await sendTranscriptionWithRetry(text, isFinal, adjustedSequence)
+        if (success) {
+          setTranscriptionCount((prev) => prev + 1)
+          setLastSequenceNumber(adjustedSequence)
         }
       }
     } catch (error) {
@@ -354,9 +376,11 @@ export function BroadcastInterface({ slug, eventName, eventId, userId }: Broadca
   const handleStartStreaming = async () => {
     try {
       setError(null)
+      setConnectionStatus("reconnecting")
 
       if (!currentSessionId) {
         setError("Please create or select a session before starting the broadcast.")
+        setConnectionStatus("disconnected")
         return
       }
 
@@ -375,6 +399,7 @@ export function BroadcastInterface({ slug, eventName, eventId, userId }: Broadca
         setError(
           "This event has insufficient credits. Please purchase more time for this event to continue broadcasting.",
         )
+        setConnectionStatus("disconnected")
         return
       }
 
@@ -425,16 +450,24 @@ export function BroadcastInterface({ slug, eventName, eventId, userId }: Broadca
         handleTranscription,
         (error) => {
           setError(error)
-          setIsStreaming(false)
+          setConnectionStatus("disconnected")
+          if (error.includes("Please restart")) {
+            setIsStreaming(false)
+          }
+        },
+        (connected) => {
+          setConnectionStatus(connected ? "connected" : "reconnecting")
         },
       )
 
       await transcriber.start()
       transcriberRef.current = transcriber
       setIsStreaming(true)
+      setConnectionStatus("connected")
     } catch (error) {
       setError(error instanceof Error ? error.message : "Failed to start streaming")
       setIsStreaming(false)
+      setConnectionStatus("disconnected")
       setSessionStartTime(null)
     }
   }
@@ -706,6 +739,14 @@ export function BroadcastInterface({ slug, eventName, eventId, userId }: Broadca
             </div>
           </CardContent>
         </Card>
+
+        {isStreaming && (
+          <Card>
+            <CardContent className="pt-6">
+              <div className="flex">{/* Additional content can be added here */}</div>
+            </CardContent>
+          </Card>
+        )}
       </div>
     </div>
   )

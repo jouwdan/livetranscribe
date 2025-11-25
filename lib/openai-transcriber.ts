@@ -14,10 +14,18 @@ export class OpenAITranscriber {
   private lastTranscriptionTime: number = Date.now()
   private lastAudioActivityTime: number = Date.now()
   private lastDeltaTime: number = Date.now()
-  private hasAudioInBuffer = false // Added flag to track if buffer has audio
-  private maxAudioDurationMs = 8000 // Force transcription after 8 seconds
-  private naturalPauseThresholdMs = 200 // Consider it a natural pause after 200ms of low activity
+  private hasAudioInBuffer = false
+  private maxAudioDurationMs = 8000
+  private naturalPauseThresholdMs = 200
   private durationCheckInterval: NodeJS.Timeout | null = null
+
+  private reconnectAttempts = 0
+  private maxReconnectAttempts = 5
+  private reconnectDelay = 1000
+  private isManualStop = false
+  private pingInterval: NodeJS.Timeout | null = null
+  private lastPongTime: number = Date.now()
+  private connectionHealthCheckInterval: NodeJS.Timeout | null = null
 
   constructor(
     private apiKey: string,
@@ -28,9 +36,13 @@ export class OpenAITranscriber {
     private sessionDescription: string | null,
     private onTranscription: (text: string, isFinal: boolean, sequence: number) => void,
     private onError: (error: string) => void,
+    private onConnectionChange?: (connected: boolean) => void,
   ) {}
 
   async start() {
+    this.isManualStop = false
+    this.reconnectAttempts = 0
+
     try {
       this.mediaStream = await navigator.mediaDevices.getUserMedia({
         audio: {
@@ -50,23 +62,27 @@ export class OpenAITranscriber {
       await this.connectWebSocket()
 
       this.startDurationCheck()
+      this.startConnectionHealthCheck()
 
       this.processor = this.audioContext.createScriptProcessor(4096, 1, 1)
       this.processor.onaudioprocess = (e) => {
-        if (!this.isConnected || !this.ws) return
+        if (!this.isConnected || !this.ws || this.ws.readyState !== WebSocket.OPEN) return
         const audioData = e.inputBuffer.getChannelData(0)
 
         const rms = Math.sqrt(audioData.reduce((sum, val) => sum + val * val, 0) / audioData.length)
         if (rms > 0.01) {
-          // Threshold for detecting speech activity
           this.lastAudioActivityTime = Date.now()
         }
 
         const int16Data = this.float32ToInt16(audioData)
         const base64Audio = this.arrayBufferToBase64(int16Data.buffer)
 
-        this.ws.send(JSON.stringify({ type: "input_audio_buffer.append", audio: base64Audio }))
-        this.hasAudioInBuffer = true
+        try {
+          this.ws.send(JSON.stringify({ type: "input_audio_buffer.append", audio: base64Audio }))
+          this.hasAudioInBuffer = true
+        } catch (error) {
+          console.error("[v0] Failed to send audio data:", error)
+        }
       }
 
       source.connect(this.processor)
@@ -77,6 +93,17 @@ export class OpenAITranscriber {
       this.onError(error instanceof Error ? error.message : "Failed to start")
       throw error
     }
+  }
+
+  private startConnectionHealthCheck() {
+    this.connectionHealthCheckInterval = setInterval(() => {
+      if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
+        if (!this.isManualStop && this.reconnectAttempts < this.maxReconnectAttempts) {
+          console.log("[v0] Connection unhealthy, attempting reconnect...")
+          this.attemptReconnect()
+        }
+      }
+    }, 5000)
   }
 
   private startDurationCheck() {
@@ -95,6 +122,7 @@ export class OpenAITranscriber {
         inNaturalPause &&
         this.hasAudioInBuffer &&
         this.ws &&
+        this.ws.readyState === WebSocket.OPEN &&
         this.isConnected
       ) {
         try {
@@ -102,7 +130,6 @@ export class OpenAITranscriber {
           this.lastTranscriptionTime = Date.now()
           this.hasAudioInBuffer = false
         } catch (error) {
-          // Silently ignore commit errors - buffer may have been auto-committed by VAD
           console.log("[v0] Buffer commit skipped (likely already committed)")
           this.hasAudioInBuffer = false
         }
@@ -110,15 +137,26 @@ export class OpenAITranscriber {
     }, 200)
   }
 
-  private async connectWebSocket() {
+  private async connectWebSocket(): Promise<void> {
     return new Promise<void>((resolve, reject) => {
       const url = "wss://api.openai.com/v1/realtime?model=gpt-realtime-mini"
 
       this.ws = new WebSocket(url, ["realtime", `openai-insecure-api-key.${this.apiKey}`, "openai-beta.realtime-v1"])
 
+      const connectionTimeout = setTimeout(() => {
+        if (this.ws && this.ws.readyState !== WebSocket.OPEN) {
+          this.ws.close()
+          reject(new Error("WebSocket connection timeout"))
+        }
+      }, 10000)
+
       this.ws.onopen = () => {
+        clearTimeout(connectionTimeout)
         console.log("[v0] WebSocket connected")
         this.isConnected = true
+        this.reconnectAttempts = 0
+        this.lastPongTime = Date.now()
+        this.onConnectionChange?.(true)
 
         let contextInfo = `Event: ${this.eventName}`
         if (this.eventDescription) {
@@ -172,13 +210,19 @@ export class OpenAITranscriber {
       }
 
       this.ws.onerror = (event) => {
+        clearTimeout(connectionTimeout)
         console.error("[v0] WebSocket error:", event)
         this.isConnected = false
-        this.onError("WebSocket error")
-        reject(event)
+        this.onConnectionChange?.(false)
+
+        if (this.reconnectAttempts === 0) {
+          this.onError("WebSocket error")
+          reject(event)
+        }
       }
 
       this.ws.onmessage = (event) => {
+        this.lastPongTime = Date.now()
         try {
           const message: AnyEvent = JSON.parse(event.data)
           this.handleServerMessage(message)
@@ -187,15 +231,49 @@ export class OpenAITranscriber {
         }
       }
 
-      this.ws.onclose = () => {
-        console.log("[v0] WebSocket closed")
+      this.ws.onclose = (event) => {
+        clearTimeout(connectionTimeout)
+        console.log("[v0] WebSocket closed, code:", event.code, "reason:", event.reason)
         this.isConnected = false
+        this.onConnectionChange?.(false)
+
+        if (!this.isManualStop && this.reconnectAttempts < this.maxReconnectAttempts) {
+          this.attemptReconnect()
+        }
       }
     })
   }
 
+  private async attemptReconnect() {
+    if (this.isManualStop) return
+
+    this.reconnectAttempts++
+    const delay = this.reconnectDelay * Math.pow(2, this.reconnectAttempts - 1) // Exponential backoff
+
+    console.log(`[v0] Attempting reconnect ${this.reconnectAttempts}/${this.maxReconnectAttempts} in ${delay}ms`)
+
+    await new Promise((resolve) => setTimeout(resolve, delay))
+
+    if (this.isManualStop) return
+
+    try {
+      await this.connectWebSocket()
+      console.log("[v0] Reconnection successful")
+    } catch (error) {
+      console.error("[v0] Reconnection failed:", error)
+      if (this.reconnectAttempts >= this.maxReconnectAttempts) {
+        this.onError("Connection lost. Please restart streaming.")
+      }
+    }
+  }
+
   private handleServerMessage(message: AnyEvent) {
     switch (message.type) {
+      case "session.created":
+      case "session.updated":
+        console.log("[v0] Session ready")
+        break
+
       case "conversation.item.input_audio_transcription.delta": {
         if (typeof message.delta === "string" && message.item_id) {
           this.lastDeltaTime = Date.now()
@@ -224,7 +302,6 @@ export class OpenAITranscriber {
       }
 
       case "input_audio_buffer.committed": {
-        // OpenAI's VAD committed the buffer, so reset our flag
         this.hasAudioInBuffer = false
         this.lastTranscriptionTime = Date.now()
         break
@@ -255,12 +332,24 @@ export class OpenAITranscriber {
 
   stop() {
     console.log("[v0] Stopping transcription")
+    this.isManualStop = true
+
     try {
       this.hasAudioInBuffer = false
 
       if (this.durationCheckInterval) {
         clearInterval(this.durationCheckInterval)
         this.durationCheckInterval = null
+      }
+
+      if (this.pingInterval) {
+        clearInterval(this.pingInterval)
+        this.pingInterval = null
+      }
+
+      if (this.connectionHealthCheckInterval) {
+        clearInterval(this.connectionHealthCheckInterval)
+        this.connectionHealthCheckInterval = null
       }
 
       if (this.processor) {
@@ -281,7 +370,12 @@ export class OpenAITranscriber {
       }
     } finally {
       this.isConnected = false
+      this.onConnectionChange?.(false)
     }
+  }
+
+  isConnectionHealthy(): boolean {
+    return this.isConnected && this.ws !== null && this.ws.readyState === WebSocket.OPEN
   }
 
   private float32ToInt16(buffer: Float32Array): Int16Array {
