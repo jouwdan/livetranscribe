@@ -108,8 +108,12 @@ export function SessionManager({ eventId, eventSlug, eventName, sessions }: Sess
                 onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                 placeholder="Add notes about this session"
                 className="mt-1.5"
-                rows={3}
+                rows={5}
               />
+              <p className="text-sm text-muted-foreground mt-1.5">
+                Provide context about speakers, topics, or specialized terminology to improve transcription accuracy
+                {formData.description ? ` (${formData.description.length} characters)` : ""}
+              </p>
             </div>
             <div className="flex gap-2">
               <Button onClick={handleCreate}>Create Session</Button>
@@ -151,7 +155,7 @@ export function SessionManager({ eventId, eventSlug, eventName, sessions }: Sess
                           value={formData.description}
                           onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                           className="mt-1.5"
-                          rows={2}
+                          rows={5}
                         />
                       </div>
                       <div className="flex gap-2">

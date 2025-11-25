@@ -334,7 +334,7 @@ export function BroadcastInterface({ slug, eventName, eventId, userId }: Broadca
       setError(null)
 
       if (!currentSessionId) {
-        setError("Please select a session before starting the broadcast.")
+        setError("Please create or select a session before starting the broadcast.")
         return
       }
 
@@ -342,7 +342,12 @@ export function BroadcastInterface({ slug, eventName, eventId, userId }: Broadca
         process.env.NEXT_PUBLIC_SUPABASE_URL!,
         process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
       )
-      const { data: event } = await supabase.from("events").select("credits_minutes").eq("id", eventId).single()
+
+      const { data: event } = await supabase
+        .from("events")
+        .select("credits_minutes, description")
+        .eq("id", eventId)
+        .single()
 
       if (!event || event.credits_minutes <= 0) {
         setError(
@@ -351,16 +356,16 @@ export function BroadcastInterface({ slug, eventName, eventId, userId }: Broadca
         return
       }
 
-      const startTime = new Date()
-      setSessionStartTime(startTime)
-
-      const { data: existingSession } = await supabase
+      const { data: session } = await supabase
         .from("event_sessions")
-        .select("started_at")
+        .select("name, description, started_at")
         .eq("id", currentSessionId)
         .single()
 
-      if (!existingSession?.started_at) {
+      const startTime = new Date()
+      setSessionStartTime(startTime)
+
+      if (!session?.started_at) {
         await supabase.from("event_sessions").update({ started_at: startTime.toISOString() }).eq("id", currentSessionId)
       }
 
@@ -388,10 +393,19 @@ export function BroadcastInterface({ slug, eventName, eventId, userId }: Broadca
 
       const { apiKey } = await response.json()
 
-      const transcriber = new OpenAITranscriber(apiKey, eventId, handleTranscription, (error) => {
-        setError(error)
-        setIsStreaming(false)
-      })
+      const transcriber = new OpenAITranscriber(
+        apiKey,
+        eventId,
+        eventName,
+        event.description || null,
+        session?.name || null,
+        session?.description || null,
+        handleTranscription,
+        (error) => {
+          setError(error)
+          setIsStreaming(false)
+        },
+      )
 
       await transcriber.start()
       transcriberRef.current = transcriber

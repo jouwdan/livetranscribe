@@ -22,6 +22,10 @@ export class OpenAITranscriber {
   constructor(
     private apiKey: string,
     private eventId: string,
+    private eventName: string,
+    private eventDescription: string | null,
+    private sessionName: string | null,
+    private sessionDescription: string | null,
     private onTranscription: (text: string, isFinal: boolean, sequence: number) => void,
     private onError: (error: string) => void,
   ) {}
@@ -116,6 +120,17 @@ export class OpenAITranscriber {
         console.log("[v0] WebSocket connected")
         this.isConnected = true
 
+        let contextInfo = `Event: ${this.eventName}`
+        if (this.eventDescription) {
+          contextInfo += `\nEvent Description: ${this.eventDescription}`
+        }
+        if (this.sessionName) {
+          contextInfo += `\nSession: ${this.sessionName}`
+        }
+        if (this.sessionDescription) {
+          contextInfo += `\nSession Description: ${this.sessionDescription}`
+        }
+
         this.ws!.send(
           JSON.stringify({
             type: "session.update",
@@ -124,6 +139,9 @@ export class OpenAITranscriber {
           You are an AI transcription agent providing live English subtitles for events.
           Your transcriptions support deaf, hard of hearing, and neurodiverse audiences who rely on clear, well-timed captions.
 
+          Context for this transcription:
+          ${contextInfo}
+
           Instructions:
           - Transcribe verbatim with accurate punctuation and capitalization.
           - Output short, readable caption chunks (1–2 sentences or ~8–15 words).
@@ -131,6 +149,7 @@ export class OpenAITranscriber {
           - For unclear audio, output [inaudible] or [unclear].
           - Avoid timestamps, speaker labels, or symbols unless explicitly spoken.
           - Prioritize clarity, rhythm, and readability suitable for live display.
+          - Use the event and session context to improve accuracy for domain-specific terms, names, and topics.
           `,
               modalities: ["text"],
               input_audio_format: "pcm16",

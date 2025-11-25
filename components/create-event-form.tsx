@@ -11,6 +11,7 @@ import { Loader2, CheckCircle2, XCircle, CreditCard, Clock, Users } from "lucide
 import { createClient } from "@/lib/supabase/client"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
+import { Textarea } from "@/components/ui/textarea"
 
 interface EventCredit {
   id: string
@@ -22,6 +23,7 @@ interface EventCredit {
 
 export function CreateEventForm() {
   const [eventName, setEventName] = useState("")
+  const [eventDescription, setEventDescription] = useState("")
   const [customSlug, setCustomSlug] = useState("")
   const [slugAvailable, setSlugAvailable] = useState<boolean | null>(null)
   const [checkingSlug, setCheckingSlug] = useState(false)
@@ -159,6 +161,7 @@ export function CreateEventForm() {
         .insert({
           slug,
           name: eventName,
+          description: eventDescription || null,
           user_id: user.id,
           organizer_key: Math.random().toString(36).substring(7),
           is_active: true,
@@ -252,6 +255,22 @@ export function CreateEventForm() {
           disabled={isLoading || availableCredits.length === 0}
         />
         <p className="text-sm text-muted-foreground">This will be visible to attendees</p>
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="eventDescription">Event Description (Optional)</Label>
+        <Textarea
+          id="eventDescription"
+          placeholder="Describe what this event is about, key topics, speakers, or any context that will help improve transcription accuracy..."
+          value={eventDescription}
+          onChange={(e) => setEventDescription(e.target.value)}
+          disabled={isLoading || availableCredits.length === 0}
+          className="min-h-[120px] resize-y"
+          maxLength={2000}
+        />
+        <p className="text-sm text-muted-foreground">
+          Provide context to help AI better understand specialized terms and topics ({eventDescription.length}/2000)
+        </p>
       </div>
 
       <div className="space-y-2">
