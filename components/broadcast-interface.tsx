@@ -130,13 +130,11 @@ export function BroadcastInterface({ slug, eventName, eventId, userId }: Broadca
   }, [eventId, currentSessionId])
 
   useEffect(() => {
-    const supabase = createBrowserClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    )
-
-    const fetchLastSequence = async () => {
-      if (!currentSessionId) return
+    async function fetchLastSequence() {
+      const supabase = createBrowserClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      )
 
       const { data } = await supabase
         .from("transcriptions")
@@ -148,7 +146,6 @@ export function BroadcastInterface({ slug, eventName, eventId, userId }: Broadca
 
       const lastSeq = data?.sequence_number || 0
       setLastSequenceNumber(lastSeq)
-      console.log("[v0] Last sequence number for session:", lastSeq)
     }
 
     fetchLastSequence()
@@ -162,17 +159,13 @@ export function BroadcastInterface({ slug, eventName, eventId, userId }: Broadca
       )
       const channelName = `transcriptions-${slug}`
 
-      console.log("[v0] Initializing broadcast channel:", channelName)
-
       const channel = supabase.channel(channelName, {
         config: {
           broadcast: { self: false },
         },
       })
 
-      await channel.subscribe((status) => {
-        console.log("[v0] Broadcast channel status:", status)
-      })
+      await channel.subscribe()
 
       broadcastChannelRef.current = channel
     }
@@ -181,7 +174,6 @@ export function BroadcastInterface({ slug, eventName, eventId, userId }: Broadca
 
     return () => {
       if (broadcastChannelRef.current) {
-        console.log("[v0] Cleaning up broadcast channel")
         const supabase = createBrowserClient(
           process.env.NEXT_PUBLIC_SUPABASE_URL!,
           process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -191,6 +183,32 @@ export function BroadcastInterface({ slug, eventName, eventId, userId }: Broadca
       }
     }
   }, [slug])
+
+  useEffect(() => {
+    if (!isStreaming) return
+
+    const interval = setInterval(() => {
+      if (pendingInterimRef.current && broadcastChannelRef.current) {
+        const { text, sequence } = pendingInterimRef.current
+
+        broadcastChannelRef.current.send({
+          type: "broadcast",
+          event: "interim_transcription",
+          payload: {
+            text,
+            sequence,
+            sessionId: currentSessionId,
+            timestamp: new Date().toISOString(),
+          },
+        })
+
+        lastInterimBroadcastRef.current = Date.now()
+        pendingInterimRef.current = null
+      }
+    }, 150)
+
+    return () => clearInterval(interval)
+  }, [isStreaming, currentSessionId])
 
   const copyToClipboard = async () => {
     await navigator.clipboard.writeText(viewerUrl)
@@ -311,32 +329,6 @@ export function BroadcastInterface({ slug, eventName, eventId, userId }: Broadca
     }
   }
 
-  useEffect(() => {
-    if (!isStreaming) return
-
-    const interval = setInterval(() => {
-      if (pendingInterimRef.current && broadcastChannelRef.current) {
-        const { text, sequence } = pendingInterimRef.current
-
-        broadcastChannelRef.current.send({
-          type: "broadcast",
-          event: "interim_transcription",
-          payload: {
-            text,
-            sequence,
-            sessionId: currentSessionId,
-            timestamp: new Date().toISOString(),
-          },
-        })
-
-        lastInterimBroadcastRef.current = Date.now()
-        pendingInterimRef.current = null
-      }
-    }, 150)
-
-    return () => clearInterval(interval)
-  }, [isStreaming, currentSessionId])
-
   const handleStartStreaming = async () => {
     try {
       setError(null)
@@ -373,7 +365,6 @@ export function BroadcastInterface({ slug, eventName, eventId, userId }: Broadca
       }
 
       if (broadcastChannelRef.current) {
-        console.log("[v0] Broadcasting streaming started event")
         await broadcastChannelRef.current.send({
           type: "broadcast",
           event: "streaming_status",
@@ -428,7 +419,6 @@ export function BroadcastInterface({ slug, eventName, eventId, userId }: Broadca
       )
 
       if (broadcastChannelRef.current) {
-        console.log("[v0] Broadcasting streaming stopped event")
         broadcastChannelRef.current.send({
           type: "broadcast",
           event: "streaming_status",

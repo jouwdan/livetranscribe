@@ -50,27 +50,18 @@ export function ViewerInterface({ slug, eventName, eventDescription }: ViewerInt
     let channel: any
 
     const initializeViewer = async () => {
-      console.log("[v0] Initializing viewer for slug:", slug)
-
       const response = await fetch(`/api/stream/${slug}`)
       const result = await response.json()
 
       if (result.error) {
-        console.error("[v0] Error fetching event:", result.error)
         setError(result.error)
         return
       }
-
-      console.log("[v0] Initial fetch result:", {
-        transcriptionCount: result.transcriptions?.length,
-        latestSequence: result.latestSequence,
-      })
 
       setEventName(result.metadata?.name || "Live Event")
 
       if (result.transcriptions) {
         const filtered = result.transcriptions.filter((t: any) => t.isFinal)
-        console.log("[v0] Filtered final transcriptions:", filtered.length)
         setTranscriptions(
           filtered.map((t: any) => ({
             id: t.id,
@@ -88,8 +79,6 @@ export function ViewerInterface({ slug, eventName, eventDescription }: ViewerInt
       }
 
       const channelName = `transcriptions-${slug}`
-      console.log("[v0] Creating channel:", channelName)
-      console.log("[v0] Event ID for subscription:", result.eventId)
 
       channel = supabase
         .channel(channelName, {
@@ -109,26 +98,15 @@ export function ViewerInterface({ slug, eventName, eventDescription }: ViewerInt
           async (payload) => {
             if (!isSubscribed) return
 
-            console.log("[v0] Real-time transcription INSERT received:", payload)
             const newTranscription = payload.new as any
-
-            console.log("[v0] Transcription details:", {
-              text: newTranscription.text,
-              isFinal: newTranscription.is_final,
-              sequence: newTranscription.sequence_number,
-              eventId: newTranscription.event_id,
-              sessionId: newTranscription.session_id,
-            })
 
             lastTranscriptionTimeRef.current = Date.now()
 
             if (!newTranscription.text || newTranscription.text.trim() === "") {
-              console.log("[v0] Skipping empty transcription")
               return
             }
 
             if (!newTranscription.is_final) {
-              console.log("[v0] Skipping interim transcription, not final")
               return
             }
 
@@ -142,16 +120,12 @@ export function ViewerInterface({ slug, eventName, eventDescription }: ViewerInt
                 .eq("id", newTranscription.session_id)
                 .single()
               sessionInfo = sessionData
-              console.log("[v0] Session info:", sessionInfo)
             }
 
             setTranscriptions((prev) => {
               if (prev.some((t) => t.id === newTranscription.id)) {
-                console.log("[v0] Duplicate transcription detected (by ID), skipping")
                 return prev
               }
-
-              console.log("[v0] Adding new transcription to state:", newTranscription.text)
 
               if (newTranscription.is_final) {
                 transcriptionsViewedRef.current += 1
@@ -176,7 +150,6 @@ export function ViewerInterface({ slug, eventName, eventDescription }: ViewerInt
           },
         )
         .on("broadcast", { event: "interim_transcription" }, (payload: any) => {
-          console.log("[v0] Received interim transcription:", payload)
           const { text, sequence, sessionId } = payload.payload
 
           if (text && text.trim() !== "") {
@@ -192,7 +165,6 @@ export function ViewerInterface({ slug, eventName, eventDescription }: ViewerInt
           }
         })
         .on("broadcast", { event: "streaming_status" }, (payload: any) => {
-          console.log("[v0] Received streaming status:", payload)
           const { status, sessionId, timestamp } = payload.payload
 
           if (status === "started") {
@@ -206,9 +178,8 @@ export function ViewerInterface({ slug, eventName, eventDescription }: ViewerInt
           }
         })
         .subscribe((status, err) => {
-          console.log("[v0] Supabase subscription status:", status)
           if (err) {
-            console.error("[v0] Supabase subscription error:", err)
+            console.error("Supabase subscription error:", err)
           }
           if (isSubscribed) {
             setIsConnected(status === "SUBSCRIBED")
@@ -216,7 +187,6 @@ export function ViewerInterface({ slug, eventName, eventDescription }: ViewerInt
         })
 
       return () => {
-        console.log("[v0] Cleaning up Supabase subscription")
         isSubscribed = false
         if (channel) {
           supabase.removeChannel(channel)
@@ -249,8 +219,6 @@ export function ViewerInterface({ slug, eventName, eventDescription }: ViewerInt
     let pingInterval: NodeJS.Timeout | null = null
 
     const setupViewerTracking = async () => {
-      console.log("[v0] Setting up viewer tracking for session:", sessionId)
-
       const { data: event } = await supabase.from("events").select("id").eq("slug", slug).single()
 
       if (!event) return
