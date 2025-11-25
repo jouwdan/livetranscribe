@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge"
 import { Mic, MicOff, Copy, Check, Radio, AlertCircle, Download, QrCode, List } from "lucide-react"
 import { OpenAITranscriber } from "@/lib/openai-transcriber"
 import { LiveTranscriptionDisplay } from "@/components/live-transcription-display"
-import { createClient } from "@/lib/supabase/client"
+import { createClient as createBrowserClient } from "@/lib/supabase/client"
 import QRCode from "qrcode"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import Link from "next/link"
@@ -57,7 +57,10 @@ export function BroadcastInterface({ slug, eventName, eventId, userId }: Broadca
   }, [isStreaming, sessionStartTime])
 
   useEffect(() => {
-    const supabase = createClient()
+    const supabase = createBrowserClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    )
 
     const fetchViewerStats = async () => {
       const thirtySecondsAgo = new Date(Date.now() - 30000).toISOString()
@@ -83,8 +86,12 @@ export function BroadcastInterface({ slug, eventName, eventId, userId }: Broadca
   }, [eventId])
 
   useEffect(() => {
+    const supabase = createBrowserClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    )
+
     const fetchCredits = async () => {
-      const supabase = createClient()
       const { data } = await supabase.from("events").select("credits_minutes").eq("id", eventId).single()
 
       if (data) {
@@ -96,8 +103,12 @@ export function BroadcastInterface({ slug, eventName, eventId, userId }: Broadca
   }, [eventId])
 
   useEffect(() => {
+    const supabase = createBrowserClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    )
+
     const fetchSessions = async () => {
-      const supabase = createClient()
       const { data } = await supabase
         .from("event_sessions")
         .select("id, name, session_number")
@@ -117,10 +128,14 @@ export function BroadcastInterface({ slug, eventName, eventId, userId }: Broadca
   }, [eventId, currentSessionId])
 
   useEffect(() => {
+    const supabase = createBrowserClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    )
+
     const fetchLastSequence = async () => {
       if (!currentSessionId) return
 
-      const supabase = createClient()
       const { data } = await supabase
         .from("transcriptions")
         .select("sequence_number")
@@ -209,6 +224,23 @@ export function BroadcastInterface({ slug, eventName, eventId, userId }: Broadca
     }
 
     try {
+      if (!isFinal) {
+        const supabase = createBrowserClient(
+          process.env.NEXT_PUBLIC_SUPABASE_URL!,
+          process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+        )
+        const channelName = `transcriptions-${slug}`
+        await supabase.channel(channelName).send({
+          type: "broadcast",
+          event: "interim_transcription",
+          payload: {
+            text,
+            sequence: adjustedSequence,
+            sessionId: currentSessionId,
+          },
+        })
+      }
+
       const response = await fetch(`/api/stream/${slug}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -246,7 +278,10 @@ export function BroadcastInterface({ slug, eventName, eventId, userId }: Broadca
         return
       }
 
-      const supabase = createClient()
+      const supabase = createBrowserClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      )
       const { data: event } = await supabase.from("events").select("credits_minutes").eq("id", eventId).single()
 
       if (!event || event.credits_minutes <= 0) {
@@ -317,7 +352,10 @@ export function BroadcastInterface({ slug, eventName, eventId, userId }: Broadca
       const endTime = new Date()
       const durationMinutes = Math.ceil((endTime.getTime() - sessionStartTime.getTime()) / 60000)
 
-      const supabase = createClient()
+      const supabase = createBrowserClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      )
 
       const channel = supabase.channel(`event-${slug}`)
       await channel.send({

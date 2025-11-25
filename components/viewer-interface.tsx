@@ -132,6 +132,8 @@ export function ViewerInterface({ slug, eventName, eventDescription }: ViewerInt
               return
             }
 
+            setCurrentInterim(null)
+
             let sessionInfo = null
             if (newTranscription.session_id) {
               const { data: sessionData } = await supabase
@@ -173,6 +175,22 @@ export function ViewerInterface({ slug, eventName, eventDescription }: ViewerInt
             setIsConnected(true)
           },
         )
+        .on("broadcast", { event: "interim_transcription" }, (payload: any) => {
+          console.log("[v0] Received interim transcription:", payload)
+          const { text, sequence, sessionId } = payload.payload
+
+          if (text && text.trim() !== "") {
+            setCurrentInterim({
+              id: `interim-${sequence}`,
+              text,
+              isFinal: false,
+              sequenceNumber: sequence,
+              timestamp: new Date(),
+              sessionId,
+            })
+            lastTranscriptionTimeRef.current = Date.now()
+          }
+        })
         .on("broadcast", { event: "streaming_status" }, (payload: any) => {
           console.log("[v0] Received streaming status:", payload)
           const { status, sessionId, timestamp } = payload.payload
@@ -316,7 +334,7 @@ export function ViewerInterface({ slug, eventName, eventDescription }: ViewerInt
   }, [autoScroll])
 
   const displayTranscriptions = transcriptions.filter((t) => t.text.trim() !== "" && t.isFinal)
-  const latestInterim = transcriptions.find((t) => !t.isFinal && t.text.trim() !== "")
+  const allDisplayItems = currentInterim ? [...displayTranscriptions, currentInterim] : displayTranscriptions
 
   const formatTimestamp = (timestamp: Date) => {
     return timestamp.toLocaleTimeString("en-US", {
@@ -375,9 +393,7 @@ export function ViewerInterface({ slug, eventName, eventDescription }: ViewerInt
     return groups
   }
 
-  const groupedTranscriptions = groupTranscriptionsBySessionAndTime(
-    transcriptions.filter((t) => t.isFinal && t.text.trim() !== ""),
-  )
+  const groupedTranscriptions = groupTranscriptionsBySessionAndTime(allDisplayItems)
 
   if (displayMode === "stage") {
     return (
@@ -452,10 +468,10 @@ export function ViewerInterface({ slug, eventName, eventDescription }: ViewerInt
 
         <div className="flex-1 overflow-hidden px-12 py-8">
           <div ref={scrollAreaRef} className="h-full overflow-y-auto">
-            {latestInterim && (
+            {currentInterim && (
               <div className="mb-12 p-8 bg-purple-500/10 border-l-4 border-purple-500 rounded-lg">
                 <p className="text-5xl md:text-6xl lg:text-7xl font-medium text-white leading-tight tracking-wide">
-                  {latestInterim.text}
+                  {currentInterim.text}
                 </p>
               </div>
             )}
@@ -583,9 +599,9 @@ export function ViewerInterface({ slug, eventName, eventDescription }: ViewerInt
         <div className="flex-1 overflow-y-auto">
           <div className="p-4">
             <div ref={scrollAreaRef} className="space-y-4">
-              {latestInterim && (
+              {currentInterim && (
                 <div className="p-4 bg-purple-500/20 border-l-2 border-purple-500 rounded">
-                  <p className="text-lg font-medium text-white leading-relaxed">{latestInterim.text}</p>
+                  <p className="text-lg font-medium text-white leading-relaxed">{currentInterim.text}</p>
                 </div>
               )}
 
