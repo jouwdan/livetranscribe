@@ -26,45 +26,17 @@ interface ViewerInterfaceProps {
 
 type DisplayMode = "laptop" | "mobile" | "stage"
 
-const StreamingText = ({ text, isInterim, itemId }: { text: string; isInterim?: boolean; itemId?: string }) => {
+const StreamingText = ({ text }: { text: string }) => {
   const [displayedText, setDisplayedText] = useState("")
   const [isComplete, setIsComplete] = useState(false)
-  const [currentItemId, setCurrentItemId] = useState<string | undefined>(itemId)
 
   useEffect(() => {
-    if (!isInterim) {
-      setDisplayedText(text)
-      setIsComplete(true)
-      return
-    }
-
-    if (itemId !== currentItemId) {
-      setCurrentItemId(itemId)
-      setDisplayedText("")
-      setIsComplete(false)
-    }
-
-    // For interim text, animate it streaming in
-    if (text.length === 0) {
-      setDisplayedText("")
-      setIsComplete(false)
-      return
-    }
-
-    if (
-      text.length < displayedText.length &&
-      !text.startsWith(displayedText.slice(0, Math.min(10, displayedText.length)))
-    ) {
-      setDisplayedText("")
-      setIsComplete(false)
-    }
-
-    // If already complete and text hasn't changed, don't re-animate
-    if (isComplete && text === displayedText) return
-
+    setDisplayedText("")
     setIsComplete(false)
-    let currentIndex = displayedText.length
 
+    if (text.length === 0) return
+
+    let currentIndex = 0
     const interval = setInterval(() => {
       if (currentIndex < text.length) {
         setDisplayedText(text.slice(0, currentIndex + 1))
@@ -73,34 +45,32 @@ const StreamingText = ({ text, isInterim, itemId }: { text: string; isInterim?: 
         setIsComplete(true)
         clearInterval(interval)
       }
-    }, 20) // Faster animation at 20ms per character
+    }, 15) // Fast streaming at 15ms per character
 
     return () => clearInterval(interval)
-  }, [text, isInterim, itemId, currentItemId])
+  }, [text])
 
   return (
-    <span className={isInterim && !isComplete ? "opacity-70" : ""}>
+    <span>
       {displayedText}
-      {isInterim && !isComplete && <span className="animate-pulse ml-1">▊</span>}
+      {!isComplete && <span className="animate-pulse ml-1">▊</span>}
     </span>
   )
 }
 
 export function ViewerInterface({ slug, eventName, eventDescription }: ViewerInterfaceProps) {
   const [transcriptions, setTranscriptions] = useState<Transcription[]>([])
-  const [currentInterim, setCurrentInterim] = useState<Transcription | null>(null)
   const [isConnected, setIsConnected] = useState(false)
   const [isStreaming, setIsStreaming] = useState(false)
   const [streamingStatusMessage, setStreamingStatusMessage] = useState<string | null>(null)
   const [displayMode, setDisplayMode] = useState<"laptop" | "mobile" | "stage">("laptop")
   const [autoScroll, setAutoScroll] = useState(true)
   const scrollAreaRef = useRef<HTMLDivElement>(null)
-  const lastTranscriptionRef = useRef<HTMLDivElement>(null) // Added ref for the last transcription element to scroll to
+  const lastTranscriptionRef = useRef<HTMLDivElement>(null)
   const transcriptionsViewedRef = useRef(0)
   const lastTranscriptionTimeRef = useRef(Date.now())
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const latestSequenceRef = useRef(0)
-  const userHasScrolledRef = useRef(false)
   const [currentSession, setCurrentSession] = useState<any | null>(null)
   const [description, setDescription] = useState<string | null>(eventDescription)
   const [error, setError] = useState<string | null>(null)
@@ -163,15 +133,9 @@ export function ViewerInterface({ slug, eventName, eventDescription }: ViewerInt
 
             lastTranscriptionTimeRef.current = Date.now()
 
-            if (!newTranscription.text || newTranscription.text.trim() === "") {
+            if (!newTranscription.text || newTranscription.text.trim() === "" || !newTranscription.is_final) {
               return
             }
-
-            if (!newTranscription.is_final) {
-              return
-            }
-
-            setCurrentInterim(null)
 
             let sessionInfo = null
             if (newTranscription.session_id) {
@@ -188,10 +152,7 @@ export function ViewerInterface({ slug, eventName, eventDescription }: ViewerInt
                 return prev
               }
 
-              if (newTranscription.is_final) {
-                transcriptionsViewedRef.current += 1
-              }
-
+              transcriptionsViewedRef.current += 1
               latestSequenceRef.current = Math.max(latestSequenceRef.current, newTranscription.sequence_number)
 
               const newItem = {
@@ -210,21 +171,6 @@ export function ViewerInterface({ slug, eventName, eventDescription }: ViewerInt
             setIsConnected(true)
           },
         )
-        .on("broadcast", { event: "interim_transcription" }, (payload: any) => {
-          const { text, sequence, sessionId } = payload.payload
-
-          if (text && text.trim() !== "") {
-            setCurrentInterim({
-              id: `interim-${sequence}`,
-              text,
-              isFinal: false,
-              sequenceNumber: sequence,
-              timestamp: new Date(),
-              sessionId,
-            })
-            lastTranscriptionTimeRef.current = Date.now()
-          }
-        })
         .on("broadcast", { event: "streaming_status" }, (payload: any) => {
           const { status, sessionId, timestamp } = payload.payload
 
@@ -323,7 +269,7 @@ export function ViewerInterface({ slug, eventName, eventDescription }: ViewerInt
 
     const scrollContainer = scrollAreaRef.current
     scrollContainer.scrollTop = scrollContainer.scrollHeight
-  }, [transcriptions.length, currentInterim?.text, autoScroll])
+  }, [transcriptions.length, autoScroll])
 
   useEffect(() => {
     const handleScroll = () => {
@@ -343,7 +289,7 @@ export function ViewerInterface({ slug, eventName, eventDescription }: ViewerInt
   }, [])
 
   const displayTranscriptions = transcriptions.filter((t) => t.text.trim() !== "" && t.isFinal)
-  const allDisplayItems = currentInterim ? [...displayTranscriptions, currentInterim] : displayTranscriptions
+  const allDisplayItems = displayTranscriptions
 
   const formatTimestamp = (timestamp: Date) => {
     return timestamp.toLocaleTimeString("en-US", {
@@ -477,14 +423,6 @@ export function ViewerInterface({ slug, eventName, eventDescription }: ViewerInt
 
         <div className="flex-1 overflow-hidden px-12 py-8">
           <div ref={scrollAreaRef} className="h-full overflow-y-auto">
-            {currentInterim && (
-              <div className="mb-12 p-8 bg-purple-500/10 border-l-4 border-purple-500 rounded-lg">
-                <p className="text-5xl md:text-6xl lg:text-7xl font-medium text-white leading-tight tracking-wide">
-                  {currentInterim.text}
-                </p>
-              </div>
-            )}
-
             <div className="space-y-8">
               {groupedTranscriptions.slice(-5).map((group, index) => (
                 <div key={index}>
@@ -503,14 +441,7 @@ export function ViewerInterface({ slug, eventName, eventDescription }: ViewerInt
                     <div className="text-5xl md:text-6xl lg:text-7xl leading-tight text-white font-bold space-y-4">
                       {group.texts.map((text, textIndex) => (
                         <span key={textIndex}>
-                          <StreamingText
-                            text={text}
-                            isInterim={
-                              group === groupedTranscriptions[groupedTranscriptions.length - 1] &&
-                              currentInterim !== null
-                            }
-                            itemId={group.sessionId}
-                          />
+                          <StreamingText text={text} />
                           {textIndex < group.texts.length - 1 && " "}
                         </span>
                       ))}
@@ -618,12 +549,6 @@ export function ViewerInterface({ slug, eventName, eventDescription }: ViewerInt
         <div className="flex-1 overflow-y-auto">
           <div className="p-4">
             <div ref={scrollAreaRef} className="space-y-4">
-              {currentInterim && (
-                <div className="p-4 bg-purple-500/20 border-l-2 border-purple-500 rounded">
-                  <p className="text-lg font-medium text-white leading-relaxed">{currentInterim.text}</p>
-                </div>
-              )}
-
               {groupedTranscriptions.map((group, index) => (
                 <div key={index}>
                   {group.isSessionStart && group.sessionInfo && (
@@ -641,14 +566,7 @@ export function ViewerInterface({ slug, eventName, eventDescription }: ViewerInt
                     <div className="text-base leading-relaxed text-foreground space-y-1">
                       {group.texts.map((text, textIndex) => (
                         <span key={textIndex}>
-                          <StreamingText
-                            text={text}
-                            isInterim={
-                              group === groupedTranscriptions[groupedTranscriptions.length - 1] &&
-                              currentInterim !== null
-                            }
-                            itemId={group.sessionId}
-                          />
+                          <StreamingText text={text} />
                           {textIndex < group.texts.length - 1 && " "}
                         </span>
                       ))}
@@ -768,7 +686,6 @@ export function ViewerInterface({ slug, eventName, eventDescription }: ViewerInt
             <CardContent className="flex-1 overflow-y-auto p-6">
               <div ref={scrollAreaRef} className="h-full overflow-y-auto">
                 {allDisplayItems.map((t, idx) => {
-                  const isLastInterim = currentInterim && t.id === currentInterim.id
                   return (
                     <div key={t.id || idx} className="mb-3">
                       <div className="flex items-start gap-2">
@@ -776,7 +693,7 @@ export function ViewerInterface({ slug, eventName, eventDescription }: ViewerInt
                           {formatTimestamp(new Date(t.timestamp))}
                         </span>
                         <div className="flex-1 text-base leading-relaxed">
-                          <StreamingText text={t.text} isInterim={isLastInterim} itemId={t.id} />
+                          <StreamingText text={t.text} />
                         </div>
                       </div>
                     </div>

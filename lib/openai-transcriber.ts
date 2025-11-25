@@ -11,6 +11,12 @@ export class OpenAITranscriber {
   private sequenceNumber = 0
   private currentItemId: string | null = null
   private accumulatedText = ""
+  private lastTranscriptionTime: number = Date.now()
+  private lastAudioActivityTime: number = Date.now()
+  private lastDeltaTime: number = Date.now()
+  private maxAudioDurationMs = 8000 // Force transcription after 8 seconds
+  private naturalPauseThresholdMs = 200 // Consider it a natural pause after 200ms of low activity
+  private durationCheckInterval: NodeJS.Timeout | null = null
 
   constructor(
     private apiKey: string,
@@ -38,10 +44,19 @@ export class OpenAITranscriber {
 
       await this.connectWebSocket()
 
+      this.startDurationCheck()
+
       this.processor = this.audioContext.createScriptProcessor(4096, 1, 1)
       this.processor.onaudioprocess = (e) => {
         if (!this.isConnected || !this.ws) return
         const audioData = e.inputBuffer.getChannelData(0)
+
+        const rms = Math.sqrt(audioData.reduce((sum, val) => sum + val * val, 0) / audioData.length)
+        if (rms > 0.01) {
+          // Threshold for detecting speech activity
+          this.lastAudioActivityTime = Date.now()
+        }
+
         const int16Data = this.float32ToInt16(audioData)
         const base64Audio = this.arrayBufferToBase64(int16Data.buffer)
 
@@ -56,6 +71,26 @@ export class OpenAITranscriber {
       this.onError(error instanceof Error ? error.message : "Failed to start")
       throw error
     }
+  }
+
+  private startDurationCheck() {
+    this.lastTranscriptionTime = Date.now()
+
+    this.durationCheckInterval = setInterval(() => {
+      const timeSinceLastTranscription = Date.now() - this.lastTranscriptionTime
+      const timeSinceLastActivity = Date.now() - this.lastAudioActivityTime
+      const timeSinceLastDelta = Date.now() - this.lastDeltaTime
+
+      // Only force commit if we've exceeded max duration AND we're in a natural pause
+      // (no audio activity for 400ms OR no deltas for 400ms)
+      const inNaturalPause =
+        timeSinceLastActivity > this.naturalPauseThresholdMs || timeSinceLastDelta > this.naturalPauseThresholdMs
+
+      if (timeSinceLastTranscription > this.maxAudioDurationMs && inNaturalPause && this.ws && this.isConnected) {
+        this.ws.send(JSON.stringify({ type: "input_audio_buffer.commit" }))
+        this.lastTranscriptionTime = Date.now()
+      }
+    }, 200) // Check every 200ms for more responsive detection
   }
 
   private async connectWebSocket() {
@@ -91,13 +126,13 @@ export class OpenAITranscriber {
               },
               turn_detection: {
                 type: "server_vad",
-                threshold: 0.35, // balanced for live captioning; avoids over-triggering
-                prefix_padding_ms: 75, // keeps beginnings of words intact
-                silence_duration_ms: 180, // slightly faster response between captions
+                threshold: 0.3,
+                prefix_padding_ms: 75,
+                silence_duration_ms: 150,
                 create_response: false,
               },
             },
-          })
+          }),
         )
 
         resolve()
@@ -130,6 +165,8 @@ export class OpenAITranscriber {
     switch (message.type) {
       case "conversation.item.input_audio_transcription.delta": {
         if (typeof message.delta === "string" && message.item_id) {
+          this.lastDeltaTime = Date.now()
+
           // If this is a new item, reset accumulated text
           if (this.currentItemId !== message.item_id) {
             this.currentItemId = message.item_id
@@ -146,10 +183,10 @@ export class OpenAITranscriber {
       }
       case "conversation.item.input_audio_transcription.completed": {
         if (typeof message.transcript === "string") {
-          // Send final transcription and increment sequence
-          this.onTranscription(message.transcript, true, this.sequenceNumber++)
+          this.lastTranscriptionTime = Date.now()
+          this.lastDeltaTime = Date.now()
 
-          // Reset accumulated text for next item
+          this.onTranscription(message.transcript, true, this.sequenceNumber++)
           this.accumulatedText = ""
           this.currentItemId = null
         }
@@ -177,6 +214,11 @@ export class OpenAITranscriber {
   stop() {
     console.log("[v0] Stopping transcription")
     try {
+      if (this.durationCheckInterval) {
+        clearInterval(this.durationCheckInterval)
+        this.durationCheckInterval = null
+      }
+
       if (this.processor) {
         this.processor.disconnect()
         this.processor = null
