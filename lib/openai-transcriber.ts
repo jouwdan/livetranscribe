@@ -224,6 +224,8 @@ export class OpenAITranscriber {
   stop() {
     console.log("[v0] Stopping transcription")
     try {
+      this.hasAudioInBuffer = false
+
       if (this.durationCheckInterval) {
         clearInterval(this.durationCheckInterval)
         this.durationCheckInterval = null
