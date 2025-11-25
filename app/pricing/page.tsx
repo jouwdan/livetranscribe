@@ -154,7 +154,6 @@ export default function PricingPage() {
                 "Mobile & TV optimized",
                 "Usage analytics",
                 "Viewer engagement metrics",
-                "Unlimited viewers per plan tier",
                 "Email support",
               ].map((feature) => (
                 <div key={feature} className="flex items-start gap-3">
