@@ -41,6 +41,9 @@ export function ViewerInterface({ slug, eventName, eventDescription }: ViewerInt
 
   const [displayMode, setDisplayMode] = useState<DisplayMode>("laptop")
 
+  const reconnectTimeoutRef = useRef<NodeJS.Timeout>()
+  const lastTranscriptionTimeRef = useRef<number>(Date.now())
+
   useEffect(() => {
     console.log("[v0] Setting up Supabase real-time subscription for slug:", slug)
 
@@ -92,7 +95,7 @@ export function ViewerInterface({ slug, eventName, eventDescription }: ViewerInt
         transcriptionsViewedRef.current = filtered.filter((t) => t.is_final).length
       }
 
-      const channelName = `transcriptions-${slug}-${Date.now()}`
+      const channelName = `transcriptions-${slug}`
       console.log("[v0] Creating channel:", channelName)
 
       const channel = supabase
@@ -113,6 +116,8 @@ export function ViewerInterface({ slug, eventName, eventDescription }: ViewerInt
           async (payload) => {
             console.log("[v0] Real-time transcription INSERT received:", payload)
             const newTranscription = payload.new as any
+
+            lastTranscriptionTimeRef.current = Date.now()
 
             if (!newTranscription.text || newTranscription.text.trim() === "") {
               console.log("[v0] Skipping empty transcription")
@@ -165,8 +170,52 @@ export function ViewerInterface({ slug, eventName, eventDescription }: ViewerInt
           setIsConnected(status === "SUBSCRIBED")
         })
 
+      const pollInterval = setInterval(async () => {
+        const timeSinceLastTranscription = Date.now() - lastTranscriptionTimeRef.current
+
+        // If connected but no transcriptions in 5 seconds, poll for new ones
+        if (timeSinceLastTranscription > 5000) {
+          const lastSequence = transcriptions.length > 0 ? Math.max(...transcriptions.map((t) => t.sequenceNumber)) : 0
+
+          const { data: newTranscriptions } = await supabase
+            .from("transcriptions")
+            .select("*, event_sessions(name, session_number)")
+            .eq("event_id", event.id)
+            .gt("sequence_number", lastSequence)
+            .order("sequence_number", { ascending: true })
+
+          if (newTranscriptions && newTranscriptions.length > 0) {
+            console.log("[v0] Polling found missed transcriptions:", newTranscriptions.length)
+            setTranscriptions((prev) => {
+              const newItems = newTranscriptions
+                .filter(
+                  (t) => t.text && t.text.trim() !== "" && !prev.some((p) => p.sequenceNumber === t.sequence_number),
+                )
+                .map((t) => ({
+                  text: t.text,
+                  isFinal: t.is_final,
+                  sequenceNumber: t.sequence_number,
+                  timestamp: t.created_at,
+                  sessionId: t.session_id,
+                  sessionInfo: t.event_sessions,
+                }))
+
+              if (newItems.length > 0) {
+                lastTranscriptionTimeRef.current = Date.now()
+                transcriptionsViewedRef.current += newItems.filter((t) => t.isFinal).length
+              }
+
+              return [...prev, ...newItems].sort(
+                (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime(),
+              )
+            })
+          }
+        }
+      }, 2000)
+
       return () => {
         console.log("[v0] Cleaning up Supabase subscription")
+        clearInterval(pollInterval)
         supabase.removeChannel(channel)
       }
     }
@@ -175,6 +224,9 @@ export function ViewerInterface({ slug, eventName, eventDescription }: ViewerInt
 
     return () => {
       cleanup.then((cleanupFn) => cleanupFn?.())
+      if (reconnectTimeoutRef.current) {
+        clearTimeout(reconnectTimeoutRef.current)
+      }
     }
   }, [slug])
 
@@ -608,7 +660,7 @@ export function ViewerInterface({ slug, eventName, eventDescription }: ViewerInt
                   variant="ghost"
                   size="sm"
                   onClick={() => setDisplayMode("mobile")}
-                  className="gap-2 hover:bg-foreground/5"
+                  className="gap-2 hover:bg-foreground/5 flex-shrink-0"
                 >
                   <Smartphone className="h-4 w-4" />
                 </Button>
@@ -616,7 +668,7 @@ export function ViewerInterface({ slug, eventName, eventDescription }: ViewerInt
                   variant="ghost"
                   size="sm"
                   onClick={() => setDisplayMode("stage")}
-                  className="gap-2 hover:bg-foreground/5"
+                  className="gap-2 hover:bg-foreground/5 flex-shrink-0"
                 >
                   <Tv className="h-4 w-4" />
                 </Button>
