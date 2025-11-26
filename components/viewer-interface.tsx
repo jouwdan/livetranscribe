@@ -414,24 +414,33 @@ export function ViewerInterface({ event, initialViewMode = "laptop" }: ViewerInt
   if (viewMode === "stage") {
     return (
       <div className="flex flex-col h-screen bg-black overflow-hidden">
-        <div className="bg-black border-b border-purple-500/30 flex-shrink-0">
-          <div className="px-6 py-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <Badge
-                  variant={isStreaming ? "default" : "secondary"}
-                  className={`px-3 py-1.5 text-base ${isStreaming ? "bg-red-600 animate-pulse" : ""}`}
-                >
-                  {isStreaming ? (
-                    <>
-                      <Radio className="h-4 w-4 mr-2" />
-                      LIVE
-                    </>
-                  ) : (
-                    "OFFLINE"
-                  )}
-                </Badge>
-                <h1 className="text-2xl font-bold text-white">{eventName}</h1>
+        <div className="bg-gradient-to-b from-slate-950 to-black border-b border-border/50 flex-shrink-0 shadow-2xl">
+          <div className="px-6 sm:px-8 lg:px-12 py-6">
+            <div className="flex items-center justify-between gap-4">
+              <div className="min-w-0 flex-1 flex items-center gap-4">
+                {logoUrl && (
+                  <img
+                    src={logoUrl || "/placeholder.svg"}
+                    alt={`${eventName} logo`}
+                    className="h-16 w-16 object-contain rounded-lg flex-shrink-0"
+                  />
+                )}
+                <div className="min-w-0 flex-1">
+                  <Badge
+                    variant={isStreaming ? "default" : "secondary"}
+                    className={`px-3 py-1.5 text-base mb-3 ${isStreaming ? "bg-red-600" : ""}`}
+                  >
+                    {isStreaming ? (
+                      <>
+                        <Radio className="h-4 w-4 mr-2" />
+                        LIVE
+                      </>
+                    ) : (
+                      "OFFLINE"
+                    )}
+                  </Badge>
+                  <h1 className="text-2xl font-bold text-white">{eventName}</h1>
+                </div>
               </div>
               <div className="flex gap-2 items-center">
                 <Button
@@ -542,6 +551,13 @@ export function ViewerInterface({ event, initialViewMode = "laptop" }: ViewerInt
           <div className="px-4 py-3">
             <div className="flex items-center justify-between gap-2">
               <div className="flex items-center gap-2 min-w-0 flex-1">
+                {logoUrl && (
+                  <img
+                    src={logoUrl || "/placeholder.svg"}
+                    alt={`${eventName} logo`}
+                    className="h-8 w-8 object-contain rounded flex-shrink-0"
+                  />
+                )}
                 <Badge
                   variant={isStreaming ? "default" : "secondary"}
                   className={`px-2 py-1 text-xs flex-shrink-0 ${isStreaming ? "bg-red-600" : ""}`}
