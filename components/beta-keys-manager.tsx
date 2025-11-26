@@ -12,7 +12,7 @@ import { Key, Plus, Trash2, Copy, Check, Calendar, Hash } from "lucide-react"
 
 interface BetaKey {
   id: string
-  key: string
+  access_key: string // Fixed column name from 'key' to 'access_key'
   max_uses: number
   current_uses: number
   expires_at: string | null
@@ -65,7 +65,7 @@ export function BetaKeysManager({ betaKeys: initialKeys }: { betaKeys: BetaKey[]
       const expiresAt = expiresInDays ? new Date(Date.now() + expiresInDays * 24 * 60 * 60 * 1000).toISOString() : null
 
       const { error } = await supabase.from("beta_access_keys").insert({
-        key,
+        access_key: key,
         max_uses: maxUses,
         expires_at: expiresAt,
         notes: notes || null,
@@ -271,16 +271,16 @@ export function BetaKeysManager({ betaKeys: initialKeys }: { betaKeys: BetaKey[]
                 <div className="flex-1 space-y-2">
                   <div className="flex items-center gap-2">
                     <code className="text-lg font-mono text-white bg-black/50 px-3 py-1 rounded border border-border/50">
-                      {key.key}
+                      {key.access_key}
                     </code>
                     <Button
                       variant="ghost"
                       size="sm"
-                      onClick={() => handleCopyKey(key.key)}
+                      onClick={() => handleCopyKey(key.access_key)}
                       className="h-8 w-8 p-0 text-slate-400 hover:text-white"
                       title="Copy key"
                     >
-                      {copiedKey === key.key ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                      {copiedKey === key.access_key ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
                     </Button>
                     {getKeyStatus(key)}
                   </div>
