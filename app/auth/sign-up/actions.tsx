@@ -7,6 +7,7 @@ export async function signUp(formData: FormData) {
   const email = formData.get("email") as string
   const password = formData.get("password") as string
   const accessKey = formData.get("access-key") as string
+  const fullName = formData.get("full-name") as string
 
   const supabase = await createServerClient()
 
@@ -42,6 +43,14 @@ export async function signUp(formData: FormData) {
 
   const { data: userData } = await supabase.auth.getUser()
   const userId = userData?.user?.id
+
+  if (userId) {
+    await supabase.from("user_profiles").insert({
+      id: userId,
+      email: email,
+      full_name: fullName,
+    })
+  }
 
   await supabase
     .from("beta_access_keys")
