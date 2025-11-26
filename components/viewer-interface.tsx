@@ -399,6 +399,17 @@ export function ViewerInterface({ event, initialViewMode = "laptop" }: ViewerInt
 
   const groupedTranscriptions = groupTranscriptionsBySessionAndTime(allDisplayItems)
 
+  useEffect(() => {
+    console.log("[v0] View mode:", viewMode)
+    console.log("[v0] Total transcriptions:", transcriptions.length)
+    console.log("[v0] Display transcriptions (filtered):", displayTranscriptions.length)
+    console.log("[v0] Grouped transcriptions:", groupedTranscriptions.length)
+    console.log(
+      "[v0] All display items:",
+      allDisplayItems.map((t) => ({ id: t.id, text: t.text.substring(0, 50) })),
+    )
+  }, [viewMode, transcriptions.length, displayTranscriptions.length, groupedTranscriptions.length])
+
   const updateViewModeInUrl = (mode: DisplayMode) => {
     const url = new URL(window.location.href)
     url.searchParams.set("view", mode)
