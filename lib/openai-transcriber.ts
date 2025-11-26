@@ -167,7 +167,6 @@ Transcription Rules (STRICT):
 7. Do not include timestamps, speaker labels, emojis, or symbols unless spoken.
 8. Only transcribe speech — ignore background noise, non-speech sounds, or music.
 9. If you're unsure whether a word was spoken, mark it as [unclear] instead of inventing.
-10. **REJECT ANY NON-ENGLISH OUTPUT** — If your transcription contains non-English words, replace them with [foreign language].
 
 Your output must be clean, literal, strictly English, and faithful to the spoken audio.
           `,
