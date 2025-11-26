@@ -66,17 +66,58 @@ export default async function DashboardPage() {
     .eq("archived", true)
     .order("created_at", { ascending: false })
 
-  const { data: sessions } = await supabase
-    .from("event_sessions")
-    .select("duration_minutes, event_id")
-    .in(
-      "event_id",
-      [...(activeEvents || []), ...(archivedEvents || [])].map((e) => e.id),
-    )
-    .not("duration_minutes", "is", null)
+  const allEventIds = [...(activeEvents || []), ...(archivedEvents || [])].map((e) => e.id)
 
-  const totalMinutes = sessions?.reduce((sum, session) => sum + (session.duration_minutes || 0), 0) || 0
-  const totalSessions = sessions?.length || 0
+  let totalMinutes = 0
+  let totalTranscriptions = 0
+
+  if (allEventIds.length > 0) {
+    // Get transcription-based usage calculation
+    const { data: usageData } = await supabase
+      .rpc("calculate_event_usage", {
+        event_ids: allEventIds,
+      })
+      .single()
+
+    // Fallback to manual calculation if RPC doesn't exist
+    if (!usageData) {
+      const { data: transcriptions } = await supabase
+        .from("transcriptions")
+        .select("event_id, created_at")
+        .in("event_id", allEventIds)
+        .order("created_at", { ascending: true })
+
+      if (transcriptions && transcriptions.length > 0) {
+        totalTranscriptions = transcriptions.length
+
+        // Group by event and calculate duration for each
+        const eventGroups = transcriptions.reduce(
+          (acc, t) => {
+            if (!acc[t.event_id]) {
+              acc[t.event_id] = { first: t.created_at, last: t.created_at }
+            } else {
+              acc[t.event_id].last = t.created_at
+            }
+            return acc
+          },
+          {} as Record<string, { first: string; last: string }>,
+        )
+
+        // Calculate total minutes across all events
+        totalMinutes = Math.round(
+          Object.values(eventGroups).reduce((sum, group) => {
+            const first = new Date(group.first).getTime()
+            const last = new Date(group.last).getTime()
+            const minutes = (last - first) / (1000 * 60)
+            return sum + minutes
+          }, 0),
+        )
+      }
+    } else {
+      totalMinutes = Math.round(usageData.total_minutes || 0)
+      totalTranscriptions = usageData.total_transcriptions || 0
+    }
+  }
 
   return (
     <div className="min-h-screen bg-black">
@@ -139,11 +180,11 @@ export default async function DashboardPage() {
             <CardContent className="grid grid-cols-2 gap-4 pt-0">
               <div>
                 <div className="text-2xl font-bold text-foreground">{totalMinutes}</div>
-                <p className="text-xs text-muted-foreground mt-1">Total minutes used</p>
+                <p className="text-xs text-muted-foreground mt-1">Total minutes broadcasted</p>
               </div>
               <div>
-                <div className="text-2xl font-bold text-foreground">{totalSessions}</div>
-                <p className="text-xs text-muted-foreground mt-1">Sessions</p>
+                <div className="text-2xl font-bold text-foreground">{totalTranscriptions}</div>
+                <p className="text-xs text-muted-foreground mt-1">Total transcriptions</p>
               </div>
             </CardContent>
           </Card>
