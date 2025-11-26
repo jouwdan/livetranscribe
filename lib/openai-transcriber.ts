@@ -173,7 +173,7 @@ Your output must be clean, literal, strictly English, and faithful to the spoken
               modalities: ["text"],
               input_audio_format: "pcm16",
               input_audio_transcription: {
-                model: "gpt-4o-transcribe-latest",
+                model: "gpt-4o-transcribe",
                 language: "en", // Explicitly set language to English
               },
               turn_detection: {
