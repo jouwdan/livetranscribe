@@ -30,7 +30,6 @@ export async function signUp(formData: FormData) {
   if (keyData.current_uses >= keyData.max_uses) {
     return { error: "This beta access key has reached its maximum number of uses." }
   }
-  // </CHANGE>
 
   const { error } = await supabase.auth.signUp({
     email,
@@ -41,6 +40,9 @@ export async function signUp(formData: FormData) {
     return { error: error.message }
   }
 
+  const { data: userData } = await supabase.auth.getUser()
+  const userId = userData?.user?.id
+
   await supabase
     .from("beta_access_keys")
     .update({
@@ -50,7 +52,14 @@ export async function signUp(formData: FormData) {
       is_used: keyData.current_uses + 1 >= keyData.max_uses,
     })
     .eq("id", keyData.id)
-  // </CHANGE>
+
+  if (userId) {
+    await supabase.from("beta_key_usage").insert({
+      beta_key_id: keyData.id,
+      user_id: userId,
+      email: email,
+    })
+  }
 
   redirect("/dashboard")
 }

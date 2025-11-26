@@ -358,15 +358,38 @@ export function BroadcastInterface({ slug, eventName, eventId, userId }: Broadca
     try {
       setError(null)
 
-      if (sessions.length > 0 && !currentSessionId) {
-        setError("Please select a session before starting the broadcast")
-        return
-      }
-
       const supabase = createBrowserClient(
         process.env.NEXT_PUBLIC_SUPABASE_URL!,
         process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
       )
+
+      // Check if we need to create a default session
+      if (sessions.length === 0) {
+        const { data: newSession, error: sessionError } = await supabase
+          .from("event_sessions")
+          .insert({
+            event_id: eventId,
+            name: "Session 1",
+            description: "Auto-created session",
+            session_number: 1,
+          })
+          .select("id, name, session_number")
+          .single()
+
+        if (sessionError || !newSession) {
+          setError("Failed to create session. Please try creating one manually from the Sessions tab.")
+          return
+        }
+
+        setSessions([newSession])
+        setCurrentSessionId(newSession.id)
+
+        // Give UI time to update before proceeding
+        await new Promise((resolve) => setTimeout(resolve, 100))
+      } else if (!currentSessionId) {
+        setError("Please select a session before starting the broadcast")
+        return
+      }
 
       const { data: event } = await supabase
         .from("events")

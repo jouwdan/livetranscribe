@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -8,17 +8,18 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
 import { createClient } from "@/lib/supabase/client"
-import { Key, Plus, Trash2, Copy, Check, Calendar, Hash } from "lucide-react"
+import { Key, Plus, Trash2, Copy, Check, Calendar, Hash, Edit } from "lucide-react"
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 
 interface BetaKey {
   id: string
-  access_key: string // Fixed column name from 'key' to 'access_key'
+  access_key: string
   max_uses: number
   current_uses: number
   expires_at: string | null
   notes: string | null
-  is_active: boolean
   created_at: string
+  users?: Array<{ email: string; created_at: string }>
 }
 
 export function BetaKeysManager({ betaKeys: initialKeys }: { betaKeys: BetaKey[] }) {
@@ -29,6 +30,12 @@ export function BetaKeysManager({ betaKeys: initialKeys }: { betaKeys: BetaKey[]
   const [notes, setNotes] = useState("")
   const [loading, setLoading] = useState(false)
   const [copiedKey, setCopiedKey] = useState<string | null>(null)
+  const [expandedKeys, setExpandedKeys] = useState<Set<string>>(new Set())
+
+  const [editingKey, setEditingKey] = useState<BetaKey | null>(null)
+  const [editMaxUses, setEditMaxUses] = useState(1)
+  const [editExpiresAt, setEditExpiresAt] = useState<string>("")
+  const [editNotes, setEditNotes] = useState("")
 
   const supabase = createClient()
 
@@ -45,12 +52,34 @@ export function BetaKeysManager({ betaKeys: initialKeys }: { betaKeys: BetaKey[]
   }
 
   const fetchKeys = async () => {
-    const { data } = await supabase.from("beta_access_keys").select("*").order("created_at", { ascending: false })
+    const { data: keysData } = await supabase
+      .from("beta_access_keys")
+      .select("*")
+      .order("created_at", { ascending: false })
 
-    if (data) {
-      setBetaKeys(data)
+    if (keysData) {
+      const keysWithUsers = await Promise.all(
+        keysData.map(async (key) => {
+          const { data: usageData } = await supabase
+            .from("beta_key_usage")
+            .select("email, created_at")
+            .eq("beta_key_id", key.id)
+            .order("created_at", { ascending: false })
+
+          return {
+            ...key,
+            users: usageData || [],
+          }
+        }),
+      )
+
+      setBetaKeys(keysWithUsers)
     }
   }
+
+  useEffect(() => {
+    fetchKeys()
+  }, [])
 
   const handleCreateKey = async () => {
     if (maxUses < 1) {
@@ -75,7 +104,6 @@ export function BetaKeysManager({ betaKeys: initialKeys }: { betaKeys: BetaKey[]
 
       await fetchKeys()
 
-      // Reset form
       setMaxUses(1)
       setExpiresInDays(null)
       setNotes("")
@@ -85,25 +113,6 @@ export function BetaKeysManager({ betaKeys: initialKeys }: { betaKeys: BetaKey[]
     } catch (error) {
       console.error("Error creating key:", error)
       alert("Failed to create beta key")
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const handleToggleActive = async (keyId: string, currentState: boolean) => {
-    setLoading(true)
-
-    try {
-      const { error } = await supabase.from("beta_access_keys").update({ is_active: !currentState }).eq("id", keyId)
-
-      if (error) throw error
-
-      await fetchKeys()
-
-      alert(`Beta key ${!currentState ? "activated" : "deactivated"} successfully!`)
-    } catch (error) {
-      console.error("Error toggling key:", error)
-      alert("Failed to toggle beta key")
     } finally {
       setLoading(false)
     }
@@ -138,6 +147,47 @@ export function BetaKeysManager({ betaKeys: initialKeys }: { betaKeys: BetaKey[]
     setTimeout(() => setCopiedKey(null), 2000)
   }
 
+  const handleEditKey = (key: BetaKey) => {
+    setEditingKey(key)
+    setEditMaxUses(key.max_uses)
+    setEditExpiresAt(key.expires_at ? new Date(key.expires_at).toISOString().split("T")[0] : "")
+    setEditNotes(key.notes || "")
+  }
+
+  const handleUpdateKey = async () => {
+    if (!editingKey) return
+
+    if (editMaxUses < 1) {
+      alert("Max uses must be at least 1")
+      return
+    }
+
+    setLoading(true)
+
+    try {
+      const { error } = await supabase
+        .from("beta_access_keys")
+        .update({
+          max_uses: editMaxUses,
+          expires_at: editExpiresAt || null,
+          notes: editNotes || null,
+        })
+        .eq("id", editingKey.id)
+
+      if (error) throw error
+
+      await fetchKeys()
+
+      setEditingKey(null)
+      alert("Beta key updated successfully!")
+    } catch (error) {
+      console.error("Error updating key:", error)
+      alert("Failed to update beta key")
+    } finally {
+      setLoading(false)
+    }
+  }
+
   const isExpired = (expiresAt: string | null) => {
     if (!expiresAt) return false
     return new Date(expiresAt) < new Date()
@@ -148,12 +198,6 @@ export function BetaKeysManager({ betaKeys: initialKeys }: { betaKeys: BetaKey[]
   }
 
   const getKeyStatus = (key: BetaKey) => {
-    if (!key.is_active)
-      return (
-        <Badge variant="secondary" className="bg-slate-500/20 text-slate-400">
-          Inactive
-        </Badge>
-      )
     if (isExpired(key.expires_at))
       return (
         <Badge variant="secondary" className="bg-red-500/20 text-red-400">
@@ -173,9 +217,18 @@ export function BetaKeysManager({ betaKeys: initialKeys }: { betaKeys: BetaKey[]
     )
   }
 
+  const toggleKeyExpansion = (keyId: string) => {
+    const newExpanded = new Set(expandedKeys)
+    if (newExpanded.has(keyId)) {
+      newExpanded.delete(keyId)
+    } else {
+      newExpanded.add(keyId)
+    }
+    setExpandedKeys(newExpanded)
+  }
+
   return (
     <div className="space-y-6">
-      {/* Create Key Button */}
       <Card className="bg-card/50 backdrop-blur-sm border-border/80">
         <CardHeader>
           <div className="flex items-center justify-between">
@@ -262,7 +315,6 @@ export function BetaKeysManager({ betaKeys: initialKeys }: { betaKeys: BetaKey[]
         )}
       </Card>
 
-      {/* Keys List */}
       <div className="grid gap-4">
         {betaKeys.map((key) => (
           <Card key={key.id} className="bg-card/50 backdrop-blur-sm border-border/80">
@@ -290,15 +342,12 @@ export function BetaKeysManager({ betaKeys: initialKeys }: { betaKeys: BetaKey[]
                   <Button
                     variant="ghost"
                     size="sm"
-                    onClick={() => handleToggleActive(key.id, key.is_active)}
+                    onClick={() => handleEditKey(key)}
                     disabled={loading}
-                    className={
-                      key.is_active
-                        ? "text-orange-400 hover:text-orange-300 hover:bg-orange-500/10"
-                        : "text-green-400 hover:text-green-300 hover:bg-green-500/10"
-                    }
+                    className="h-8 w-8 p-0 text-slate-400 hover:text-white hover:bg-white/10"
+                    title="Edit key"
                   >
-                    {key.is_active ? "Deactivate" : "Activate"}
+                    <Edit className="h-4 w-4" />
                   </Button>
                   <Button
                     variant="ghost"
@@ -330,6 +379,33 @@ export function BetaKeysManager({ betaKeys: initialKeys }: { betaKeys: BetaKey[]
                   Created: {new Date(key.created_at).toLocaleDateString()}
                 </span>
               </div>
+
+              {key.users && key.users.length > 0 && (
+                <div className="mt-4 pt-4 border-t border-border/50">
+                  <button
+                    onClick={() => toggleKeyExpansion(key.id)}
+                    className="flex items-center gap-2 text-sm text-slate-400 hover:text-white transition-colors"
+                  >
+                    <span>Signed Up Users ({key.users.length})</span>
+                    <span className="text-xs">{expandedKeys.has(key.id) ? "▼" : "▶"}</span>
+                  </button>
+                  {expandedKeys.has(key.id) && (
+                    <div className="mt-2 space-y-1">
+                      {key.users.map((user, idx) => (
+                        <div
+                          key={idx}
+                          className="flex items-center justify-between text-sm px-2 py-1 rounded bg-black/30"
+                        >
+                          <span className="text-white">{user.email}</span>
+                          <span className="text-slate-500 text-xs">
+                            {new Date(user.created_at).toLocaleDateString()}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
             </CardContent>
           </Card>
         ))}
@@ -344,6 +420,81 @@ export function BetaKeysManager({ betaKeys: initialKeys }: { betaKeys: BetaKey[]
           </Card>
         )}
       </div>
+
+      <Dialog open={!!editingKey} onOpenChange={(open) => !open && setEditingKey(null)}>
+        <DialogContent className="bg-slate-900 border-border text-white">
+          <DialogHeader>
+            <DialogTitle>Edit Beta Key</DialogTitle>
+            <DialogDescription className="text-slate-400">
+              Modify the settings for this beta access key
+            </DialogDescription>
+          </DialogHeader>
+          {editingKey && (
+            <div className="space-y-4">
+              <div>
+                <Label className="text-slate-400">Access Key</Label>
+                <code className="block text-sm font-mono text-white bg-black/50 px-3 py-2 rounded border border-border/50 mt-1">
+                  {editingKey.access_key}
+                </code>
+              </div>
+              <div>
+                <Label htmlFor="edit-max-uses" className="text-slate-400">
+                  Max Uses
+                </Label>
+                <Input
+                  id="edit-max-uses"
+                  type="number"
+                  min="1"
+                  value={editMaxUses}
+                  onChange={(e) => setEditMaxUses(Number.parseInt(e.target.value) || 1)}
+                  className="bg-black/50 border-border text-white mt-1"
+                />
+              </div>
+              <div>
+                <Label htmlFor="edit-expires-at" className="text-slate-400">
+                  Expiration Date (Optional)
+                </Label>
+                <Input
+                  id="edit-expires-at"
+                  type="date"
+                  value={editExpiresAt}
+                  onChange={(e) => setEditExpiresAt(e.target.value)}
+                  className="bg-black/50 border-border text-white mt-1"
+                />
+              </div>
+              <div>
+                <Label htmlFor="edit-notes" className="text-slate-400">
+                  Notes (Optional)
+                </Label>
+                <Textarea
+                  id="edit-notes"
+                  value={editNotes}
+                  onChange={(e) => setEditNotes(e.target.value)}
+                  className="bg-black/50 border-border text-white mt-1"
+                  placeholder="e.g., Community Group XYZ, Conference Attendees 2024"
+                />
+              </div>
+              <div className="flex gap-2 pt-2">
+                <Button
+                  onClick={handleUpdateKey}
+                  disabled={loading}
+                  className="gap-2 bg-purple-600 hover:bg-purple-700"
+                >
+                  Save Changes
+                </Button>
+                <Button
+                  variant="ghost"
+                  onClick={() => setEditingKey(null)}
+                  disabled={loading}
+                  className="text-slate-400 hover:text-white"
+                >
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
