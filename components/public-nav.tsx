@@ -51,12 +51,12 @@ export function PublicNav() {
               Home
             </Link>
             <Link
-              href="/pricing"
+              href="/beta"
               className={`text-sm transition-colors ${
-                isActive("/pricing") ? "text-purple-400 font-medium" : "text-muted-foreground hover:text-foreground"
+                isActive("/beta") ? "text-purple-400 font-medium" : "text-muted-foreground hover:text-foreground"
               }`}
             >
-              Pricing
+              Beta Access
             </Link>
           </nav>
 
@@ -106,13 +106,13 @@ export function PublicNav() {
                 Home
               </Link>
               <Link
-                href="/pricing"
+                href="/beta"
                 onClick={() => setMobileMenuOpen(false)}
                 className={`text-sm transition-colors py-2 text-left ${
-                  isActive("/pricing") ? "text-purple-400 font-medium" : "text-muted-foreground hover:text-foreground"
+                  isActive("/beta") ? "text-purple-400 font-medium" : "text-muted-foreground hover:text-foreground"
                 }`}
               >
-                Pricing
+                Beta Access
               </Link>
               {isLoggedIn ? (
                 <Link href="/dashboard" onClick={() => setMobileMenuOpen(false)}>

@@ -5,7 +5,7 @@ import { CheckCircle2, AudioLines, Mail, Heart } from "lucide-react"
 import Link from "next/link"
 import { PublicNav } from "@/components/public-nav"
 
-export default function PricingPage() {
+export default function PricingClientPage() {
   // const pricingTiers = [
   //   {
   //     size: "Small",
@@ -291,8 +291,8 @@ export default function PricingPage() {
                 <span className="font-semibold">LiveTranscribe</span>
               </div>
               <div className="flex gap-8 text-sm text-muted-foreground">
-                <Link href="/pricing" className="hover:text-foreground transition-colors">
-                  Pricing
+                <Link href="/beta" className="hover:text-foreground transition-colors">
+                  Beta Access
                 </Link>
                 <Link href="/dashboard" className="hover:text-foreground transition-colors">
                   Dashboard

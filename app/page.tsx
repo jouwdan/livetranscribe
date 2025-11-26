@@ -248,8 +248,8 @@ export default function Home() {
                 <span className="font-semibold">LiveTranscribe</span>
               </div>
               <div className="flex gap-8 text-sm text-muted-foreground">
-                <Link href="/pricing" className="hover:text-foreground transition-colors">
-                  Pricing
+                <Link href="/beta" className="hover:text-foreground transition-colors">
+                  Beta Access
                 </Link>
                 <Link href="/dashboard" className="hover:text-foreground transition-colors">
                   Dashboard
