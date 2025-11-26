@@ -9,7 +9,7 @@ const _geistMono = Geist_Mono({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
   title: "LiveTranscribe - AI Live Transcription",
-  description: "Real-time AI transcription for events, powered by OpenAI and WebRTC",
+  description: "Real-time AI transcription for events and conferences.",
   generator: "v0.app",
   icons: {
     icon: [
