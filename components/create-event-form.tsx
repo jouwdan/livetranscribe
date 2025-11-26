@@ -7,7 +7,7 @@ import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Loader2, CheckCircle2, XCircle, CreditCard, Clock, Users } from "lucide-react"
+import { Loader2, CheckCircle2, XCircle, CreditCard, Clock, Users, Upload, X } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
@@ -32,6 +32,9 @@ export function CreateEventForm() {
   const router = useRouter()
   const [availableCredits, setAvailableCredits] = useState<EventCredit[]>([])
   const [selectedCreditId, setSelectedCreditId] = useState<string>("")
+  const [logoFile, setLogoFile] = useState<File | null>(null)
+  const [logoPreview, setLogoPreview] = useState<string | null>(null)
+  const [uploadingLogo, setUploadingLogo] = useState(false)
 
   useEffect(() => {
     const fetchCredits = async () => {
@@ -113,6 +116,32 @@ export function CreateEventForm() {
       .replace(/^-+|-+$/g, "")
   }
 
+  const handleLogoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) {
+      if (!file.type.startsWith("image/")) {
+        setError("Please select an image file")
+        return
+      }
+      if (file.size > 5 * 1024 * 1024) {
+        setError("Logo must be less than 5MB")
+        return
+      }
+      setLogoFile(file)
+      const reader = new FileReader()
+      reader.onloadend = () => {
+        setLogoPreview(reader.result as string)
+      }
+      reader.readAsDataURL(file)
+      setError(null)
+    }
+  }
+
+  const removeLogo = () => {
+    setLogoFile(null)
+    setLogoPreview(null)
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsLoading(true)
@@ -156,6 +185,26 @@ export function CreateEventForm() {
         }
       }
 
+      let logoUrl: string | null = null
+      if (logoFile) {
+        setUploadingLogo(true)
+        const formData = new FormData()
+        formData.append("file", logoFile)
+
+        const uploadResponse = await fetch("/api/upload-logo", {
+          method: "POST",
+          body: formData,
+        })
+
+        if (!uploadResponse.ok) {
+          throw new Error("Failed to upload logo")
+        }
+
+        const uploadData = await uploadResponse.json()
+        logoUrl = uploadData.url
+        setUploadingLogo(false)
+      }
+
       const { data: event, error: createError } = await supabase
         .from("events")
         .insert({
@@ -167,6 +216,7 @@ export function CreateEventForm() {
           is_active: true,
           credits_minutes: selectedCredit.credits_minutes,
           max_attendees: selectedCredit.max_attendees,
+          logo_url: logoUrl,
         })
         .select()
         .single()
@@ -188,6 +238,7 @@ export function CreateEventForm() {
       setError(err instanceof Error ? err.message : "Failed to create event")
     } finally {
       setIsLoading(false)
+      setUploadingLogo(false)
     }
   }
 
@@ -276,6 +327,52 @@ export function CreateEventForm() {
       </div>
 
       <div className="space-y-2">
+        <Label htmlFor="logoUpload">Event Logo (Optional)</Label>
+        {logoPreview ? (
+          <div className="relative inline-block">
+            <img
+              src={logoPreview || "/placeholder.svg"}
+              alt="Logo preview"
+              className="h-24 w-24 object-contain rounded-lg border border-border"
+            />
+            <Button
+              type="button"
+              variant="destructive"
+              size="icon"
+              className="absolute -top-2 -right-2 h-6 w-6 rounded-full"
+              onClick={removeLogo}
+            >
+              <X className="h-3 w-3" />
+            </Button>
+          </div>
+        ) : (
+          <div className="flex items-center gap-2">
+            <Input
+              id="logoUpload"
+              type="file"
+              accept="image/*"
+              onChange={handleLogoChange}
+              disabled={isLoading || availableCredits.length === 0}
+              className="hidden"
+            />
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => document.getElementById("logoUpload")?.click()}
+              disabled={isLoading || availableCredits.length === 0}
+              className="gap-2"
+            >
+              <Upload className="h-4 w-4" />
+              Upload Logo
+            </Button>
+          </div>
+        )}
+        <p className="text-sm text-muted-foreground">
+          This logo will appear on the viewer page. Maximum 5MB, recommended square format.
+        </p>
+      </div>
+
+      <div className="space-y-2">
         <Label htmlFor="customSlug">Custom URL Slug (Optional)</Label>
         <div className="relative">
           <Input
@@ -315,14 +412,18 @@ export function CreateEventForm() {
       <Button
         type="submit"
         disabled={
-          isLoading || !eventName || (customSlug !== "" && slugAvailable !== true) || availableCredits.length === 0
+          isLoading ||
+          uploadingLogo ||
+          !eventName ||
+          (customSlug !== "" && slugAvailable !== true) ||
+          availableCredits.length === 0
         }
         className="w-full"
       >
-        {isLoading ? (
+        {isLoading || uploadingLogo ? (
           <>
             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-            Creating Event...
+            {uploadingLogo ? "Uploading Logo..." : "Creating Event..."}
           </>
         ) : (
           "Create Event"

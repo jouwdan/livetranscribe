@@ -11,10 +11,7 @@ export default async function ViewerPage({ params, searchParams }: ViewerPagePro
   const { view } = await searchParams
 
   const supabase = await createServerClient()
-  const { data: event } = await supabase.from("events").select("name, description").eq("slug", slug).single()
-
-  const eventName = event?.name || "Live Event"
-  const eventDescription = event?.description || ""
+  const { data: event } = await supabase.from("events").select("name, description, logo_url").eq("slug", slug).single()
 
   const initialViewMode =
     view === "mobile" || view === "stage" || view === "tv"
@@ -25,9 +22,12 @@ export default async function ViewerPage({ params, searchParams }: ViewerPagePro
 
   return (
     <ViewerInterface
-      slug={slug}
-      eventName={eventName}
-      eventDescription={eventDescription}
+      event={{
+        slug,
+        name: event?.name || "Live Event",
+        description: event?.description || "",
+        logo_url: event?.logo_url || null,
+      }}
       initialViewMode={initialViewMode as "laptop" | "mobile" | "stage"}
     />
   )

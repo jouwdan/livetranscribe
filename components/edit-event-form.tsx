@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { createClient } from "@/lib/supabase/client"
-import { Loader2 } from "lucide-react"
+import { Loader2, Upload, X } from "lucide-react"
 
 interface EditEventFormProps {
   event: {
@@ -19,6 +19,7 @@ interface EditEventFormProps {
     slug: string
     is_active: boolean
     description?: string
+    logo_url?: string
   }
 }
 
@@ -29,8 +30,13 @@ export function EditEventForm({ event }: EditEventFormProps) {
   const [isActive, setIsActive] = useState(event.is_active)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
+  const [success, setSuccess] = useState("") // Added success state
   const [slugAvailable, setSlugAvailable] = useState<boolean | null>(null)
   const [checkingSlug, setCheckingSlug] = useState(false)
+  const [logoFile, setLogoFile] = useState<File | null>(null)
+  const [logoPreview, setLogoPreview] = useState<string | null>(event.logo_url || null)
+  const [uploadingLogo, setUploadingLogo] = useState(false)
+  const [removingLogo, setRemovingLogo] = useState(false)
 
   const router = useRouter()
   const supabase = createClient()
@@ -65,12 +71,62 @@ export function EditEventForm({ event }: EditEventFormProps) {
     }
   }
 
+  const handleLogoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) {
+      if (!file.type.startsWith("image/")) {
+        setError("Please select an image file")
+        return
+      }
+      if (file.size > 5 * 1024 * 1024) {
+        setError("Logo must be less than 5MB")
+        return
+      }
+      setLogoFile(file)
+      const reader = new FileReader()
+      reader.onloadend = () => {
+        setLogoPreview(reader.result as string)
+      }
+      reader.readAsDataURL(file)
+      setError("")
+    }
+  }
+
+  const removeLogo = () => {
+    setLogoFile(null)
+    setLogoPreview(null)
+    setRemovingLogo(true)
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
     setError("")
+    setSuccess("") // Reset success state before submission
 
     try {
+      let logoUrl: string | null | undefined = event.logo_url
+      if (logoFile) {
+        setUploadingLogo(true)
+        const formData = new FormData()
+        formData.append("file", logoFile)
+
+        const uploadResponse = await fetch("/api/upload-logo", {
+          method: "POST",
+          body: formData,
+        })
+
+        if (!uploadResponse.ok) {
+          throw new Error("Failed to upload logo")
+        }
+
+        const uploadData = await uploadResponse.json()
+        logoUrl = uploadData.url
+        setUploadingLogo(false)
+      } else if (removingLogo) {
+        logoUrl = null
+      }
+
       const { error: updateError } = await supabase
         .from("events")
         .update({
@@ -78,17 +134,21 @@ export function EditEventForm({ event }: EditEventFormProps) {
           description,
           slug,
           is_active: isActive,
+          logo_url: logoUrl,
         })
         .eq("id", event.id)
 
       if (updateError) throw updateError
 
+      console.log("[v0] Event updated successfully, redirecting to dashboard")
+      setSuccess("Event updated successfully") // Set success state
       router.push("/dashboard")
       router.refresh()
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to update event")
     } finally {
       setLoading(false)
+      setUploadingLogo(false)
     }
   }
 
@@ -110,7 +170,6 @@ export function EditEventForm({ event }: EditEventFormProps) {
               required
             />
           </div>
-
           <div className="space-y-2">
             <Label htmlFor="description">Event Description (Optional)</Label>
             <Textarea
@@ -129,7 +188,51 @@ export function EditEventForm({ event }: EditEventFormProps) {
               accurate transcriptions.
             </p>
           </div>
-
+          <div className="space-y-2">
+            <Label htmlFor="logoUpload">Event Logo (Optional)</Label>
+            {logoPreview ? (
+              <div className="relative inline-block">
+                <img
+                  src={logoPreview || "/placeholder.svg"}
+                  alt="Logo preview"
+                  className="h-24 w-24 object-contain rounded-lg border border-border"
+                />
+                <Button
+                  type="button"
+                  variant="destructive"
+                  size="icon"
+                  className="absolute -top-2 -right-2 h-6 w-6 rounded-full"
+                  onClick={removeLogo}
+                >
+                  <X className="h-3 w-3" />
+                </Button>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2">
+                <Input
+                  id="logoUpload"
+                  type="file"
+                  accept="image/*"
+                  onChange={handleLogoChange}
+                  disabled={loading}
+                  className="hidden"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => document.getElementById("logoUpload")?.click()}
+                  disabled={loading}
+                  className="gap-2"
+                >
+                  <Upload className="h-4 w-4" />
+                  Upload Logo
+                </Button>
+              </div>
+            )}
+            <p className="text-xs text-foreground/60">
+              This logo will appear on the viewer page. Maximum 5MB, recommended square format.
+            </p>
+          </div>
           <div className="space-y-2">
             <Label htmlFor="slug">Custom URL Slug</Label>
             <div className="relative">
@@ -162,7 +265,6 @@ export function EditEventForm({ event }: EditEventFormProps) {
               <p className="text-sm text-green-600">This slug is available</p>
             )}
           </div>
-
           <div className="flex items-center space-x-2">
             <input
               type="checkbox"
@@ -173,15 +275,17 @@ export function EditEventForm({ event }: EditEventFormProps) {
             />
             <Label htmlFor="isActive">Event is active</Label>
           </div>
-
           {error && <p className="text-sm text-red-600">{error}</p>}
-
+          {success && <p className="text-sm text-green-600">{success}</p>} // Added success message
           <div className="flex gap-2">
-            <Button type="submit" disabled={loading || (slug !== event.slug && slugAvailable !== true)}>
-              {loading ? (
+            <Button
+              type="submit"
+              disabled={loading || uploadingLogo || (slug !== event.slug && slugAvailable !== true)}
+            >
+              {loading || uploadingLogo ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Updating...
+                  {uploadingLogo ? "Uploading..." : "Updating..."}
                 </>
               ) : (
                 "Update Event"
