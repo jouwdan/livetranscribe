@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useMemo } from "react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { ArrowDownToLine, Pause, Radio, Type } from "lucide-react"
+import { ArrowDownToLine, Pause, Radio, Type, Plus, Minus } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
 import type { RealtimeChannel } from "@supabase/supabase-js"
 import type { EventSession } from "@/types/event-session"
@@ -36,7 +36,7 @@ interface ViewerInterfaceProps {
   slug: string
 }
 
-type FontSize = "small" | "medium" | "large"
+type FontSize = "xs" | "small" | "medium" | "large" | "xl" | "xxl"
 
 const StreamingText = ({
   text,
@@ -285,7 +285,7 @@ export function ViewerInterface({ event, slug }: ViewerInterfaceProps) {
 
     const scrollContainer = scrollAreaRef.current
     scrollContainer.scrollTop = scrollContainer.scrollHeight
-  }, [transcriptions, autoScroll, newestTranscriptionId])
+  }, [transcriptions, autoScroll, newestTranscriptionId, isLive])
 
   const displayTranscriptions = useMemo(() => {
     return transcriptions
@@ -360,18 +360,39 @@ export function ViewerInterface({ event, slug }: ViewerInterfaceProps) {
 
   const TranscriptionContent = ({ fontSize }: { fontSize: FontSize }) => {
     const fontSizeClasses = {
+      xs: "text-sm leading-relaxed",
       small: "text-base leading-relaxed",
       medium: "text-xl leading-relaxed",
       large: "text-3xl md:text-4xl leading-tight",
+      xl: "text-4xl md:text-5xl leading-tight",
+      xxl: "text-5xl md:text-6xl lg:text-7xl leading-tight",
     }
 
     const textClass = fontSizeClasses[fontSize]
+
+    const increaseFontSize = () => {
+      if (fontSize === "xs") setFontSize("small")
+      else if (fontSize === "small") setFontSize("medium")
+      else if (fontSize === "medium") setFontSize("large")
+      else if (fontSize === "large") setFontSize("xl")
+      else if (fontSize === "xl") setFontSize("xxl")
+      setTimeout(scrollToBottom, 100)
+    }
+
+    const decreaseFontSize = () => {
+      if (fontSize === "xxl") setFontSize("xl")
+      else if (fontSize === "xl") setFontSize("large")
+      else if (fontSize === "large") setFontSize("medium")
+      else if (fontSize === "medium") setFontSize("small")
+      else if (fontSize === "small") setFontSize("xs")
+      setTimeout(scrollToBottom, 100)
+    }
 
     return (
       <div className="flex flex-col h-screen bg-black overflow-hidden" key={fontSize}>
         {/* Header */}
         <div className="bg-black border-b border-border flex-shrink-0">
-          <div className="px-4 sm:px-6 lg:px-8 py-4 max-w-7xl mx-auto">
+          <div className="px-6 sm:px-8 lg:px-12 py-4 mx-auto w-full">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
               <div className="flex items-center gap-4">
                 {event?.logo_url && (
@@ -416,43 +437,29 @@ export function ViewerInterface({ event, slug }: ViewerInterfaceProps) {
                   )}
                 </Button>
 
-                {/* Font size toggle */}
-                <div className="flex gap-1 border-l border-border pl-3">
+                <div className="flex gap-1 border-l border-border pl-3 items-center">
                   <Button
-                    variant={fontSize === "small" ? "outline" : "ghost"}
+                    variant="ghost"
                     size="sm"
-                    onClick={() => {
-                      setFontSize("small")
-                      setTimeout(scrollToBottom, 100)
-                    }}
-                    className={`h-8 w-8 p-0 ${fontSize === "small" ? "border-purple-500/30 bg-purple-500/10" : "hover:bg-foreground/5"} text-white`}
-                    title="Small text"
+                    onClick={decreaseFontSize}
+                    disabled={fontSize === "xs"}
+                    className="h-8 w-8 p-0 hover:bg-foreground/5 text-white disabled:opacity-30 disabled:cursor-not-allowed"
+                    title="Decrease text size"
                   >
-                    <Type className="h-3 w-3" />
+                    <Minus className="h-4 w-4" />
                   </Button>
+                  <div className="flex items-center justify-center w-8 h-8">
+                    <Type className="h-4 w-4 text-white" />
+                  </div>
                   <Button
-                    variant={fontSize === "medium" ? "outline" : "ghost"}
+                    variant="ghost"
                     size="sm"
-                    onClick={() => {
-                      setFontSize("medium")
-                      setTimeout(scrollToBottom, 100)
-                    }}
-                    className={`h-8 w-8 p-0 ${fontSize === "medium" ? "border-purple-500/30 bg-purple-500/10" : "hover:bg-foreground/5"} text-white`}
-                    title="Medium text"
+                    onClick={increaseFontSize}
+                    disabled={fontSize === "xxl"}
+                    className="h-8 w-8 p-0 hover:bg-foreground/5 text-white disabled:opacity-30 disabled:cursor-not-allowed"
+                    title="Increase text size"
                   >
-                    <Type className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    variant={fontSize === "large" ? "outline" : "ghost"}
-                    size="sm"
-                    onClick={() => {
-                      setFontSize("large")
-                      setTimeout(scrollToBottom, 100)
-                    }}
-                    className={`h-8 w-8 p-0 ${fontSize === "large" ? "border-purple-500/30 bg-purple-500/10" : "hover:bg-foreground/5"} text-white`}
-                    title="Large text"
-                  >
-                    <Type className="h-5 w-5" />
+                    <Plus className="h-4 w-4" />
                   </Button>
                 </div>
               </div>
@@ -472,7 +479,7 @@ export function ViewerInterface({ event, slug }: ViewerInterfaceProps) {
         </div>
 
         {/* Transcription Content */}
-        <div className="flex-1 overflow-hidden px-4 sm:px-6 lg:px-8 py-6 max-w-7xl mx-auto w-full">
+        <div className="flex-1 overflow-hidden px-6 sm:px-8 lg:px-12 py-6 mx-auto w-full">
           <div ref={scrollAreaRef} className="h-full overflow-y-auto">
             <div className="space-y-6">
               {groupedTranscriptions.map((group, index) => (
@@ -515,6 +522,24 @@ export function ViewerInterface({ event, slug }: ViewerInterfaceProps) {
                 </div>
               ))}
             </div>
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="bg-black border-t border-border flex-shrink-0">
+          <div className="px-6 sm:px-8 lg:px-12 py-3 mx-auto w-full">
+            <p className="text-xs text-muted-foreground text-center">
+              Powered by{" "}
+              <a
+                href="https://livetranscribe.net"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="hover:text-foreground transition-colors"
+              >
+                LiveTranscribe.net
+              </a>{" "}
+              and AI
+            </p>
           </div>
         </div>
       </div>
