@@ -72,6 +72,12 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       return Response.json({ success: true, skipped: true, reason: "interim" })
     }
 
+    if (!sessionId) {
+      console.warn(
+        "[v0] Warning: Transcription saved without session_id. This may make it harder to organize and export transcriptions by session.",
+      )
+    }
+
     const supabase = await createClient()
 
     const { data: events } = await supabase.from("events").select("*").eq("slug", slug)
@@ -117,7 +123,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         text: text.trim(),
         is_final: isFinal,
         sequence_number: sequenceNumber,
-        session_id: sessionId || null,
+        session_id: sessionId || null, // Explicitly set null if no sessionId (instead of undefined)
       })
       .select()
       .single()

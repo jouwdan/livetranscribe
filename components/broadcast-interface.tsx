@@ -358,8 +358,8 @@ export function BroadcastInterface({ slug, eventName, eventId, userId }: Broadca
     try {
       setError(null)
 
-      if (!currentSessionId) {
-        setError("Please create or select a session before starting the broadcast.")
+      if (sessions.length > 0 && !currentSessionId) {
+        setError("Please select a session before starting the broadcast")
         return
       }
 
