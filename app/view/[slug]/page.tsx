@@ -1,5 +1,6 @@
 import { ViewerInterface } from "@/components/viewer-interface"
 import { createServerClient } from "@/lib/supabase/server"
+import { notFound } from "next/navigation"
 
 interface ViewerPageProps {
   params: Promise<{ slug: string }>
@@ -11,7 +12,15 @@ export default async function ViewerPage({ params, searchParams }: ViewerPagePro
   const { view } = await searchParams
 
   const supabase = await createServerClient()
-  const { data: event } = await supabase.from("events").select("name, description, logo_url").eq("slug", slug).single()
+  const { data: event, error } = await supabase
+    .from("events")
+    .select("name, description, logo_url")
+    .eq("slug", slug)
+    .maybeSingle()
+
+  if (!event || error) {
+    notFound()
+  }
 
   const initialViewMode =
     view === "mobile" || view === "stage" || view === "tv"
@@ -24,9 +33,9 @@ export default async function ViewerPage({ params, searchParams }: ViewerPagePro
     <ViewerInterface
       event={{
         slug,
-        name: event?.name || "Live Event",
-        description: event?.description || "",
-        logo_url: event?.logo_url || null,
+        name: event.name,
+        description: event.description || "",
+        logo_url: event.logo_url || null,
       }}
       initialViewMode={initialViewMode as "laptop" | "mobile" | "stage"}
     />

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect, useRef, useMemo } from "react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Radio, ArrowDownToLine, Pause, Monitor, Smartphone, Tv } from "lucide-react"
@@ -15,6 +15,14 @@ interface Transcription {
   timestamp: Date
   sessionId?: string
   sessionInfo?: any
+}
+
+interface TranscriptionGroup {
+  timestamp: Date
+  texts: string[]
+  sessionId?: string
+  sessionInfo?: any
+  isSessionStart?: boolean
 }
 
 interface ViewerInterfaceProps {
@@ -337,29 +345,17 @@ export function ViewerInterface({ event, initialViewMode = "laptop" }: ViewerInt
     }
   }, [])
 
-  const displayTranscriptions = transcriptions.filter((t) => t.text.trim() !== "" && t.isFinal)
-  const allDisplayItems = displayTranscriptions
-
-  const formatTimestamp = (timestamp: Date) => {
-    return timestamp.toLocaleTimeString("en-US", {
-      hour: "2-digit",
-      minute: "2-digit",
-      second: "2-digit",
-    })
-  }
+  const displayTranscriptions = useMemo(() => {
+    return transcriptions
+  }, [transcriptions])
 
   const groupTranscriptionsBySessionAndTime = (transcriptions: Transcription[]) => {
     const sorted = [...transcriptions].sort((a, b) => {
       return a.timestamp.getTime() - b.timestamp.getTime()
     })
 
-    const groups: Array<{
-      timestamp: Date
-      texts: string[]
-      sessionId?: string
-      sessionInfo?: any
-      isSessionStart?: boolean
-    }> = []
+    const groups: TranscriptionGroup[] = []
+    let currentGroup: TranscriptionGroup | null = null
 
     let lastSessionId: string | undefined = undefined
 
@@ -367,13 +363,14 @@ export function ViewerInterface({ event, initialViewMode = "laptop" }: ViewerInt
       const isNewSession = curr.sessionId && curr.sessionId !== lastSessionId
 
       if (index === 0 || isNewSession) {
-        groups.push({
+        currentGroup = {
           timestamp: curr.timestamp,
           texts: [curr.text],
           sessionId: curr.sessionId,
           sessionInfo: curr.sessionInfo,
           isSessionStart: isNewSession && index > 0,
-        })
+        }
+        groups.push(currentGroup)
         lastSessionId = curr.sessionId
       } else {
         const prevTimestamp = sorted[index - 1].timestamp.getTime()
@@ -381,15 +378,18 @@ export function ViewerInterface({ event, initialViewMode = "laptop" }: ViewerInt
         const timeDiff = (currTimestamp - prevTimestamp) / 1000
 
         if (timeDiff > 10) {
-          groups.push({
+          currentGroup = {
             timestamp: curr.timestamp,
             texts: [curr.text],
             sessionId: curr.sessionId,
             sessionInfo: curr.sessionInfo,
             isSessionStart: false,
-          })
+          }
+          groups.push(currentGroup)
         } else {
-          groups[groups.length - 1].texts.push(curr.text)
+          if (currentGroup) {
+            currentGroup.texts.push(curr.text)
+          }
         }
       }
     })
@@ -397,18 +397,18 @@ export function ViewerInterface({ event, initialViewMode = "laptop" }: ViewerInt
     return groups
   }
 
-  const groupedTranscriptions = groupTranscriptionsBySessionAndTime(allDisplayItems)
+  const groupedTranscriptions = useMemo(() => {
+    return groupTranscriptionsBySessionAndTime(displayTranscriptions)
+  }, [displayTranscriptions])
 
-  useEffect(() => {
-    console.log("[v0] View mode:", viewMode)
-    console.log("[v0] Total transcriptions:", transcriptions.length)
-    console.log("[v0] Display transcriptions (filtered):", displayTranscriptions.length)
-    console.log("[v0] Grouped transcriptions:", groupedTranscriptions.length)
-    console.log(
-      "[v0] All display items:",
-      allDisplayItems.map((t) => ({ id: t.id, text: t.text.substring(0, 50) })),
+  const allDisplayItems = useMemo(() => {
+    return groupedTranscriptions.flatMap((group) =>
+      group.texts.map((text) => {
+        const t = displayTranscriptions.find((tr) => tr.text === text)
+        return { id: t?.id || "", text }
+      }),
     )
-  }, [viewMode, transcriptions.length, displayTranscriptions.length, groupedTranscriptions.length])
+  }, [groupedTranscriptions, displayTranscriptions])
 
   const updateViewModeInUrl = (mode: DisplayMode) => {
     const url = new URL(window.location.href)
@@ -422,7 +422,18 @@ export function ViewerInterface({ event, initialViewMode = "laptop" }: ViewerInt
     }
   }
 
+  // TV/Stage View (optimized for large displays)
   if (viewMode === "stage") {
+    console.log("[v0] TV View - Rendering groups:", groupedTranscriptions.length)
+    groupedTranscriptions.forEach((group, idx) => {
+      console.log(`[v0] TV View - Group ${idx}:`, {
+        timestamp: group.timestamp,
+        textCount: group.texts.length,
+        texts: group.texts.slice(0, 2), // First 2 texts
+        sessionInfo: group.sessionInfo?.name,
+      })
+    })
+
     return (
       <div className="flex flex-col h-screen bg-black overflow-hidden">
         <div className="bg-gradient-to-b from-slate-950 to-black border-b border-border/50 flex-shrink-0 shadow-2xl">
@@ -525,7 +536,11 @@ export function ViewerInterface({ event, initialViewMode = "laptop" }: ViewerInt
                   )}
                   <div className="space-y-2">
                     <div className="text-sm text-purple-400/60 uppercase tracking-wider">
-                      {formatTimestamp(group.timestamp)}
+                      {group.timestamp.toLocaleTimeString("en-US", {
+                        hour: "2-digit",
+                        minute: "2-digit",
+                        second: "2-digit",
+                      })}
                     </div>
                     <div className="text-5xl md:text-6xl lg:text-7xl leading-tight text-white font-bold space-y-4">
                       {group.texts.map((text, textIndex) => {
@@ -555,7 +570,18 @@ export function ViewerInterface({ event, initialViewMode = "laptop" }: ViewerInt
     )
   }
 
+  // Mobile View
   if (viewMode === "mobile") {
+    console.log("[v0] Mobile View - Rendering groups:", groupedTranscriptions.length)
+    groupedTranscriptions.forEach((group, idx) => {
+      console.log(`[v0] Mobile View - Group ${idx}:`, {
+        timestamp: group.timestamp,
+        textCount: group.texts.length,
+        texts: group.texts.slice(0, 2), // First 2 texts
+        sessionInfo: group.sessionInfo?.name,
+      })
+    })
+
     return (
       <div className="flex flex-col h-screen bg-black overflow-hidden">
         <div className="bg-black border-b border-border flex-shrink-0">
@@ -648,7 +674,13 @@ export function ViewerInterface({ event, initialViewMode = "laptop" }: ViewerInt
                     </div>
                   )}
                   <div className="space-y-1">
-                    <div className="text-xs text-foreground/40">{formatTimestamp(group.timestamp)}</div>
+                    <div className="text-xs text-foreground/40">
+                      {group.timestamp.toLocaleTimeString("en-US", {
+                        hour: "2-digit",
+                        minute: "2-digit",
+                        second: "2-digit",
+                      })}
+                    </div>
                     <div className="text-base leading-relaxed text-white">
                       {group.texts.map((text, textIndex) => {
                         const transcriptionIndex = displayTranscriptions.findIndex((t) => t.text === text)
@@ -676,6 +708,17 @@ export function ViewerInterface({ event, initialViewMode = "laptop" }: ViewerInt
       </div>
     )
   }
+
+  // Laptop/Desktop View (default)
+  console.log("[v0] Laptop View - Rendering groups:", groupedTranscriptions.length)
+  groupedTranscriptions.forEach((group, idx) => {
+    console.log(`[v0] Laptop View - Group ${idx}:`, {
+      timestamp: group.timestamp,
+      textCount: group.texts.length,
+      texts: group.texts.slice(0, 2), // First 2 texts
+      sessionInfo: group.sessionInfo?.name,
+    })
+  })
 
   return (
     <div className="flex flex-col h-screen bg-black overflow-hidden">
@@ -781,7 +824,11 @@ export function ViewerInterface({ event, initialViewMode = "laptop" }: ViewerInt
                 )}
                 <div className="space-y-2">
                   <div className="text-xs text-foreground/40 uppercase tracking-wide">
-                    {formatTimestamp(group.timestamp)}
+                    {group.timestamp.toLocaleTimeString("en-US", {
+                      hour: "2-digit",
+                      minute: "2-digit",
+                      second: "2-digit",
+                    })}
                   </div>
                   <div className="text-lg leading-relaxed text-white">
                     {group.texts.map((text, textIndex) => {
