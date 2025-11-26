@@ -72,50 +72,37 @@ export default async function DashboardPage() {
   let totalTranscriptions = 0
 
   if (allEventIds.length > 0) {
-    // Get transcription-based usage calculation
-    const { data: usageData } = await supabase
-      .rpc("calculate_event_usage", {
-        event_ids: allEventIds,
-      })
-      .single()
+    const { data: transcriptions } = await supabase
+      .from("transcriptions")
+      .select("event_id, created_at")
+      .in("event_id", allEventIds)
+      .order("created_at", { ascending: true })
 
-    // Fallback to manual calculation if RPC doesn't exist
-    if (!usageData) {
-      const { data: transcriptions } = await supabase
-        .from("transcriptions")
-        .select("event_id, created_at")
-        .in("event_id", allEventIds)
-        .order("created_at", { ascending: true })
+    if (transcriptions && transcriptions.length > 0) {
+      totalTranscriptions = transcriptions.length
 
-      if (transcriptions && transcriptions.length > 0) {
-        totalTranscriptions = transcriptions.length
+      // Group by event and calculate duration for each
+      const eventGroups = transcriptions.reduce(
+        (acc, t) => {
+          if (!acc[t.event_id]) {
+            acc[t.event_id] = { first: t.created_at, last: t.created_at }
+          } else {
+            acc[t.event_id].last = t.created_at
+          }
+          return acc
+        },
+        {} as Record<string, { first: string; last: string }>,
+      )
 
-        // Group by event and calculate duration for each
-        const eventGroups = transcriptions.reduce(
-          (acc, t) => {
-            if (!acc[t.event_id]) {
-              acc[t.event_id] = { first: t.created_at, last: t.created_at }
-            } else {
-              acc[t.event_id].last = t.created_at
-            }
-            return acc
-          },
-          {} as Record<string, { first: string; last: string }>,
-        )
-
-        // Calculate total minutes across all events
-        totalMinutes = Math.round(
-          Object.values(eventGroups).reduce((sum, group) => {
-            const first = new Date(group.first).getTime()
-            const last = new Date(group.last).getTime()
-            const minutes = (last - first) / (1000 * 60)
-            return sum + minutes
-          }, 0),
-        )
-      }
-    } else {
-      totalMinutes = Math.round(usageData.total_minutes || 0)
-      totalTranscriptions = usageData.total_transcriptions || 0
+      // Calculate total minutes across all events
+      totalMinutes = Math.round(
+        Object.values(eventGroups).reduce((sum, group) => {
+          const first = new Date(group.first).getTime()
+          const last = new Date(group.last).getTime()
+          const minutes = (last - first) / (1000 * 60)
+          return sum + minutes
+        }, 0),
+      )
     }
   }
 
@@ -128,6 +115,22 @@ export default async function DashboardPage() {
             <div>
               <h1 className="text-3xl font-bold text-white">Dashboard</h1>
               <p className="text-slate-400">{user.email}</p>
+            </div>
+            <div className="flex items-center gap-6 text-sm">
+              <div className="flex items-center gap-2">
+                <Clock className="h-4 w-4 text-muted-foreground" />
+                <div>
+                  <span className="font-semibold text-foreground">{totalMinutes}</span>
+                  <span className="text-muted-foreground ml-1">min used</span>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <BarChart3 className="h-4 w-4 text-muted-foreground" />
+                <div>
+                  <span className="font-semibold text-foreground">{totalTranscriptions}</span>
+                  <span className="text-muted-foreground ml-1">transcriptions</span>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -172,22 +175,6 @@ export default async function DashboardPage() {
               </Card>
             )}
           </div>
-
-          <Card className="bg-card border-border">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base">Usage Summary</CardTitle>
-            </CardHeader>
-            <CardContent className="grid grid-cols-2 gap-4 pt-0">
-              <div>
-                <div className="text-2xl font-bold text-foreground">{totalMinutes}</div>
-                <p className="text-xs text-muted-foreground mt-1">Total minutes broadcasted</p>
-              </div>
-              <div>
-                <div className="text-2xl font-bold text-foreground">{totalTranscriptions}</div>
-                <p className="text-xs text-muted-foreground mt-1">Total transcriptions</p>
-              </div>
-            </CardContent>
-          </Card>
 
           <div className="flex items-center justify-between">
             <h2 className="text-2xl font-bold text-white">Your Events</h2>
