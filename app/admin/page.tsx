@@ -6,7 +6,7 @@ import { AdminDashboard } from "@/components/admin-dashboard"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
-import { Calendar, Users, Key } from "lucide-react"
+import { Calendar, Key, UserCog } from "lucide-react"
 
 export default async function AdminPage() {
   const isAdmin = await checkIsAdmin()
@@ -17,10 +17,9 @@ export default async function AdminPage() {
 
   const supabase = await createClient()
 
-  // Fetch all user profiles
   const { data: users } = await supabase
     .from("user_profiles")
-    .select("id, email, full_name, credits_minutes, max_attendees, is_admin, created_at, credits_last_updated")
+    .select("id, email, full_name, is_admin, created_at")
     .order("created_at", { ascending: false })
 
   return (
@@ -29,67 +28,59 @@ export default async function AdminPage() {
       <div className="container mx-auto px-4 py-8">
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-white mb-2">Admin Dashboard</h1>
-          <p className="text-slate-400">Manage user credits and account settings</p>
+          <p className="text-slate-400">Manage users, events, and beta access</p>
         </div>
 
-        <div className="grid md:grid-cols-3 gap-4 mb-8">
-          <Card className="bg-gradient-to-br from-purple-500/10 to-blue-500/10 border-purple-500/20">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-white">
-                <Users className="h-5 w-5 text-purple-400" />
-                User Event Credits
+        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+          <Card className="bg-gradient-to-br from-blue-500/10 to-cyan-500/10 border-blue-500/20 hover:border-blue-500/40 transition-colors">
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center gap-2 text-white text-lg">
+                <UserCog className="h-5 w-5 text-blue-400" />
+                Users
               </CardTitle>
-              <CardDescription>Allocate event credits to user accounts</CardDescription>
+              <CardDescription className="text-sm">Manage accounts and permissions</CardDescription>
             </CardHeader>
             <CardContent>
-              <p className="text-sm text-muted-foreground mb-4">
-                Manage unallocated event credits available to each user.
-              </p>
+              <Link href="/admin/users">
+                <Button className="w-full bg-blue-600 hover:bg-blue-700">Manage Users</Button>
+              </Link>
             </CardContent>
           </Card>
 
-          <Card className="bg-gradient-to-br from-green-500/10 to-emerald-500/10 border-green-500/20">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-white">
+          <Card className="bg-gradient-to-br from-green-500/10 to-emerald-500/10 border-green-500/20 hover:border-green-500/40 transition-colors">
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center gap-2 text-white text-lg">
                 <Calendar className="h-5 w-5 text-green-400" />
-                Event-Allocated Credits
+                Event Credits
               </CardTitle>
-              <CardDescription>View and manage credits allocated to specific events</CardDescription>
+              <CardDescription className="text-sm">Allocate credits to events</CardDescription>
             </CardHeader>
             <CardContent>
-              <p className="text-sm text-muted-foreground mb-4">
-                See which event credits have been used to create events and manage allocations.
-              </p>
               <Link href="/admin/events">
-                <Button className="w-full bg-green-600 hover:bg-green-700">Manage Event Credits</Button>
+                <Button className="w-full bg-green-600 hover:bg-green-700">Manage Credits</Button>
               </Link>
             </CardContent>
           </Card>
 
-          <Card className="bg-gradient-to-br from-orange-500/10 to-red-500/10 border-orange-500/20">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-white">
+          <Card className="bg-gradient-to-br from-orange-500/10 to-red-500/10 border-orange-500/20 hover:border-orange-500/40 transition-colors">
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center gap-2 text-white text-lg">
                 <Key className="h-5 w-5 text-orange-400" />
-                Beta Access Keys
+                Beta Keys
               </CardTitle>
-              <CardDescription>Create and manage beta access keys</CardDescription>
+              <CardDescription className="text-sm">Create access keys</CardDescription>
             </CardHeader>
             <CardContent>
-              <p className="text-sm text-muted-foreground mb-4">
-                Generate access keys for new users during the beta period.
-              </p>
               <Link href="/admin/beta-keys">
-                <Button className="w-full bg-orange-600 hover:bg-orange-700">Manage Beta Keys</Button>
+                <Button className="w-full bg-orange-600 hover:bg-orange-700">Manage Keys</Button>
               </Link>
             </CardContent>
           </Card>
         </div>
 
-        <div className="mb-4">
-          <h2 className="text-2xl font-bold text-white mb-2">Manage User Event Credits</h2>
-          <p className="text-slate-400 text-sm">
-            Allocate event credits to users. Users can then use these credits to create and broadcast events.
-          </p>
+        <div className="mb-6">
+          <h2 className="text-2xl font-bold text-white mb-2">Event Credit Management</h2>
+          <p className="text-slate-400 text-sm">Allocate and manage event credits for users to create broadcasts</p>
         </div>
 
         <AdminDashboard users={users || []} />
