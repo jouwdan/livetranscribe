@@ -29,10 +29,10 @@ interface ViewerInterfaceProps {
   event: {
     slug: string
     name: string
-    description?: string
-    logo_url?: string
+    description?: string | null
+    logo_url?: string | null
   }
-  initialViewMode?: "laptop" | "mobile" | "stage"
+  slug: string
 }
 
 type DisplayMode = "laptop" | "mobile" | "stage"
@@ -93,7 +93,7 @@ const TranscriptionText = ({
   return <span>{text}</span>
 }
 
-export function ViewerInterface({ event, initialViewMode = "laptop" }: ViewerInterfaceProps) {
+export function ViewerInterface({ event, slug }: ViewerInterfaceProps) {
   const [transcriptions, setTranscriptions] = useState<Transcription[]>([])
   const [isStreaming, setIsStreaming] = useState(false)
   const [eventName, setEventName] = useState(event?.name || "Live Event")
@@ -101,7 +101,7 @@ export function ViewerInterface({ event, initialViewMode = "laptop" }: ViewerInt
   const [logoUrl, setLogoUrl] = useState(event?.logo_url || null)
   const [isConnected, setIsConnected] = useState(false)
   const [autoScroll, setAutoScroll] = useState(true)
-  const [viewMode, setViewMode] = useState<DisplayMode>(initialViewMode)
+  const [viewMode, setViewMode] = useState<DisplayMode>("laptop")
   const [newestTranscriptionId, setNewestTranscriptionId] = useState<string | null>(null)
   const scrollAreaRef = useRef<HTMLDivElement>(null)
   const lastTranscriptionRef = useRef<HTMLDivElement>(null)
@@ -422,237 +422,186 @@ export function ViewerInterface({ event, initialViewMode = "laptop" }: ViewerInt
     }
   }
 
-  // TV/Stage View (optimized for large displays)
-  if (viewMode === "stage") {
-    console.log("[v0] TV View - Rendering groups:", groupedTranscriptions.length)
-    groupedTranscriptions.forEach((group, idx) => {
-      console.log(`[v0] TV View - Group ${idx}:`, {
-        timestamp: group.timestamp,
-        textCount: group.texts.length,
-        texts: group.texts.slice(0, 2), // First 2 texts
-        sessionInfo: group.sessionInfo?.name,
-      })
-    })
+  const TranscriptionContent = ({ viewMode }: { viewMode: DisplayMode }) => {
+    const styles = {
+      stage: {
+        container: "flex flex-col h-screen bg-black overflow-hidden",
+        header: "bg-gradient-to-b from-slate-950 to-black border-b border-border/50 flex-shrink-0 shadow-2xl",
+        headerPadding: "px-6 sm:px-8 lg:px-12 py-6",
+        logo: "h-16 w-16",
+        badge: "px-3 py-1.5 text-base mb-3",
+        title: "text-2xl",
+        content: "flex-1 overflow-hidden px-12 py-8",
+        groupSpacing: "space-y-8",
+        timestamp: "text-sm text-purple-400/60 uppercase tracking-wider",
+        text: "text-5xl md:text-6xl lg:text-7xl leading-tight text-white font-bold space-y-4",
+        sessionBadge: "mb-6 py-4 px-6 bg-purple-500/30 border-2 border-purple-400/50 rounded-xl",
+        sessionText: "text-2xl",
+        iconSize: "h-6 w-6",
+      },
+      mobile: {
+        container: "flex flex-col h-screen bg-black overflow-hidden",
+        header: "bg-black border-b border-border flex-shrink-0",
+        headerPadding: "px-4 py-3",
+        logo: "h-8 w-8",
+        badge: "px-2 py-1 text-xs flex-shrink-0",
+        title: "text-base",
+        content: "flex-1 overflow-hidden px-4 py-4",
+        groupSpacing: "space-y-4",
+        timestamp: "text-xs text-foreground/40",
+        text: "text-base leading-relaxed text-white",
+        sessionBadge: "mb-4 py-2 px-3 bg-purple-500/20 border border-purple-500/30 rounded-lg",
+        sessionText: "text-xs",
+        iconSize: "h-3 w-3",
+      },
+      laptop: {
+        container: "flex flex-col h-screen bg-black overflow-hidden",
+        header: "bg-black border-b border-border flex-shrink-0",
+        headerPadding: "px-4 sm:px-6 lg:px-8 py-4 max-w-7xl mx-auto",
+        logo: "h-12 w-12",
+        badge: "px-3 py-1",
+        title: "text-xl sm:text-2xl",
+        content: "flex-1 overflow-hidden px-4 sm:px-6 lg:px-8 py-6 max-w-7xl mx-auto w-full",
+        groupSpacing: "space-y-6",
+        timestamp: "text-xs text-foreground/40 uppercase tracking-wide",
+        text: "text-lg leading-relaxed text-white",
+        sessionBadge: "mb-6 py-3 px-4 bg-purple-500/20 border border-purple-500/30 rounded-lg",
+        sessionText: "text-sm",
+        iconSize: "h-4 w-4",
+      },
+    }
+
+    const s = styles[viewMode]
 
     return (
-      <div className="flex flex-col h-screen bg-black overflow-hidden">
-        <div className="bg-gradient-to-b from-slate-950 to-black border-b border-border/50 flex-shrink-0 shadow-2xl">
-          <div className="px-6 sm:px-8 lg:px-12 py-6">
+      <div key={`${viewMode}-view`} className={s.container}>
+        {/* Header */}
+        <div className={s.header}>
+          <div className={s.headerPadding}>
             <div className="flex items-center justify-between gap-4">
               <div className="min-w-0 flex-1 flex items-center gap-4">
                 {logoUrl && (
                   <img
                     src={logoUrl || "/placeholder.svg"}
                     alt={`${eventName} logo`}
-                    className="h-16 w-16 object-contain rounded-lg flex-shrink-0"
+                    className={`${s.logo} object-contain rounded-lg flex-shrink-0`}
                   />
                 )}
                 <div className="min-w-0 flex-1">
                   <Badge
                     variant={isStreaming ? "default" : "secondary"}
-                    className={`px-3 py-1.5 text-base mb-3 ${isStreaming ? "bg-red-600" : ""}`}
+                    className={`${s.badge} ${isStreaming ? "bg-red-600" : ""}`}
                   >
                     {isStreaming ? (
                       <>
-                        <Radio className="h-4 w-4 mr-2" />
-                        LIVE
+                        <Radio
+                          className={`${s.iconSize} mr-2 ${viewMode === "laptop" || viewMode === "mobile" ? "animate-pulse" : ""}`}
+                        />
+                        {viewMode === "stage" ? "LIVE" : "Live"}
                       </>
                     ) : (
-                      "OFFLINE"
+                      <>{viewMode === "stage" ? "OFFLINE" : "Offline"}</>
                     )}
                   </Badge>
-                  <h1 className="text-2xl font-bold text-white">{eventName}</h1>
+                  <h1 className={`${s.title} font-bold text-white ${viewMode === "laptop" ? "truncate" : ""}`}>
+                    {eventName}
+                  </h1>
+                  {viewMode === "laptop" && eventDescription && (
+                    <p className="text-sm text-foreground/60 mt-1">{eventDescription}</p>
+                  )}
+                  {viewMode === "laptop" && !eventDescription && (
+                    <p className="text-sm text-foreground/60">Live Transcription</p>
+                  )}
                 </div>
               </div>
-              <div className="flex gap-2 items-center">
+
+              {/* View Mode Controls */}
+              <div className="flex gap-2 items-center flex-shrink-0">
                 <Button
                   variant="ghost"
-                  size="sm"
+                  size={viewMode === "mobile" ? "icon" : "sm"}
                   onClick={() => setAutoScroll(!autoScroll)}
-                  className="h-8 px-3 gap-1.5 hover:bg-foreground/5 text-white text-xs"
+                  className={
+                    viewMode === "mobile"
+                      ? "h-7 w-7 hover:bg-foreground/5"
+                      : "h-8 px-3 gap-1.5 hover:bg-foreground/5 text-white text-xs"
+                  }
                 >
                   {autoScroll ? (
                     <>
-                      <ArrowDownToLine className="h-3 w-3" />
-                      Auto
+                      <ArrowDownToLine className={viewMode === "mobile" ? "h-3.5 w-3.5" : "h-3 w-3"} />
+                      {viewMode !== "mobile" && "Auto"}
                     </>
                   ) : (
                     <>
-                      <Pause className="h-3 w-3" />
-                      Paused
+                      <Pause className={viewMode === "mobile" ? "h-3.5 w-3.5" : "h-3 w-3"} />
+                      {viewMode !== "mobile" && "Paused"}
                     </>
                   )}
                 </Button>
-                <div className="flex gap-1">
+
+                <div
+                  className={`flex ${viewMode === "mobile" ? "gap-0.5" : "gap-1"} ${viewMode === "laptop" ? "border-l border-border pl-3" : ""}`}
+                >
                   <Button
-                    variant="ghost"
-                    size="sm"
+                    variant={viewMode === "laptop" ? "outline" : "ghost"}
+                    size={viewMode === "mobile" ? "icon" : "sm"}
                     onClick={() => {
                       setViewMode("laptop")
                       updateViewModeInUrl("laptop")
                       setTimeout(scrollToBottom, 100)
                     }}
-                    className="h-8 w-8 p-0 hover:bg-foreground/5 text-white"
+                    className={`${viewMode === "mobile" ? "h-7 w-7" : "h-8 w-8 p-0"} ${viewMode === "laptop" ? "gap-2 border-purple-500/30 bg-purple-500/10" : "hover:bg-foreground/5"} text-white`}
                   >
-                    <Monitor className="h-3 w-3" />
+                    <Monitor
+                      className={viewMode === "mobile" ? "h-3.5 w-3.5" : viewMode === "laptop" ? "h-4 w-4" : "h-3 w-3"}
+                    />
                   </Button>
                   <Button
-                    variant="ghost"
-                    size="sm"
+                    variant={viewMode === "mobile" ? "outline" : "ghost"}
+                    size={viewMode === "mobile" ? "icon" : "sm"}
                     onClick={() => {
                       setViewMode("mobile")
                       updateViewModeInUrl("mobile")
                       setTimeout(scrollToBottom, 100)
                     }}
-                    className="h-8 w-8 p-0 hover:bg-foreground/5 text-white"
+                    className={`${viewMode === "mobile" ? "h-7 w-7 border-purple-500/30 bg-purple-500/10" : "h-8 w-8 p-0 hover:bg-foreground/5"} text-white`}
                   >
-                    <Smartphone className="h-3 w-3" />
+                    <Smartphone
+                      className={viewMode === "mobile" ? "h-3.5 w-3.5" : viewMode === "laptop" ? "h-4 w-4" : "h-3 w-3"}
+                    />
                   </Button>
                   <Button
-                    variant="outline"
-                    size="sm"
-                    className="h-8 w-8 p-0 border-purple-500/30 bg-purple-500/10 text-white"
+                    variant={viewMode === "stage" ? "outline" : "ghost"}
+                    size={viewMode === "mobile" ? "icon" : "sm"}
+                    onClick={() => {
+                      setViewMode("stage")
+                      updateViewModeInUrl("stage")
+                      setTimeout(scrollToBottom, 100)
+                    }}
+                    className={`${viewMode === "mobile" ? "h-7 w-7" : "h-8 w-8 p-0"} ${viewMode === "stage" ? "border-purple-500/30 bg-purple-500/10" : "hover:bg-foreground/5"} text-white`}
                   >
-                    <Tv className="h-3 w-3" />
+                    <Tv
+                      className={viewMode === "mobile" ? "h-3.5 w-3.5" : viewMode === "laptop" ? "h-4 w-4" : "h-3 w-3"}
+                    />
                   </Button>
                 </div>
               </div>
             </div>
-          </div>
-        </div>
 
-        <div className="flex-1 overflow-hidden px-12 py-8">
-          <div ref={scrollAreaRef} className="h-full overflow-y-auto">
-            <div className="space-y-8">
-              {groupedTranscriptions.map((group, index) => (
-                <div key={index}>
-                  {group.isSessionStart && group.sessionInfo && (
-                    <div className="mb-6 py-4 px-6 bg-purple-500/30 border-2 border-purple-400/50 rounded-xl">
-                      <div className="flex items-center gap-3 text-purple-200 text-2xl font-bold">
-                        <Radio className="h-6 w-6" />
-                        New Session: {group.sessionInfo.name}
-                      </div>
-                    </div>
-                  )}
-                  <div className="space-y-2">
-                    <div className="text-sm text-purple-400/60 uppercase tracking-wider">
-                      {group.timestamp.toLocaleTimeString("en-US", {
-                        hour: "2-digit",
-                        minute: "2-digit",
-                        second: "2-digit",
-                      })}
-                    </div>
-                    <div className="text-5xl md:text-6xl lg:text-7xl leading-tight text-white font-bold space-y-4">
-                      {group.texts.map((text, textIndex) => {
-                        const transcriptionIndex = displayTranscriptions.findIndex((t) => t.text === text)
-                        const transcription =
-                          transcriptionIndex >= 0 ? displayTranscriptions[transcriptionIndex] : undefined
-                        const isLastInGroup = textIndex === group.texts.length - 1
-                        const isLastGroup = index === groupedTranscriptions.length - 1
-                        const shouldAnimate =
-                          isLastInGroup && isLastGroup && transcription?.id === newestTranscriptionId
+            {viewMode === "mobile" && eventDescription && (
+              <p className="text-sm text-slate-300 mb-3">{eventDescription}</p>
+            )}
 
-                        return (
-                          <span key={textIndex}>
-                            <TranscriptionText text={text} shouldAnimate={shouldAnimate} />
-                            {textIndex < group.texts.length - 1 && " "}
-                          </span>
-                        )
-                      })}
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      </div>
-    )
-  }
-
-  // Mobile View
-  if (viewMode === "mobile") {
-    console.log("[v0] Mobile View - Rendering groups:", groupedTranscriptions.length)
-    groupedTranscriptions.forEach((group, idx) => {
-      console.log(`[v0] Mobile View - Group ${idx}:`, {
-        timestamp: group.timestamp,
-        textCount: group.texts.length,
-        texts: group.texts.slice(0, 2), // First 2 texts
-        sessionInfo: group.sessionInfo?.name,
-      })
-    })
-
-    return (
-      <div className="flex flex-col h-screen bg-black overflow-hidden">
-        <div className="bg-black border-b border-border flex-shrink-0">
-          <div className="px-4 py-3">
-            <div className="flex items-center justify-between gap-2">
-              <div className="flex items-center gap-2 min-w-0 flex-1">
-                {logoUrl && (
-                  <img
-                    src={logoUrl || "/placeholder.svg"}
-                    alt={`${eventName} logo`}
-                    className="h-8 w-8 object-contain rounded flex-shrink-0"
-                  />
-                )}
-                <Badge
-                  variant={isStreaming ? "default" : "secondary"}
-                  className={`px-2 py-1 text-xs flex-shrink-0 ${isStreaming ? "bg-red-600" : ""}`}
-                >
-                  {isStreaming ? (
-                    <>
-                      <Radio className="h-3 w-3 mr-1 animate-pulse" />
-                      Live
-                    </>
-                  ) : (
-                    "Offline"
-                  )}
-                </Badge>
-                <h1 className="text-base font-bold text-white truncate">{eventName}</h1>
-              </div>
-              <div className="flex gap-0.5 flex-shrink-0">
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => setAutoScroll(!autoScroll)}
-                  className="h-7 w-7 hover:bg-foreground/5"
-                >
-                  {autoScroll ? <ArrowDownToLine className="h-3.5 w-3.5" /> : <Pause className="h-3.5 w-3.5" />}
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => {
-                    setViewMode("laptop")
-                    updateViewModeInUrl("laptop")
-                    setTimeout(scrollToBottom, 100)
-                  }}
-                  className="h-7 w-7 hover:bg-foreground/5"
-                >
-                  <Monitor className="h-3.5 w-3.5" />
-                </Button>
-                <Button variant="outline" size="icon" className="h-7 w-7 border-purple-500/30 bg-purple-500/10">
-                  <Smartphone className="h-3.5 w-3.5" />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => {
-                    setViewMode("stage")
-                    updateViewModeInUrl("stage")
-                    setTimeout(scrollToBottom, 100)
-                  }}
-                  className="h-7 w-7 hover:bg-foreground/5"
-                >
-                  <Tv className="h-3.5 w-3.5" />
-                </Button>
-              </div>
-            </div>
-            {eventDescription && <p className="text-sm text-slate-300 mb-3">{eventDescription}</p>}
-            {currentSession && (
-              <div className="flex items-center gap-2 p-2 bg-purple-500/10 border border-purple-500/30 rounded-md">
-                <span className="text-xs font-medium text-purple-200">Session:</span>
-                <span className="text-xs text-purple-100">
+            {currentSession && viewMode !== "stage" && (
+              <div
+                className={`${viewMode === "laptop" ? "mt-3" : "mt-2"} flex items-center gap-2 p-${viewMode === "laptop" ? "3" : "2"} bg-purple-500/10 border border-purple-500/30 rounded-${viewMode === "laptop" ? "lg" : "md"}`}
+              >
+                <Radio className={s.iconSize + " text-purple-400"} />
+                <span className={`${s.sessionText} font-medium text-purple-200`}>
+                  {viewMode === "laptop" ? "Current Session:" : "Session:"}
+                </span>
+                <span className={`${s.sessionText} text-purple-100`}>
                   {currentSession.session_number}. {currentSession.name}
                 </span>
               </div>
@@ -660,28 +609,31 @@ export function ViewerInterface({ event, initialViewMode = "laptop" }: ViewerInt
           </div>
         </div>
 
-        <div className="flex-1 overflow-hidden px-4 py-4">
+        {/* Transcription Content */}
+        <div className={s.content}>
           <div ref={scrollAreaRef} className="h-full overflow-y-auto">
-            <div className="space-y-4">
+            <div className={s.groupSpacing}>
               {groupedTranscriptions.map((group, index) => (
                 <div key={index}>
                   {group.isSessionStart && group.sessionInfo && (
-                    <div className="mb-4 py-2 px-3 bg-purple-500/20 border border-purple-500/30 rounded-lg">
-                      <div className="flex items-center gap-2 text-purple-200 text-xs font-semibold">
-                        <Radio className="h-3 w-3" />
+                    <div className={s.sessionBadge}>
+                      <div
+                        className={`flex items-center gap-${viewMode === "stage" ? "3" : "2"} text-purple-200 ${s.sessionText} font-${viewMode === "stage" ? "bold" : "semibold"}`}
+                      >
+                        <Radio className={s.iconSize} />
                         New Session: {group.sessionInfo.name}
                       </div>
                     </div>
                   )}
-                  <div className="space-y-1">
-                    <div className="text-xs text-foreground/40">
+                  <div className={`space-y-${viewMode === "stage" ? "2" : "1"}`}>
+                    <div className={s.timestamp}>
                       {group.timestamp.toLocaleTimeString("en-US", {
                         hour: "2-digit",
                         minute: "2-digit",
                         second: "2-digit",
                       })}
                     </div>
-                    <div className="text-base leading-relaxed text-white">
+                    <div className={s.text}>
                       {group.texts.map((text, textIndex) => {
                         const transcriptionIndex = displayTranscriptions.findIndex((t) => t.text === text)
                         const transcription =
@@ -709,150 +661,5 @@ export function ViewerInterface({ event, initialViewMode = "laptop" }: ViewerInt
     )
   }
 
-  // Laptop/Desktop View (default)
-  console.log("[v0] Laptop View - Rendering groups:", groupedTranscriptions.length)
-  groupedTranscriptions.forEach((group, idx) => {
-    console.log(`[v0] Laptop View - Group ${idx}:`, {
-      timestamp: group.timestamp,
-      textCount: group.texts.length,
-      texts: group.texts.slice(0, 2), // First 2 texts
-      sessionInfo: group.sessionInfo?.name,
-    })
-  })
-
-  return (
-    <div className="flex flex-col h-screen bg-black overflow-hidden">
-      <div className="bg-black border-b border-border flex-shrink-0">
-        <div className="px-4 sm:px-6 lg:px-8 py-4 max-w-7xl mx-auto">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-            <div className="min-w-0 flex-1 flex items-center gap-4">
-              {logoUrl && (
-                <img
-                  src={logoUrl || "/placeholder.svg"}
-                  alt={`${eventName} logo`}
-                  className="h-12 w-12 object-contain rounded-lg flex-shrink-0"
-                />
-              )}
-              <div className="min-w-0 flex-1">
-                <h1 className="text-xl sm:text-2xl font-bold text-white truncate">{eventName}</h1>
-                {eventDescription && <p className="text-sm text-foreground/60 mt-1">{eventDescription}</p>}
-                {!eventDescription && <p className="text-sm text-foreground/60">Live Transcription</p>}
-              </div>
-            </div>
-            <div className="flex items-center gap-3 flex-shrink-0">
-              <Badge
-                variant={isStreaming ? "default" : "secondary"}
-                className={`px-3 py-1 ${isStreaming ? "bg-red-600" : ""}`}
-              >
-                {isStreaming ? (
-                  <>
-                    <Radio className="h-3 w-3 mr-2 animate-pulse" />
-                    Live
-                  </>
-                ) : (
-                  "Offline"
-                )}
-              </Badge>
-              <Button variant="ghost" size="sm" onClick={() => setAutoScroll(!autoScroll)} className="gap-2">
-                {autoScroll ? (
-                  <>
-                    <ArrowDownToLine className="h-4 w-4" />
-                    Auto-scroll
-                  </>
-                ) : (
-                  <>
-                    <Pause className="h-4 w-4" />
-                    Paused
-                  </>
-                )}
-              </Button>
-              <div className="flex gap-1 border-l border-border pl-3">
-                <Button variant="outline" size="sm" className="gap-2 border-purple-500/30 bg-purple-500/10">
-                  <Monitor className="h-4 w-4" />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-8 w-8 hover:bg-foreground/5 flex-shrink-0"
-                  onClick={() => {
-                    setViewMode("mobile")
-                    updateViewModeInUrl("mobile")
-                    setTimeout(scrollToBottom, 100)
-                  }}
-                >
-                  <Smartphone className="h-4 w-4" />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-8 w-8 hover:bg-foreground/5 flex-shrink-0"
-                  onClick={() => {
-                    setViewMode("stage")
-                    updateViewModeInUrl("stage")
-                    setTimeout(scrollToBottom, 100)
-                  }}
-                >
-                  <Tv className="h-4 w-4" />
-                </Button>
-              </div>
-            </div>
-          </div>
-          {currentSession && (
-            <div className="mt-3 flex items-center gap-2 p-3 bg-purple-500/10 border border-purple-500/30 rounded-lg">
-              <Radio className="h-4 w-4 text-purple-400" />
-              <span className="text-sm font-medium text-purple-200">Current Session:</span>
-              <span className="text-sm text-purple-100">
-                {currentSession.session_number}. {currentSession.name}
-              </span>
-            </div>
-          )}
-        </div>
-      </div>
-
-      <div className="flex-1 overflow-hidden px-4 sm:px-6 lg:px-8 py-6 max-w-7xl mx-auto w-full">
-        <div ref={scrollAreaRef} className="h-full overflow-y-auto">
-          <div className="space-y-6">
-            {groupedTranscriptions.map((group, index) => (
-              <div key={index}>
-                {group.isSessionStart && group.sessionInfo && (
-                  <div className="mb-6 py-3 px-4 bg-purple-500/20 border border-purple-500/30 rounded-lg">
-                    <div className="flex items-center gap-2 text-purple-200 text-sm font-semibold">
-                      <Radio className="h-4 w-4" />
-                      New Session: {group.sessionInfo.name}
-                    </div>
-                  </div>
-                )}
-                <div className="space-y-2">
-                  <div className="text-xs text-foreground/40 uppercase tracking-wide">
-                    {group.timestamp.toLocaleTimeString("en-US", {
-                      hour: "2-digit",
-                      minute: "2-digit",
-                      second: "2-digit",
-                    })}
-                  </div>
-                  <div className="text-lg leading-relaxed text-white">
-                    {group.texts.map((text, textIndex) => {
-                      const transcriptionIndex = displayTranscriptions.findIndex((t) => t.text === text)
-                      const transcription =
-                        transcriptionIndex >= 0 ? displayTranscriptions[transcriptionIndex] : undefined
-                      const isLastInGroup = textIndex === group.texts.length - 1
-                      const isLastGroup = index === groupedTranscriptions.length - 1
-                      const shouldAnimate = isLastInGroup && isLastGroup && transcription?.id === newestTranscriptionId
-
-                      return (
-                        <span key={textIndex}>
-                          <TranscriptionText text={text} shouldAnimate={shouldAnimate} />
-                          {textIndex < group.texts.length - 1 && " "}
-                        </span>
-                      )
-                    })}
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-    </div>
-  )
+  return <TranscriptionContent viewMode={viewMode} />
 }
