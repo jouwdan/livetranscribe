@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useMemo } from "react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { ArrowDownToLine, Pause, Radio, Type, Plus, Minus, Sun, Moon } from "lucide-react"
+import { ArrowDownToLine, Radio, Type, Plus, Minus, Sun, Moon, ArrowUpFromLine } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
 import type { RealtimeChannel } from "@supabase/supabase-js"
 import type { EventSession } from "@/types/event-session"
@@ -443,8 +443,10 @@ export function ViewerInterface({ event, slug }: ViewerInterfaceProps) {
                   variant="ghost"
                   size="sm"
                   onClick={() => setAutoScroll(!autoScroll)}
-                  className={`h-8 px-3 gap-1.5 hover:bg-foreground/5 ${textColorClass} text-xs ${
-                    theme === "dark" ? "hover:bg-white/10" : "hover:bg-gray-200"
+                  className={`h-8 px-3 gap-1.5 text-xs ${
+                    theme === "dark"
+                      ? "text-white hover:bg-white/10"
+                      : "text-gray-900 hover:bg-gray-200 hover:text-gray-900"
                   }`}
                 >
                   {autoScroll ? (
@@ -454,7 +456,7 @@ export function ViewerInterface({ event, slug }: ViewerInterfaceProps) {
                     </>
                   ) : (
                     <>
-                      <Pause className="h-3 w-3" />
+                      <ArrowUpFromLine className="h-3 w-3" />
                       Paused
                     </>
                   )}
@@ -465,8 +467,10 @@ export function ViewerInterface({ event, slug }: ViewerInterfaceProps) {
                   variant="ghost"
                   size="sm"
                   onClick={toggleTheme}
-                  className={`h-8 w-8 p-0 ${textColorClass} ${
-                    theme === "dark" ? "hover:bg-white/10" : "hover:bg-gray-200"
+                  className={`h-8 w-8 p-0 ${
+                    theme === "dark"
+                      ? "text-white hover:bg-white/10"
+                      : "text-gray-900 hover:bg-gray-200 hover:text-gray-900"
                   }`}
                   title={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
                 >
@@ -480,8 +484,10 @@ export function ViewerInterface({ event, slug }: ViewerInterfaceProps) {
                     size="sm"
                     onClick={decreaseFontSize}
                     disabled={fontSize === "xs"}
-                    className={`h-8 w-8 p-0 ${textColorClass} disabled:opacity-30 disabled:cursor-not-allowed ${
-                      theme === "dark" ? "hover:bg-white/10" : "hover:bg-gray-200"
+                    className={`h-8 w-8 p-0 disabled:opacity-30 disabled:cursor-not-allowed ${
+                      theme === "dark"
+                        ? "text-white hover:bg-white/10"
+                        : "text-gray-900 hover:bg-gray-200 hover:text-gray-900"
                     }`}
                     title="Decrease text size"
                   >
@@ -495,8 +501,10 @@ export function ViewerInterface({ event, slug }: ViewerInterfaceProps) {
                     size="sm"
                     onClick={increaseFontSize}
                     disabled={fontSize === "xxl"}
-                    className={`h-8 w-8 p-0 ${textColorClass} disabled:opacity-30 disabled:cursor-not-allowed ${
-                      theme === "dark" ? "hover:bg-white/10" : "hover:bg-gray-200"
+                    className={`h-8 w-8 p-0 disabled:opacity-30 disabled:cursor-not-allowed ${
+                      theme === "dark"
+                        ? "text-white hover:bg-white/10"
+                        : "text-gray-900 hover:bg-gray-200 hover:text-gray-900"
                     }`}
                     title="Increase text size"
                   >
