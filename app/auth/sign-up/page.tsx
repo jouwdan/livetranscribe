@@ -48,6 +48,17 @@ export default function SignUpPage() {
             <form onSubmit={handleSignUp}>
               <div className="flex flex-col gap-6">
                 <div className="grid gap-2">
+                  <Label htmlFor="access-key">Beta Access Key</Label>
+                  <Input id="access-key" name="access-key" type="text" placeholder="BETA-XXXX-XXXX" required />
+                  <p className="text-xs text-muted-foreground">
+                    Don't have a key?{" "}
+                    <Link href="/beta" className="underline">
+                      Request beta access
+                    </Link>
+                  </p>
+                </div>
+                {/* End of added beta access key field */}
+                <div className="grid gap-2">
                   <Label htmlFor="email">Email</Label>
                   <Input id="email" name="email" type="email" placeholder="you@example.com" required />
                 </div>
