@@ -3,9 +3,10 @@
 import { useState, useEffect, useRef, useMemo } from "react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Radio, ArrowDownToLine, Pause, Monitor, Smartphone, Tv } from "lucide-react"
+import { ArrowDownToLine, Pause, Radio, Type } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
 import type { RealtimeChannel } from "@supabase/supabase-js"
+import type { EventSession } from "@/types/event-session"
 
 interface Transcription {
   id: string
@@ -35,7 +36,7 @@ interface ViewerInterfaceProps {
   slug: string
 }
 
-type DisplayMode = "laptop" | "mobile" | "stage"
+type FontSize = "small" | "medium" | "large"
 
 const StreamingText = ({
   text,
@@ -95,26 +96,12 @@ const TranscriptionText = ({
 
 export function ViewerInterface({ event, slug }: ViewerInterfaceProps) {
   const [transcriptions, setTranscriptions] = useState<Transcription[]>([])
-  const [isStreaming, setIsStreaming] = useState(false)
-  const [eventName, setEventName] = useState(event?.name || "Live Event")
-  const [eventDescription, setEventDescription] = useState(event?.description || "")
-  const [logoUrl, setLogoUrl] = useState(event?.logo_url || null)
-  const [isConnected, setIsConnected] = useState(false)
+  const [isLive, setIsLive] = useState(false)
   const [autoScroll, setAutoScroll] = useState(true)
-  const [viewMode, setViewMode] = useState<DisplayMode>("laptop")
-  const [newestTranscriptionId, setNewestTranscriptionId] = useState<string | null>(null)
+  const [currentSession, setCurrentSession] = useState<EventSession | null>(null)
   const scrollAreaRef = useRef<HTMLDivElement>(null)
-  const lastTranscriptionRef = useRef<HTMLDivElement>(null)
-  const transcriptionsViewedRef = useRef(0)
-  const lastTranscriptionTimeRef = useRef(Date.now())
-  const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null)
-  const latestSequenceRef = useRef(0)
-  const [currentSession, setCurrentSession] = useState<any | null>(null)
-  const [description, setDescription] = useState<string | null>(null)
-  const [error, setError] = useState<string | null>(null)
-  const initialLoadCompleteRef = useRef(false)
-  const supabase = createClient()
-  const [streamingStatusMessage, setStreamingStatusMessage] = useState<string | null>(null)
+  const [newestTranscriptionId, setNewestTranscriptionId] = useState<string | null>(null)
+  const [fontSize, setFontSize] = useState<FontSize>("medium")
 
   useEffect(() => {
     let isSubscribed = true
@@ -125,13 +112,9 @@ export function ViewerInterface({ event, slug }: ViewerInterfaceProps) {
       const result = await response.json()
 
       if (result.error) {
-        setError(result.error)
+        console.error("Error initializing viewer:", result.error)
         return
       }
-
-      setEventName(result.metadata?.name || eventName)
-      setEventDescription(result.metadata?.description || eventDescription)
-      setLogoUrl(result.metadata?.logo_url || logoUrl)
 
       if (result.transcriptions) {
         const filtered = result.transcriptions.filter((t: any) => t.isFinal)
@@ -145,16 +128,11 @@ export function ViewerInterface({ event, slug }: ViewerInterfaceProps) {
             sessionId: t.sessionId,
           })),
         )
-        transcriptionsViewedRef.current = filtered.filter((t: any) => t.isFinal).length
-        if (filtered.length > 0) {
-          latestSequenceRef.current = Math.max(...filtered.map((t: any) => t.sequenceNumber))
-        }
-        initialLoadCompleteRef.current = true
       }
 
       const channelName = `transcriptions-${event.slug}`
 
-      channel = supabase
+      channel = createClient()
         .channel(channelName, {
           config: {
             broadcast: { self: true },
@@ -174,15 +152,13 @@ export function ViewerInterface({ event, slug }: ViewerInterfaceProps) {
 
             const newTranscription = payload.new as any
 
-            lastTranscriptionTimeRef.current = Date.now()
-
             if (!newTranscription.text || newTranscription.text.trim() === "" || !newTranscription.is_final) {
               return
             }
 
             let sessionInfo = null
             if (newTranscription.session_id) {
-              const { data: sessionData } = await supabase
+              const { data: sessionData } = await createClient()
                 .from("event_sessions")
                 .select("name, session_number")
                 .eq("id", newTranscription.session_id)
@@ -195,9 +171,6 @@ export function ViewerInterface({ event, slug }: ViewerInterfaceProps) {
                 return prev
               }
 
-              transcriptionsViewedRef.current += 1
-              latestSequenceRef.current = Math.max(latestSequenceRef.current, newTranscription.sequence_number)
-
               const newItem = {
                 id: newTranscription.id,
                 text: newTranscription.text,
@@ -208,7 +181,7 @@ export function ViewerInterface({ event, slug }: ViewerInterfaceProps) {
                 sessionInfo,
               }
 
-              if (initialLoadCompleteRef.current) {
+              if (prev.length > 0) {
                 setNewestTranscriptionId(newTranscription.id)
                 setTimeout(() => {
                   setNewestTranscriptionId(null)
@@ -218,35 +191,28 @@ export function ViewerInterface({ event, slug }: ViewerInterfaceProps) {
               return [...prev, newItem].sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime())
             })
 
-            setIsConnected(true)
+            setIsLive(true)
           },
         )
         .on("broadcast", { event: "streaming_status" }, (payload: any) => {
           const { status, sessionId, timestamp } = payload.payload
 
           if (status === "started") {
-            setIsStreaming(true)
-            setStreamingStatusMessage("Streaming started")
-            setTimeout(() => setStreamingStatusMessage(null), 5000)
+            setIsLive(true)
           } else if (status === "stopped") {
-            setIsStreaming(false)
-            setStreamingStatusMessage("Streaming stopped")
-            setTimeout(() => setStreamingStatusMessage(null), 5000)
+            setIsLive(false)
           }
         })
         .subscribe((status, err) => {
           if (err) {
             console.error("Supabase subscription error:", err)
           }
-          if (isSubscribed) {
-            setIsConnected(status === "SUBSCRIBED")
-          }
         })
 
       return () => {
         isSubscribed = false
         if (channel) {
-          supabase.removeChannel(channel)
+          createClient().removeChannel(channel)
         }
       }
     }
@@ -259,11 +225,11 @@ export function ViewerInterface({ event, slug }: ViewerInterfaceProps) {
     let pingInterval: NodeJS.Timeout | null = null
 
     const setupViewerTracking = async () => {
-      const { data: eventData } = await supabase.from("events").select("id").eq("slug", event.slug).single()
+      const { data: eventData } = await createClient().from("events").select("id").eq("slug", event.slug).single()
 
       if (!eventData) return
 
-      await supabase.from("viewer_sessions").insert({
+      await createClient().from("viewer_sessions").insert({
         event_id: eventData.id,
         session_id: sessionId,
         joined_at: new Date().toISOString(),
@@ -275,7 +241,7 @@ export function ViewerInterface({ event, slug }: ViewerInterfaceProps) {
       })
 
       pingInterval = setInterval(async () => {
-        await supabase
+        await createClient()
           .from("viewer_sessions")
           .update({
             last_ping: new Date().toISOString(),
@@ -295,9 +261,9 @@ export function ViewerInterface({ event, slug }: ViewerInterfaceProps) {
     return () => {
       clearInterval(pingInterval)
       const cleanup = async () => {
-        const { data: eventData } = await supabase.from("events").select("id").eq("slug", event.slug).single()
+        const { data: eventData } = await createClient().from("events").select("id").eq("slug", event.slug).single()
         if (eventData) {
-          await supabase
+          await createClient()
             .from("viewer_sessions")
             .update({
               left_at: new Date().toISOString(),
@@ -320,30 +286,6 @@ export function ViewerInterface({ event, slug }: ViewerInterfaceProps) {
     const scrollContainer = scrollAreaRef.current
     scrollContainer.scrollTop = scrollContainer.scrollHeight
   }, [transcriptions, autoScroll, newestTranscriptionId])
-
-  useEffect(() => {
-    if (scrollAreaRef.current && initialLoadCompleteRef.current) {
-      const scrollContainer = scrollAreaRef.current
-      scrollContainer.scrollTop = scrollContainer.scrollHeight
-    }
-  }, [initialLoadCompleteRef.current])
-
-  useEffect(() => {
-    const handleScroll = () => {
-      if (!scrollAreaRef.current) return
-
-      const { scrollTop, scrollHeight, clientHeight } = scrollAreaRef.current
-      const isAtBottom = scrollHeight - scrollTop - clientHeight < 50
-
-      setAutoScroll(isAtBottom)
-    }
-
-    const scrollContainer = scrollAreaRef.current
-    if (scrollContainer) {
-      scrollContainer.addEventListener("scroll", handleScroll)
-      return () => scrollContainer.removeEventListener("scroll", handleScroll)
-    }
-  }, [])
 
   const displayTranscriptions = useMemo(() => {
     return transcriptions
@@ -410,198 +352,118 @@ export function ViewerInterface({ event, slug }: ViewerInterfaceProps) {
     )
   }, [groupedTranscriptions, displayTranscriptions])
 
-  const updateViewModeInUrl = (mode: DisplayMode) => {
-    const url = new URL(window.location.href)
-    url.searchParams.set("view", mode)
-    window.history.pushState({}, "", url.toString())
-  }
-
   const scrollToBottom = () => {
     if (scrollAreaRef.current) {
       scrollAreaRef.current.scrollTop = scrollAreaRef.current.scrollHeight
     }
   }
 
-  const TranscriptionContent = ({ viewMode }: { viewMode: DisplayMode }) => {
-    const styles = {
-      stage: {
-        container: "flex flex-col h-screen bg-black overflow-hidden",
-        header: "bg-gradient-to-b from-slate-950 to-black border-b border-border/50 flex-shrink-0 shadow-2xl",
-        headerPadding: "px-6 sm:px-8 lg:px-12 py-6",
-        logo: "h-16 w-16",
-        badge: "px-3 py-1.5 text-base mb-3",
-        title: "text-2xl",
-        content: "flex-1 overflow-hidden px-12 py-8",
-        groupSpacing: "space-y-8",
-        timestamp: "text-sm text-purple-400/60 uppercase tracking-wider",
-        text: "text-5xl md:text-6xl lg:text-7xl leading-tight text-white font-bold space-y-4",
-        sessionBadge: "mb-6 py-4 px-6 bg-purple-500/30 border-2 border-purple-400/50 rounded-xl",
-        sessionText: "text-2xl",
-        iconSize: "h-6 w-6",
-      },
-      mobile: {
-        container: "flex flex-col h-screen bg-black overflow-hidden",
-        header: "bg-black border-b border-border flex-shrink-0",
-        headerPadding: "px-4 py-3",
-        logo: "h-8 w-8",
-        badge: "px-2 py-1 text-xs flex-shrink-0",
-        title: "text-base",
-        content: "flex-1 overflow-hidden px-4 py-4",
-        groupSpacing: "space-y-4",
-        timestamp: "text-xs text-foreground/40",
-        text: "text-base leading-relaxed text-white",
-        sessionBadge: "mb-4 py-2 px-3 bg-purple-500/20 border border-purple-500/30 rounded-lg",
-        sessionText: "text-xs",
-        iconSize: "h-3 w-3",
-      },
-      laptop: {
-        container: "flex flex-col h-screen bg-black overflow-hidden",
-        header: "bg-black border-b border-border flex-shrink-0",
-        headerPadding: "px-4 sm:px-6 lg:px-8 py-4 max-w-7xl mx-auto",
-        logo: "h-12 w-12",
-        badge: "px-3 py-1",
-        title: "text-xl sm:text-2xl",
-        content: "flex-1 overflow-hidden px-4 sm:px-6 lg:px-8 py-6 max-w-7xl mx-auto w-full",
-        groupSpacing: "space-y-6",
-        timestamp: "text-xs text-foreground/40 uppercase tracking-wide",
-        text: "text-lg leading-relaxed text-white",
-        sessionBadge: "mb-6 py-3 px-4 bg-purple-500/20 border border-purple-500/30 rounded-lg",
-        sessionText: "text-sm",
-        iconSize: "h-4 w-4",
-      },
+  const TranscriptionContent = ({ fontSize }: { fontSize: FontSize }) => {
+    const fontSizeClasses = {
+      small: "text-base leading-relaxed",
+      medium: "text-xl leading-relaxed",
+      large: "text-3xl md:text-4xl leading-tight",
     }
 
-    const s = styles[viewMode]
+    const textClass = fontSizeClasses[fontSize]
 
     return (
-      <div key={`${viewMode}-view`} className={s.container}>
+      <div className="flex flex-col h-screen bg-black overflow-hidden" key={fontSize}>
         {/* Header */}
-        <div className={s.header}>
-          <div className={s.headerPadding}>
-            <div className="flex items-center justify-between gap-4">
-              <div className="min-w-0 flex-1 flex items-center gap-4">
-                {logoUrl && (
+        <div className="bg-black border-b border-border flex-shrink-0">
+          <div className="px-4 sm:px-6 lg:px-8 py-4 max-w-7xl mx-auto">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+              <div className="flex items-center gap-4">
+                {event?.logo_url && (
                   <img
-                    src={logoUrl || "/placeholder.svg"}
-                    alt={`${eventName} logo`}
-                    className={`${s.logo} object-contain rounded-lg flex-shrink-0`}
+                    src={event.logo_url || "/placeholder.svg"}
+                    alt="Event logo"
+                    className="h-12 w-12 rounded-lg object-contain"
                   />
                 )}
-                <div className="min-w-0 flex-1">
-                  <Badge
-                    variant={isStreaming ? "default" : "secondary"}
-                    className={`${s.badge} ${isStreaming ? "bg-red-600" : ""}`}
-                  >
-                    {isStreaming ? (
-                      <>
-                        <Radio
-                          className={`${s.iconSize} mr-2 ${viewMode === "laptop" || viewMode === "mobile" ? "animate-pulse" : ""}`}
-                        />
-                        {viewMode === "stage" ? "LIVE" : "Live"}
-                      </>
-                    ) : (
-                      <>{viewMode === "stage" ? "OFFLINE" : "Offline"}</>
-                    )}
-                  </Badge>
-                  <h1 className={`${s.title} font-bold text-white ${viewMode === "laptop" ? "truncate" : ""}`}>
-                    {eventName}
-                  </h1>
-                  {viewMode === "laptop" && eventDescription && (
-                    <p className="text-sm text-foreground/60 mt-1">{eventDescription}</p>
-                  )}
-                  {viewMode === "laptop" && !eventDescription && (
-                    <p className="text-sm text-foreground/60">Live Transcription</p>
-                  )}
+                <div>
+                  <h1 className="text-xl sm:text-2xl font-bold text-white">Live Transcription</h1>
+                  {event?.name && <p className="text-sm text-muted-foreground mt-0.5">{event.name}</p>}
                 </div>
               </div>
 
-              {/* View Mode Controls */}
+              {/* Controls */}
               <div className="flex gap-2 items-center flex-shrink-0">
+                <Badge
+                  variant={isLive ? "default" : "secondary"}
+                  className={`px-3 py-1 ${isLive ? "bg-green-600 hover:bg-green-700" : "bg-muted"}`}
+                >
+                  {isLive ? "Live" : "Offline"}
+                </Badge>
+
+                {/* Auto-scroll toggle */}
                 <Button
                   variant="ghost"
-                  size={viewMode === "mobile" ? "icon" : "sm"}
+                  size="sm"
                   onClick={() => setAutoScroll(!autoScroll)}
-                  className={
-                    viewMode === "mobile"
-                      ? "h-7 w-7 hover:bg-foreground/5"
-                      : "h-8 px-3 gap-1.5 hover:bg-foreground/5 text-white text-xs"
-                  }
+                  className="h-8 px-3 gap-1.5 hover:bg-foreground/5 text-white text-xs"
                 >
                   {autoScroll ? (
                     <>
-                      <ArrowDownToLine className={viewMode === "mobile" ? "h-3.5 w-3.5" : "h-3 w-3"} />
-                      {viewMode !== "mobile" && "Auto"}
+                      <ArrowDownToLine className="h-3 w-3" />
+                      Auto-scroll
                     </>
                   ) : (
                     <>
-                      <Pause className={viewMode === "mobile" ? "h-3.5 w-3.5" : "h-3 w-3"} />
-                      {viewMode !== "mobile" && "Paused"}
+                      <Pause className="h-3 w-3" />
+                      Paused
                     </>
                   )}
                 </Button>
 
-                <div
-                  className={`flex ${viewMode === "mobile" ? "gap-0.5" : "gap-1"} ${viewMode === "laptop" ? "border-l border-border pl-3" : ""}`}
-                >
+                {/* Font size toggle */}
+                <div className="flex gap-1 border-l border-border pl-3">
                   <Button
-                    variant={viewMode === "laptop" ? "outline" : "ghost"}
-                    size={viewMode === "mobile" ? "icon" : "sm"}
+                    variant={fontSize === "small" ? "outline" : "ghost"}
+                    size="sm"
                     onClick={() => {
-                      setViewMode("laptop")
-                      updateViewModeInUrl("laptop")
+                      setFontSize("small")
                       setTimeout(scrollToBottom, 100)
                     }}
-                    className={`${viewMode === "mobile" ? "h-7 w-7" : "h-8 w-8 p-0"} ${viewMode === "laptop" ? "gap-2 border-purple-500/30 bg-purple-500/10" : "hover:bg-foreground/5"} text-white`}
+                    className={`h-8 w-8 p-0 ${fontSize === "small" ? "border-purple-500/30 bg-purple-500/10" : "hover:bg-foreground/5"} text-white`}
+                    title="Small text"
                   >
-                    <Monitor
-                      className={viewMode === "mobile" ? "h-3.5 w-3.5" : viewMode === "laptop" ? "h-4 w-4" : "h-3 w-3"}
-                    />
+                    <Type className="h-3 w-3" />
                   </Button>
                   <Button
-                    variant={viewMode === "mobile" ? "outline" : "ghost"}
-                    size={viewMode === "mobile" ? "icon" : "sm"}
+                    variant={fontSize === "medium" ? "outline" : "ghost"}
+                    size="sm"
                     onClick={() => {
-                      setViewMode("mobile")
-                      updateViewModeInUrl("mobile")
+                      setFontSize("medium")
                       setTimeout(scrollToBottom, 100)
                     }}
-                    className={`${viewMode === "mobile" ? "h-7 w-7 border-purple-500/30 bg-purple-500/10" : "h-8 w-8 p-0 hover:bg-foreground/5"} text-white`}
+                    className={`h-8 w-8 p-0 ${fontSize === "medium" ? "border-purple-500/30 bg-purple-500/10" : "hover:bg-foreground/5"} text-white`}
+                    title="Medium text"
                   >
-                    <Smartphone
-                      className={viewMode === "mobile" ? "h-3.5 w-3.5" : viewMode === "laptop" ? "h-4 w-4" : "h-3 w-3"}
-                    />
+                    <Type className="h-4 w-4" />
                   </Button>
                   <Button
-                    variant={viewMode === "stage" ? "outline" : "ghost"}
-                    size={viewMode === "mobile" ? "icon" : "sm"}
+                    variant={fontSize === "large" ? "outline" : "ghost"}
+                    size="sm"
                     onClick={() => {
-                      setViewMode("stage")
-                      updateViewModeInUrl("stage")
+                      setFontSize("large")
                       setTimeout(scrollToBottom, 100)
                     }}
-                    className={`${viewMode === "mobile" ? "h-7 w-7" : "h-8 w-8 p-0"} ${viewMode === "stage" ? "border-purple-500/30 bg-purple-500/10" : "hover:bg-foreground/5"} text-white`}
+                    className={`h-8 w-8 p-0 ${fontSize === "large" ? "border-purple-500/30 bg-purple-500/10" : "hover:bg-foreground/5"} text-white`}
+                    title="Large text"
                   >
-                    <Tv
-                      className={viewMode === "mobile" ? "h-3.5 w-3.5" : viewMode === "laptop" ? "h-4 w-4" : "h-3 w-3"}
-                    />
+                    <Type className="h-5 w-5" />
                   </Button>
                 </div>
               </div>
             </div>
 
-            {viewMode === "mobile" && eventDescription && (
-              <p className="text-sm text-slate-300 mb-3">{eventDescription}</p>
-            )}
-
-            {currentSession && viewMode !== "stage" && (
-              <div
-                className={`${viewMode === "laptop" ? "mt-3" : "mt-2"} flex items-center gap-2 p-${viewMode === "laptop" ? "3" : "2"} bg-purple-500/10 border border-purple-500/30 rounded-${viewMode === "laptop" ? "lg" : "md"}`}
-              >
-                <Radio className={s.iconSize + " text-purple-400"} />
-                <span className={`${s.sessionText} font-medium text-purple-200`}>
-                  {viewMode === "laptop" ? "Current Session:" : "Session:"}
-                </span>
-                <span className={`${s.sessionText} text-purple-100`}>
+            {/* Current Session Badge */}
+            {currentSession && (
+              <div className="mt-3 flex items-center gap-2 p-3 bg-purple-500/10 border border-purple-500/30 rounded-lg">
+                <Radio className="h-4 w-4 text-purple-400" />
+                <span className="text-sm font-medium text-purple-200">Current Session:</span>
+                <span className="text-sm text-purple-100">
                   {currentSession.session_number}. {currentSession.name}
                 </span>
               </div>
@@ -610,30 +472,28 @@ export function ViewerInterface({ event, slug }: ViewerInterfaceProps) {
         </div>
 
         {/* Transcription Content */}
-        <div className={s.content}>
+        <div className="flex-1 overflow-hidden px-4 sm:px-6 lg:px-8 py-6 max-w-7xl mx-auto w-full">
           <div ref={scrollAreaRef} className="h-full overflow-y-auto">
-            <div className={s.groupSpacing}>
+            <div className="space-y-6">
               {groupedTranscriptions.map((group, index) => (
                 <div key={index}>
                   {group.isSessionStart && group.sessionInfo && (
-                    <div className={s.sessionBadge}>
-                      <div
-                        className={`flex items-center gap-${viewMode === "stage" ? "3" : "2"} text-purple-200 ${s.sessionText} font-${viewMode === "stage" ? "bold" : "semibold"}`}
-                      >
-                        <Radio className={s.iconSize} />
+                    <div className="mb-6 py-3 px-4 bg-purple-500/20 border border-purple-500/30 rounded-lg">
+                      <div className="flex items-center gap-2 text-purple-200 text-sm font-semibold">
+                        <Radio className="h-4 w-4" />
                         New Session: {group.sessionInfo.name}
                       </div>
                     </div>
                   )}
-                  <div className={`space-y-${viewMode === "stage" ? "2" : "1"}`}>
-                    <div className={s.timestamp}>
+                  <div className="space-y-1">
+                    <div className="text-xs text-foreground/40 uppercase tracking-wide">
                       {group.timestamp.toLocaleTimeString("en-US", {
                         hour: "2-digit",
                         minute: "2-digit",
                         second: "2-digit",
                       })}
                     </div>
-                    <div className={s.text}>
+                    <div className={`${textClass} text-white font-bold`}>
                       {group.texts.map((text, textIndex) => {
                         const transcriptionIndex = displayTranscriptions.findIndex((t) => t.text === text)
                         const transcription =
@@ -661,5 +521,5 @@ export function ViewerInterface({ event, slug }: ViewerInterfaceProps) {
     )
   }
 
-  return <TranscriptionContent viewMode={viewMode} />
+  return <TranscriptionContent fontSize={fontSize} />
 }
