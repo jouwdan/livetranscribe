@@ -3,10 +3,20 @@
 import { useState, useEffect, useRef, useMemo } from "react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { ArrowDownToLine, Radio, Type, Plus, Minus, Sun, Moon, ArrowUpFromLine } from "lucide-react"
+import { ArrowDownToLine, ArrowUpFromLine, Radio, Sun, Moon, Minus, Plus, Settings } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
 import type { RealtimeChannel } from "@supabase/supabase-js"
 import type { EventSession } from "@/types/event-session"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+} from "@/components/ui/dropdown-menu"
 
 interface Transcription {
   id: string
@@ -32,12 +42,15 @@ interface ViewerInterfaceProps {
     name: string
     description?: string | null
     logo_url?: string | null
+    event_name?: string
+    speaker?: string
   }
   slug: string
 }
 
 type FontSize = "xs" | "small" | "medium" | "large" | "xl" | "xxl"
-type Theme = "light" | "dark"
+type Theme = "dark" | "light"
+type FontFamily = "sans" | "serif" | "mono" | "inter" | "roboto" | "merriweather" | "playfair"
 
 const StreamingText = ({
   text,
@@ -104,11 +117,16 @@ export function ViewerInterface({ event, slug }: ViewerInterfaceProps) {
   const [newestTranscriptionId, setNewestTranscriptionId] = useState<string | null>(null)
   const [fontSize, setFontSize] = useState<FontSize>("medium")
   const [theme, setTheme] = useState<Theme>("dark")
+  const [fontFamily, setFontFamily] = useState<FontFamily>("sans")
 
   useEffect(() => {
     const savedTheme = localStorage.getItem("viewer-theme") as Theme | null
     if (savedTheme) {
       setTheme(savedTheme)
+    }
+    const savedFont = localStorage.getItem("viewer-font") as FontFamily | null
+    if (savedFont) {
+      setFontFamily(savedFont)
     }
   }, [])
 
@@ -116,6 +134,11 @@ export function ViewerInterface({ event, slug }: ViewerInterfaceProps) {
     const newTheme = theme === "dark" ? "light" : "dark"
     setTheme(newTheme)
     localStorage.setItem("viewer-theme", newTheme)
+  }
+
+  const changeFontFamily = (font: FontFamily) => {
+    setFontFamily(font)
+    localStorage.setItem("viewer-font", font)
   }
 
   useEffect(() => {
@@ -359,10 +382,20 @@ export function ViewerInterface({ event, slug }: ViewerInterfaceProps) {
   }, [displayTranscriptions])
 
   const allDisplayItems = useMemo(() => {
-    return groupedTranscriptions.flatMap((group) =>
-      group.texts.map((text) => {
-        const t = displayTranscriptions.find((tr) => tr.text === text)
-        return { id: t?.id || "", text }
+    return groupedTranscriptions.flatMap((group, index) =>
+      group.texts.map((text, textIndex) => {
+        const transcriptionIndex = displayTranscriptions.findIndex((t) => t.text === text)
+        const transcription = transcriptionIndex >= 0 ? displayTranscriptions[transcriptionIndex] : undefined
+        const isLastInGroup = textIndex === group.texts.length - 1
+        const isLastGroup = index === groupedTranscriptions.length - 1
+        const shouldAnimate = isLastInGroup && isLastGroup && transcription?.id === newestTranscriptionId
+
+        return (
+          <span key={`${index}-${textIndex}`}>
+            <TranscriptionText text={text} shouldAnimate={shouldAnimate} />
+            {textIndex < group.texts.length - 1 && " "}
+          </span>
+        )
       }),
     )
   }, [groupedTranscriptions, displayTranscriptions])
@@ -383,7 +416,18 @@ export function ViewerInterface({ event, slug }: ViewerInterfaceProps) {
       xxl: "text-5xl md:text-6xl lg:text-7xl leading-tight",
     }
 
+    const fontFamilyClasses = {
+      sans: "font-sans",
+      serif: "font-serif",
+      mono: "font-mono",
+      inter: "font-sans",
+      roboto: "font-sans",
+      merriweather: "font-serif",
+      playfair: "font-serif",
+    }
+
     const textClass = fontSizeClasses[fontSize]
+    const fontClass = fontFamilyClasses[fontFamily]
 
     const bgClass = theme === "dark" ? "bg-black" : "bg-white"
     const textColorClass = theme === "dark" ? "text-white" : "text-gray-900"
@@ -407,6 +451,16 @@ export function ViewerInterface({ event, slug }: ViewerInterfaceProps) {
       else if (fontSize === "medium") setFontSize("small")
       else if (fontSize === "small") setFontSize("xs")
       setTimeout(scrollToBottom, 100)
+    }
+
+    const fontFamilyLabels = {
+      sans: "System Sans",
+      serif: "System Serif",
+      mono: "Monospace",
+      inter: "Inter",
+      roboto: "Roboto",
+      merriweather: "Merriweather",
+      playfair: "Playfair Display",
     }
 
     return (
@@ -462,55 +516,208 @@ export function ViewerInterface({ event, slug }: ViewerInterfaceProps) {
                   )}
                 </Button>
 
-                {/* Theme toggle button */}
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={toggleTheme}
-                  className={`h-8 w-8 p-0 ${
-                    theme === "dark"
-                      ? "text-white hover:bg-white/10"
-                      : "text-gray-900 hover:bg-gray-200 hover:text-gray-900"
-                  }`}
-                  title={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
-                >
-                  {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
-                </Button>
+                {/* Settings dropdown menu */}
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className={`h-8 w-8 p-0 ${
+                        theme === "dark"
+                          ? "text-white hover:bg-white/10"
+                          : "text-gray-900 hover:bg-gray-200 hover:text-gray-900"
+                      }`}
+                      title="Display settings"
+                    >
+                      <Settings className="h-4 w-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent
+                    align="end"
+                    className={`w-56 ${
+                      theme === "dark"
+                        ? "bg-black border-gray-800 text-white"
+                        : "bg-white border-gray-200 text-gray-900"
+                    }`}
+                  >
+                    <DropdownMenuLabel className={theme === "dark" ? "text-white" : "text-gray-900"}>
+                      Display Settings
+                    </DropdownMenuLabel>
+                    <DropdownMenuSeparator className={theme === "dark" ? "bg-gray-800" : "bg-gray-200"} />
 
-                {/* Font size controls */}
-                <div className={`flex gap-1 border-l ${borderClass} pl-3 items-center`}>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={decreaseFontSize}
-                    disabled={fontSize === "xs"}
-                    className={`h-8 w-8 p-0 disabled:opacity-30 disabled:cursor-not-allowed ${
-                      theme === "dark"
-                        ? "text-white hover:bg-white/10"
-                        : "text-gray-900 hover:bg-gray-200 hover:text-gray-900"
-                    }`}
-                    title="Decrease text size"
-                  >
-                    <Minus className="h-4 w-4" />
-                  </Button>
-                  <div className="flex items-center justify-center w-8 h-8">
-                    <Type className={`h-4 w-4 ${textColorClass}`} />
-                  </div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={increaseFontSize}
-                    disabled={fontSize === "xxl"}
-                    className={`h-8 w-8 p-0 disabled:opacity-30 disabled:cursor-not-allowed ${
-                      theme === "dark"
-                        ? "text-white hover:bg-white/10"
-                        : "text-gray-900 hover:bg-gray-200 hover:text-gray-900"
-                    }`}
-                    title="Increase text size"
-                  >
-                    <Plus className="h-4 w-4" />
-                  </Button>
-                </div>
+                    {/* Theme Toggle */}
+                    <DropdownMenuItem
+                      onSelect={(e) => e.preventDefault()}
+                      className={`cursor-pointer ${
+                        theme === "dark"
+                          ? "hover:bg-white/10 focus:bg-white/10 text-white hover:text-white focus:text-white"
+                          : "hover:bg-gray-100 focus:bg-gray-100 text-gray-900 hover:text-gray-900 focus:text-gray-900"
+                      }`}
+                    >
+                      <div
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          toggleTheme()
+                        }}
+                        className="flex items-center w-full"
+                      >
+                        {theme === "dark" ? (
+                          <>
+                            <Sun className="mr-2 h-4 w-4" />
+                            <span>Switch to Light Mode</span>
+                          </>
+                        ) : (
+                          <>
+                            <Moon className="mr-2 h-4 w-4" />
+                            <span>Switch to Dark Mode</span>
+                          </>
+                        )}
+                      </div>
+                    </DropdownMenuItem>
+
+                    <DropdownMenuSeparator className={theme === "dark" ? "bg-gray-800" : "bg-gray-200"} />
+
+                    {/* Font Size Controls */}
+                    <DropdownMenuLabel
+                      className={`text-xs font-normal ${theme === "dark" ? "text-gray-400" : "text-gray-500"}`}
+                    >
+                      Text Size
+                    </DropdownMenuLabel>
+                    <div className="flex items-center justify-between px-2 py-1.5" onClick={(e) => e.stopPropagation()}>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          decreaseFontSize()
+                        }}
+                        disabled={fontSize === "xs"}
+                        className={`h-8 w-8 p-0 disabled:opacity-30 ${
+                          theme === "dark"
+                            ? "hover:bg-white/10 text-white hover:text-white"
+                            : "hover:bg-gray-100 text-gray-900 hover:text-gray-900"
+                        }`}
+                      >
+                        <Minus className="h-4 w-4" />
+                      </Button>
+                      <span className={`text-xs ${theme === "dark" ? "text-gray-400" : "text-gray-500"}`}>
+                        {fontSize === "xs" && "XS"}
+                        {fontSize === "small" && "Small"}
+                        {fontSize === "medium" && "Medium"}
+                        {fontSize === "large" && "Large"}
+                        {fontSize === "xl" && "XL"}
+                        {fontSize === "xxl" && "XXL"}
+                      </span>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          increaseFontSize()
+                        }}
+                        disabled={fontSize === "xxl"}
+                        className={`h-8 w-8 p-0 disabled:opacity-30 ${
+                          theme === "dark"
+                            ? "hover:bg-white/10 text-white hover:text-white"
+                            : "hover:bg-gray-100 text-gray-900 hover:text-gray-900"
+                        }`}
+                      >
+                        <Plus className="h-4 w-4" />
+                      </Button>
+                    </div>
+
+                    <DropdownMenuSeparator className={theme === "dark" ? "bg-gray-800" : "bg-gray-200"} />
+
+                    {/* Font Family Picker */}
+                    <DropdownMenuLabel
+                      className={`text-xs font-normal ${theme === "dark" ? "text-gray-400" : "text-gray-500"}`}
+                    >
+                      Font Family
+                    </DropdownMenuLabel>
+                    <DropdownMenuRadioGroup
+                      value={fontFamily}
+                      onValueChange={(value) => changeFontFamily(value as FontFamily)}
+                    >
+                      <DropdownMenuRadioItem
+                        value="sans"
+                        className={`cursor-pointer ${
+                          theme === "dark"
+                            ? "hover:bg-white/10 focus:bg-white/10 text-white hover:text-white focus:text-white"
+                            : "hover:bg-gray-100 focus:bg-gray-100 text-gray-900 hover:text-gray-900 focus:text-gray-900"
+                        }`}
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        System Sans
+                      </DropdownMenuRadioItem>
+                      <DropdownMenuRadioItem
+                        value="serif"
+                        className={`cursor-pointer ${
+                          theme === "dark"
+                            ? "hover:bg-white/10 focus:bg-white/10 text-white hover:text-white focus:text-white"
+                            : "hover:bg-gray-100 focus:bg-gray-100 text-gray-900 hover:text-gray-900 focus:text-gray-900"
+                        }`}
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        System Serif
+                      </DropdownMenuRadioItem>
+                      <DropdownMenuRadioItem
+                        value="mono"
+                        className={`cursor-pointer ${
+                          theme === "dark"
+                            ? "hover:bg-white/10 focus:bg-white/10 text-white hover:text-white focus:text-white"
+                            : "hover:bg-gray-100 focus:bg-gray-100 text-gray-900 hover:text-gray-900 focus:text-gray-900"
+                        }`}
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        Monospace
+                      </DropdownMenuRadioItem>
+                      <DropdownMenuRadioItem
+                        value="inter"
+                        className={`cursor-pointer ${
+                          theme === "dark"
+                            ? "hover:bg-white/10 focus:bg-white/10 text-white hover:text-white focus:text-white"
+                            : "hover:bg-gray-100 focus:bg-gray-100 text-gray-900 hover:text-gray-900 focus:text-gray-900"
+                        }`}
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        Inter
+                      </DropdownMenuRadioItem>
+                      <DropdownMenuRadioItem
+                        value="roboto"
+                        className={`cursor-pointer ${
+                          theme === "dark"
+                            ? "hover:bg-white/10 focus:bg-white/10 text-white hover:text-white focus:text-white"
+                            : "hover:bg-gray-100 focus:bg-gray-100 text-gray-900 hover:text-gray-900 focus:text-gray-900"
+                        }`}
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        Roboto
+                      </DropdownMenuRadioItem>
+                      <DropdownMenuRadioItem
+                        value="merriweather"
+                        className={`cursor-pointer ${
+                          theme === "dark"
+                            ? "hover:bg-white/10 focus:bg-white/10 text-white hover:text-white focus:text-white"
+                            : "hover:bg-gray-100 focus:bg-gray-100 text-gray-900 hover:text-gray-900 focus:text-gray-900"
+                        }`}
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        Merriweather
+                      </DropdownMenuRadioItem>
+                      <DropdownMenuRadioItem
+                        value="playfair"
+                        className={`cursor-pointer ${
+                          theme === "dark"
+                            ? "hover:bg-white/10 focus:bg-white/10 text-white hover:text-white focus:text-white"
+                            : "hover:bg-gray-100 focus:bg-gray-100 text-gray-900 hover:text-gray-900 focus:text-gray-900"
+                        }`}
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        Playfair Display
+                      </DropdownMenuRadioItem>
+                    </DropdownMenuRadioGroup>
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </div>
             </div>
 
@@ -549,7 +756,7 @@ export function ViewerInterface({ event, slug }: ViewerInterfaceProps) {
                         second: "2-digit",
                       })}
                     </div>
-                    <div className={`${textClass} ${textColorClass} font-bold`}>
+                    <div className={`${textClass} ${textColorClass} font-bold ${fontClass}`}>
                       {group.texts.map((text, textIndex) => {
                         const transcriptionIndex = displayTranscriptions.findIndex((t) => t.text === text)
                         const transcription =
@@ -560,7 +767,7 @@ export function ViewerInterface({ event, slug }: ViewerInterfaceProps) {
                           isLastInGroup && isLastGroup && transcription?.id === newestTranscriptionId
 
                         return (
-                          <span key={textIndex}>
+                          <span key={`${index}-${textIndex}`}>
                             <TranscriptionText text={text} shouldAnimate={shouldAnimate} />
                             {textIndex < group.texts.length - 1 && " "}
                           </span>
