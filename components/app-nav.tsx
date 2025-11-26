@@ -1,6 +1,4 @@
 "use client"
-
-import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { Home, Radio, AudioLines, Shield, Menu, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -8,6 +6,7 @@ import { cn } from "@/lib/utils"
 import { useEffect, useState } from "react"
 import { createClient } from "@/lib/supabase/client"
 import { UserMenu } from "@/components/user-menu"
+import Link from "next/link"
 
 export function AppNav() {
   const pathname = usePathname()
@@ -48,7 +47,7 @@ export function AppNav() {
           <div className="flex items-center gap-6">
             <Link
               href={isLoggedIn ? "/dashboard" : "/"}
-              className="text-xl font-bold text-white flex items-center gap-2"
+              className="text-xl font-bold text-white flex items-center gap-2 hover:opacity-80 transition-opacity"
             >
               <AudioLines className="h-5 w-5 text-purple-400" />
               <span className="hidden sm:inline">LiveTranscribe</span>
@@ -59,7 +58,7 @@ export function AppNav() {
                   variant="ghost"
                   size="sm"
                   className={cn(
-                    "gap-2 text-slate-400 hover:text-white hover:bg-white/5",
+                    "gap-2 text-slate-400 hover:text-white hover:bg-white/5 transition-all",
                     isActive("/dashboard") && "text-white bg-white/10",
                   )}
                 >
@@ -73,7 +72,7 @@ export function AppNav() {
                     variant="ghost"
                     size="sm"
                     className={cn(
-                      "gap-2 text-slate-400 hover:text-white hover:bg-white/5",
+                      "gap-2 text-slate-400 hover:text-white hover:bg-white/5 transition-all",
                       isActive("/broadcast/") && "text-white bg-white/10",
                     )}
                   >
@@ -91,7 +90,7 @@ export function AppNav() {
                   variant="ghost"
                   size="sm"
                   className={cn(
-                    "gap-2 text-slate-400 hover:text-white hover:bg-white/5",
+                    "gap-2 text-slate-400 hover:text-white hover:bg-white/5 transition-all",
                     isActive("/admin") && "text-white bg-white/10",
                   )}
                 >
@@ -121,7 +120,7 @@ export function AppNav() {
                   variant="ghost"
                   size="sm"
                   className={cn(
-                    "w-full justify-start gap-2 text-slate-400 hover:text-white hover:bg-white/5",
+                    "w-full justify-start gap-2 text-slate-400 hover:text-white hover:bg-white/5 transition-all",
                     isActive("/dashboard") && "text-white bg-white/10",
                   )}
                 >
@@ -135,7 +134,7 @@ export function AppNav() {
                     variant="ghost"
                     size="sm"
                     className={cn(
-                      "w-full justify-start gap-2 text-slate-400 hover:text-white hover:bg-white/5",
+                      "w-full justify-start gap-2 text-slate-400 hover:text-white hover:bg-white/5 transition-all",
                       isActive("/broadcast/") && "text-white bg-white/10",
                     )}
                   >
@@ -150,7 +149,7 @@ export function AppNav() {
                     variant="ghost"
                     size="sm"
                     className={cn(
-                      "w-full justify-start gap-2 text-slate-400 hover:text-white hover:bg-white/5",
+                      "w-full justify-start gap-2 text-slate-400 hover:text-white hover:bg-white/5 transition-all",
                       isActive("/admin") && "text-white bg-white/10",
                     )}
                   >

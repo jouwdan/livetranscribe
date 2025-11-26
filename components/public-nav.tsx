@@ -2,10 +2,10 @@
 
 import { Button } from "@/components/ui/button"
 import { AudioLines, Menu, X, ArrowRight } from "lucide-react"
-import Link from "next/link"
 import { useState, useEffect } from "react"
 import { createClient } from "@/lib/supabase/client"
 import { usePathname } from "next/navigation"
+import Link from "next/link"
 
 export function PublicNav() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
@@ -36,7 +36,7 @@ export function PublicNav() {
     <header className="sticky top-0 z-50 backdrop-blur-xl bg-black/50 border-b border-white/10">
       <div className="container mx-auto px-4 py-4">
         <div className="flex items-center justify-between md:grid md:grid-cols-3">
-          <Link href="/" className="text-xl font-semibold flex items-center gap-2">
+          <Link href="/" className="text-xl font-semibold flex items-center gap-2 hover:opacity-80 transition-opacity">
             <AudioLines className="h-5 w-5 text-purple-400" />
             LiveTranscribe
           </Link>
@@ -63,7 +63,7 @@ export function PublicNav() {
           <nav className="hidden md:flex items-center justify-end gap-4">
             {isLoggedIn ? (
               <Link href="/dashboard">
-                <Button size="sm" className="bg-purple-600 hover:bg-purple-700">
+                <Button size="sm" className="bg-purple-600 hover:bg-purple-700 transition-all">
                   Go to Dashboard
                   <ArrowRight className="ml-2 h-4 w-4" />
                 </Button>
@@ -71,12 +71,12 @@ export function PublicNav() {
             ) : (
               <>
                 <Link href="/auth/login">
-                  <Button variant="ghost" size="sm">
+                  <Button variant="ghost" size="sm" className="transition-all">
                     Login
                   </Button>
                 </Link>
                 <Link href="/auth/sign-up">
-                  <Button size="sm" className="bg-primary hover:bg-primary/90">
+                  <Button size="sm" className="bg-primary hover:bg-primary/90 transition-all">
                     Sign Up
                   </Button>
                 </Link>
@@ -98,25 +98,25 @@ export function PublicNav() {
             <nav className="flex flex-col gap-3">
               <Link
                 href="/"
-                className={`text-sm transition-colors py-2 ${
+                onClick={() => setMobileMenuOpen(false)}
+                className={`text-sm transition-colors py-2 text-left ${
                   isActive("/") ? "text-purple-400 font-medium" : "text-muted-foreground hover:text-foreground"
                 }`}
-                onClick={() => setMobileMenuOpen(false)}
               >
                 Home
               </Link>
               <Link
                 href="/pricing"
-                className={`text-sm transition-colors py-2 ${
+                onClick={() => setMobileMenuOpen(false)}
+                className={`text-sm transition-colors py-2 text-left ${
                   isActive("/pricing") ? "text-purple-400 font-medium" : "text-muted-foreground hover:text-foreground"
                 }`}
-                onClick={() => setMobileMenuOpen(false)}
               >
                 Pricing
               </Link>
               {isLoggedIn ? (
                 <Link href="/dashboard" onClick={() => setMobileMenuOpen(false)}>
-                  <Button size="sm" className="w-full bg-purple-600 hover:bg-purple-700">
+                  <Button size="sm" className="w-full bg-purple-600 hover:bg-purple-700 transition-all">
                     Go to Dashboard
                     <ArrowRight className="ml-2 h-4 w-4" />
                   </Button>
@@ -124,12 +124,12 @@ export function PublicNav() {
               ) : (
                 <>
                   <Link href="/auth/login" onClick={() => setMobileMenuOpen(false)}>
-                    <Button variant="ghost" size="sm" className="w-full justify-start">
+                    <Button variant="ghost" size="sm" className="w-full justify-start transition-all">
                       Login
                     </Button>
                   </Link>
                   <Link href="/auth/sign-up" onClick={() => setMobileMenuOpen(false)}>
-                    <Button size="sm" className="w-full bg-primary hover:bg-primary/90">
+                    <Button size="sm" className="w-full bg-primary hover:bg-primary/90 transition-all">
                       Sign Up
                     </Button>
                   </Link>
