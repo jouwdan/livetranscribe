@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useMemo } from "react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { ArrowDownToLine, Pause, Radio, Type, Plus, Minus } from "lucide-react"
+import { ArrowDownToLine, Pause, Radio, Type, Plus, Minus, Sun, Moon } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
 import type { RealtimeChannel } from "@supabase/supabase-js"
 import type { EventSession } from "@/types/event-session"
@@ -37,6 +37,7 @@ interface ViewerInterfaceProps {
 }
 
 type FontSize = "xs" | "small" | "medium" | "large" | "xl" | "xxl"
+type Theme = "light" | "dark"
 
 const StreamingText = ({
   text,
@@ -102,6 +103,20 @@ export function ViewerInterface({ event, slug }: ViewerInterfaceProps) {
   const scrollAreaRef = useRef<HTMLDivElement>(null)
   const [newestTranscriptionId, setNewestTranscriptionId] = useState<string | null>(null)
   const [fontSize, setFontSize] = useState<FontSize>("medium")
+  const [theme, setTheme] = useState<Theme>("dark")
+
+  useEffect(() => {
+    const savedTheme = localStorage.getItem("viewer-theme") as Theme | null
+    if (savedTheme) {
+      setTheme(savedTheme)
+    }
+  }, [])
+
+  const toggleTheme = () => {
+    const newTheme = theme === "dark" ? "light" : "dark"
+    setTheme(newTheme)
+    localStorage.setItem("viewer-theme", newTheme)
+  }
 
   useEffect(() => {
     let isSubscribed = true
@@ -370,6 +385,12 @@ export function ViewerInterface({ event, slug }: ViewerInterfaceProps) {
 
     const textClass = fontSizeClasses[fontSize]
 
+    const bgClass = theme === "dark" ? "bg-black" : "bg-white"
+    const textColorClass = theme === "dark" ? "text-white" : "text-gray-900"
+    const mutedTextClass = theme === "dark" ? "text-muted-foreground" : "text-gray-500"
+    const borderClass = theme === "dark" ? "border-border" : "border-gray-200"
+    const timestampClass = theme === "dark" ? "text-foreground/40" : "text-gray-400"
+
     const increaseFontSize = () => {
       if (fontSize === "xs") setFontSize("small")
       else if (fontSize === "small") setFontSize("medium")
@@ -389,9 +410,9 @@ export function ViewerInterface({ event, slug }: ViewerInterfaceProps) {
     }
 
     return (
-      <div className="flex flex-col h-screen bg-black overflow-hidden" key={fontSize}>
+      <div className={`flex flex-col h-screen ${bgClass} overflow-hidden`} key={fontSize}>
         {/* Header */}
-        <div className="bg-black border-b border-border flex-shrink-0">
+        <div className={`${bgClass} border-b ${borderClass} flex-shrink-0`}>
           <div className="px-6 sm:px-8 lg:px-12 py-4 mx-auto w-full">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
               <div className="flex items-center gap-4">
@@ -403,8 +424,8 @@ export function ViewerInterface({ event, slug }: ViewerInterfaceProps) {
                   />
                 )}
                 <div>
-                  <h1 className="text-xl sm:text-2xl font-bold text-white">Live Transcription</h1>
-                  {event?.name && <p className="text-sm text-muted-foreground mt-0.5">{event.name}</p>}
+                  <h1 className={`text-xl sm:text-2xl font-bold ${textColorClass}`}>Live Transcription</h1>
+                  {event?.name && <p className={`text-sm ${mutedTextClass} mt-0.5`}>{event.name}</p>}
                 </div>
               </div>
 
@@ -422,7 +443,9 @@ export function ViewerInterface({ event, slug }: ViewerInterfaceProps) {
                   variant="ghost"
                   size="sm"
                   onClick={() => setAutoScroll(!autoScroll)}
-                  className="h-8 px-3 gap-1.5 hover:bg-foreground/5 text-white text-xs"
+                  className={`h-8 px-3 gap-1.5 hover:bg-foreground/5 ${textColorClass} text-xs ${
+                    theme === "dark" ? "hover:bg-white/10" : "hover:bg-gray-200"
+                  }`}
                 >
                   {autoScroll ? (
                     <>
@@ -437,26 +460,44 @@ export function ViewerInterface({ event, slug }: ViewerInterfaceProps) {
                   )}
                 </Button>
 
-                <div className="flex gap-1 border-l border-border pl-3 items-center">
+                {/* Theme toggle button */}
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={toggleTheme}
+                  className={`h-8 w-8 p-0 ${textColorClass} ${
+                    theme === "dark" ? "hover:bg-white/10" : "hover:bg-gray-200"
+                  }`}
+                  title={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
+                >
+                  {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+                </Button>
+
+                {/* Font size controls */}
+                <div className={`flex gap-1 border-l ${borderClass} pl-3 items-center`}>
                   <Button
                     variant="ghost"
                     size="sm"
                     onClick={decreaseFontSize}
                     disabled={fontSize === "xs"}
-                    className="h-8 w-8 p-0 hover:bg-foreground/5 text-white disabled:opacity-30 disabled:cursor-not-allowed"
+                    className={`h-8 w-8 p-0 ${textColorClass} disabled:opacity-30 disabled:cursor-not-allowed ${
+                      theme === "dark" ? "hover:bg-white/10" : "hover:bg-gray-200"
+                    }`}
                     title="Decrease text size"
                   >
                     <Minus className="h-4 w-4" />
                   </Button>
                   <div className="flex items-center justify-center w-8 h-8">
-                    <Type className="h-4 w-4 text-white" />
+                    <Type className={`h-4 w-4 ${textColorClass}`} />
                   </div>
                   <Button
                     variant="ghost"
                     size="sm"
                     onClick={increaseFontSize}
                     disabled={fontSize === "xxl"}
-                    className="h-8 w-8 p-0 hover:bg-foreground/5 text-white disabled:opacity-30 disabled:cursor-not-allowed"
+                    className={`h-8 w-8 p-0 ${textColorClass} disabled:opacity-30 disabled:cursor-not-allowed ${
+                      theme === "dark" ? "hover:bg-white/10" : "hover:bg-gray-200"
+                    }`}
                     title="Increase text size"
                   >
                     <Plus className="h-4 w-4" />
@@ -493,14 +534,14 @@ export function ViewerInterface({ event, slug }: ViewerInterfaceProps) {
                     </div>
                   )}
                   <div className="space-y-1">
-                    <div className="text-xs text-foreground/40 uppercase tracking-wide">
+                    <div className={`text-xs ${timestampClass} uppercase tracking-wide`}>
                       {group.timestamp.toLocaleTimeString("en-US", {
                         hour: "2-digit",
                         minute: "2-digit",
                         second: "2-digit",
                       })}
                     </div>
-                    <div className={`${textClass} text-white font-bold`}>
+                    <div className={`${textClass} ${textColorClass} font-bold`}>
                       {group.texts.map((text, textIndex) => {
                         const transcriptionIndex = displayTranscriptions.findIndex((t) => t.text === text)
                         const transcription =
@@ -526,9 +567,9 @@ export function ViewerInterface({ event, slug }: ViewerInterfaceProps) {
         </div>
 
         {/* Footer */}
-        <div className="bg-black border-t border-border flex-shrink-0">
+        <div className={`${bgClass} border-t ${borderClass} flex-shrink-0`}>
           <div className="px-6 sm:px-8 lg:px-12 py-3 mx-auto w-full">
-            <p className="text-xs text-muted-foreground text-center">
+            <p className={`text-xs ${mutedTextClass} text-center`}>
               Powered by{" "}
               <a
                 href="https://livetranscribe.net"
