@@ -502,7 +502,7 @@ export function ViewerInterface({ event, initialViewMode = "laptop" }: ViewerInt
         <div className="flex-1 overflow-hidden px-12 py-8">
           <div ref={scrollAreaRef} className="h-full overflow-y-auto">
             <div className="space-y-8">
-              {groupedTranscriptions.slice(-5).map((group, index) => (
+              {groupedTranscriptions.map((group, index) => (
                 <div key={index}>
                   {group.isSessionStart && group.sessionInfo && (
                     <div className="mb-6 py-4 px-6 bg-purple-500/30 border-2 border-purple-400/50 rounded-xl">
@@ -522,7 +522,7 @@ export function ViewerInterface({ event, initialViewMode = "laptop" }: ViewerInt
                         const transcription =
                           transcriptionIndex >= 0 ? displayTranscriptions[transcriptionIndex] : undefined
                         const isLastInGroup = textIndex === group.texts.length - 1
-                        const isLastGroup = index === groupedTranscriptions.slice(-5).length - 1
+                        const isLastGroup = index === groupedTranscriptions.length - 1
                         const shouldAnimate =
                           isLastInGroup && isLastGroup && transcription?.id === newestTranscriptionId
 
