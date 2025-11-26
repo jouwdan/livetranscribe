@@ -785,16 +785,15 @@ export function ViewerInterface({ event, slug }: ViewerInterfaceProps) {
         <div className={`${bgClass} border-t ${borderClass} flex-shrink-0`}>
           <div className="px-6 sm:px-8 lg:px-12 py-3 mx-auto w-full">
             <p className={`text-xs ${mutedTextClass} text-center`}>
-              Powered by{" "}
+              AI Powered by{" "}
               <a
                 href="https://livetranscribe.net"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="hover:text-foreground transition-colors"
+                className="text-purple-500 hover:text-purple-700 transition-colors"
               >
                 LiveTranscribe.net
-              </a>{" "}
-              and AI
+              </a>
             </p>
           </div>
         </div>
