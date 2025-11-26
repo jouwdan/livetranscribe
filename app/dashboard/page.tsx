@@ -116,63 +116,49 @@ export default async function DashboardPage() {
               <h1 className="text-3xl font-bold text-white">Dashboard</h1>
               <p className="text-slate-400">{user.email}</p>
             </div>
-            <div className="flex items-center gap-6 text-sm">
-              <div className="flex items-center gap-2">
-                <Clock className="h-4 w-4 text-muted-foreground" />
-                <div>
-                  <span className="font-semibold text-foreground">{totalMinutes}</span>
-                  <span className="text-muted-foreground ml-1">min used</span>
-                </div>
+            <div className="flex items-center gap-3 text-sm">
+              <div className="flex items-center gap-1.5 px-2.5 py-1 bg-muted/50 rounded-full">
+                <Clock className="h-3.5 w-3.5 text-muted-foreground" />
+                <span className="font-semibold text-foreground">{totalMinutes}</span>
+                <span className="text-muted-foreground text-xs">min</span>
               </div>
-              <div className="flex items-center gap-2">
-                <BarChart3 className="h-4 w-4 text-muted-foreground" />
-                <div>
-                  <span className="font-semibold text-foreground">{totalTranscriptions}</span>
-                  <span className="text-muted-foreground ml-1">transcriptions</span>
-                </div>
+              <div className="flex items-center gap-1.5 px-2.5 py-1 bg-muted/50 rounded-full">
+                <BarChart3 className="h-3.5 w-3.5 text-muted-foreground" />
+                <span className="font-semibold text-foreground">{totalTranscriptions}</span>
+                <span className="text-muted-foreground text-xs">transcripts</span>
               </div>
             </div>
           </div>
 
-          <div className="flex flex-wrap gap-3">
+          <div className="flex flex-wrap gap-2">
             {creditGroups.length > 0 ? (
               creditGroups.map((group, idx) => (
-                <Card
+                <div
                   key={idx}
-                  className="bg-gradient-to-br from-purple-500/10 to-blue-500/10 border-purple-500/20 flex-shrink-0"
+                  className="flex items-center gap-2 px-3 py-1.5 bg-gradient-to-r from-purple-500/20 to-blue-500/20 border border-purple-500/30 rounded-full"
                 >
-                  <CardContent className="pt-4 pb-3 px-4">
-                    <div className="flex items-center gap-3">
-                      <div className="h-10 w-10 rounded-full bg-purple-500/20 flex items-center justify-center flex-shrink-0">
-                        <span className="text-lg font-bold text-purple-400">{group.count}</span>
-                      </div>
-                      <div className="flex flex-col gap-1">
-                        <div className="flex items-center gap-3 text-xs text-slate-300">
-                          <span className="flex items-center gap-1">
-                            <Clock className="h-3 w-3" />
-                            {group.credits_minutes} min
-                          </span>
-                          <span className="flex items-center gap-1">
-                            <Users className="h-3 w-3" />
-                            {group.max_attendees} attendees
-                          </span>
-                        </div>
-                        <div className="text-xs text-slate-500">
-                          {group.count === 1 ? "1 event credit" : `${group.count} event credits`}
-                        </div>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
+                  <div className="h-6 w-6 rounded-full bg-purple-500/30 flex items-center justify-center flex-shrink-0">
+                    <span className="text-xs font-bold text-purple-300">{group.count}</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-xs text-slate-300">
+                    <span className="flex items-center gap-1">
+                      <Clock className="h-3 w-3" />
+                      {group.credits_minutes}m
+                    </span>
+                    <span className="text-slate-600">•</span>
+                    <span className="flex items-center gap-1">
+                      <Users className="h-3 w-3" />
+                      {group.max_attendees}
+                    </span>
+                  </div>
+                </div>
               ))
             ) : (
-              <Card className="bg-card/50 backdrop-blur-sm border-red-500/50 w-full">
-                <CardContent className="pt-4 pb-3 px-4">
-                  <p className="text-center text-red-400 text-sm">
-                    No event credits available. Contact support to purchase credits.
-                  </p>
-                </CardContent>
-              </Card>
+              <div className="w-full px-4 py-2 bg-red-500/10 border border-red-500/30 rounded-lg">
+                <p className="text-center text-red-400 text-sm">
+                  No event credits available. Contact support to purchase credits.
+                </p>
+              </div>
             )}
           </div>
 
