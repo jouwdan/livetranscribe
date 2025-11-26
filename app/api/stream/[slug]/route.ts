@@ -62,9 +62,14 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const data = await request.json()
     const { text, isFinal, sequenceNumber, sessionId } = data
 
+    if (!text || typeof text !== "string" || text.trim().length === 0) {
+      console.warn("[v0] Skipping empty transcription")
+      return Response.json({ success: true, skipped: true, reason: "empty_text" })
+    }
+
     if (!isFinal) {
       console.log("[v0] Skipping interim transcription save (not final)")
-      return Response.json({ success: true, skipped: true })
+      return Response.json({ success: true, skipped: true, reason: "interim" })
     }
 
     const supabase = await createClient()
@@ -87,30 +92,103 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
       if (createError) {
         console.error("[v0] Error creating event:", createError)
-        return Response.json({ error: "Failed to create event" }, { status: 500 })
+        return Response.json({ error: "Failed to create event", details: createError.message }, { status: 500 })
       }
 
       event = newEvent
     }
 
-    const { error: insertError } = await supabase.from("transcriptions").insert({
-      event_id: event.id,
-      text,
-      is_final: isFinal,
-      sequence_number: sequenceNumber,
-      session_id: sessionId || null,
-    })
+    const { data: existingTranscription } = await supabase
+      .from("transcriptions")
+      .select("id")
+      .eq("event_id", event.id)
+      .eq("sequence_number", sequenceNumber)
+      .maybeSingle()
+
+    if (existingTranscription) {
+      console.log(`[v0] Transcription with sequence ${sequenceNumber} already exists, skipping`)
+      return Response.json({ success: true, skipped: true, reason: "duplicate_sequence" })
+    }
+
+    const { error: insertError, data: insertedTranscription } = await supabase
+      .from("transcriptions")
+      .insert({
+        event_id: event.id,
+        text: text.trim(),
+        is_final: isFinal,
+        sequence_number: sequenceNumber,
+        session_id: sessionId || null,
+      })
+      .select()
+      .single()
 
     if (insertError) {
       console.error("[v0] Error inserting transcription:", insertError)
-      return Response.json({ error: "Failed to save transcription" }, { status: 500 })
+      return Response.json({ error: "Failed to save transcription", details: insertError.message }, { status: 500 })
     }
 
-    console.log("[v0] Final transcription saved to database:", { slug, sequenceNumber, sessionId })
+    const wordCount = text.trim().split(/\s+/).length
+    await supabase
+      .rpc("increment", {
+        row_id: event.id,
+        table_name: "events",
+        column_name: "total_words",
+        increment_by: wordCount,
+      })
+      .catch((err) => console.warn("[v0] Failed to update event word count:", err))
 
-    return Response.json({ success: true })
+    await supabase
+      .rpc("increment", {
+        row_id: event.id,
+        table_name: "events",
+        column_name: "total_transcriptions",
+        increment_by: 1,
+      })
+      .catch((err) => console.warn("[v0] Failed to update event transcription count:", err))
+
+    // Update session metrics if session_id is provided
+    if (sessionId) {
+      await supabase
+        .rpc("increment", {
+          row_id: sessionId,
+          table_name: "event_sessions",
+          column_name: "total_words",
+          increment_by: wordCount,
+        })
+        .catch((err) => console.warn("[v0] Failed to update session word count:", err))
+
+      await supabase
+        .rpc("increment", {
+          row_id: sessionId,
+          table_name: "event_sessions",
+          column_name: "total_transcriptions",
+          increment_by: 1,
+        })
+        .catch((err) => console.warn("[v0] Failed to update session transcription count:", err))
+    }
+
+    console.log("[v0] Final transcription saved successfully:", {
+      id: insertedTranscription.id,
+      slug,
+      sequenceNumber,
+      sessionId,
+      wordCount,
+    })
+
+    return Response.json({
+      success: true,
+      transcriptionId: insertedTranscription.id,
+      sequenceNumber,
+      wordCount,
+    })
   } catch (error) {
     console.error("[v0] Stream broadcast error:", error)
-    return Response.json({ error: "Failed to broadcast" }, { status: 500 })
+    return Response.json(
+      {
+        error: "Failed to broadcast",
+        details: error instanceof Error ? error.message : "Unknown error",
+      },
+      { status: 500 },
+    )
   }
 }

@@ -300,32 +300,57 @@ export function BroadcastInterface({ slug, eventName, eventId, userId }: Broadca
       }
 
       if (isFinal) {
-        const response = await fetch(`/api/stream/${slug}`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            text,
-            isFinal,
-            sequenceNumber: adjustedSequence,
-            eventName,
-            sessionId: currentSessionId,
-          }),
-        })
+        let retries = 3
+        let saved = false
 
-        if (!response.ok) {
-          console.error("[v0] Failed to broadcast transcription:", response.status)
-          const errorText = await response.text()
-          console.error("[v0] Error response:", errorText)
-        } else {
-          const result = await response.json()
-          if (!result.skipped) {
-            setTranscriptionCount((prev) => prev + 1)
-            setLastSequenceNumber(adjustedSequence)
+        while (retries > 0 && !saved) {
+          try {
+            const response = await fetch(`/api/stream/${slug}`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                text,
+                isFinal,
+                sequenceNumber: adjustedSequence,
+                eventName,
+                sessionId: currentSessionId,
+              }),
+            })
+
+            if (!response.ok) {
+              throw new Error(`API returned ${response.status}`)
+            }
+
+            const result = await response.json()
+
+            if (result.success && !result.skipped) {
+              setTranscriptionCount((prev) => prev + 1)
+              setLastSequenceNumber(adjustedSequence)
+              console.log(`[v0] Final transcription saved successfully (seq: ${adjustedSequence})`)
+              saved = true
+            } else if (result.skipped) {
+              console.warn(`[v0] Transcription skipped by API (seq: ${adjustedSequence})`)
+              saved = true // Don't retry if API intentionally skipped
+            }
+          } catch (error) {
+            retries--
+            console.error(`[v0] Failed to save transcription (retries left: ${retries}):`, error)
+
+            if (retries > 0) {
+              // Wait before retrying (exponential backoff)
+              await new Promise((resolve) => setTimeout(resolve, 1000 * (4 - retries)))
+            } else {
+              // All retries exhausted
+              setError(`Failed to save transcription: "${text.substring(0, 50)}..."`)
+            }
           }
         }
       }
     } catch (error) {
       console.error("[v0] Error broadcasting transcription:", error)
+      if (isFinal) {
+        setError(`Failed to save final transcription`)
+      }
     }
   }
 
