@@ -301,7 +301,17 @@ export default function PricingClientPage() {
                   Login
                 </Link>
               </div>
-              <p className="text-sm text-muted-foreground">© 2025 LiveTranscribe. Powered by AI.</p>
+              <p className="text-sm text-muted-foreground">
+                AI Powered by{" "}
+                <a
+                  href="https://livetranscribe.net"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-purple-500 hover:text-purple-700 transition-colors"
+                >
+                  LiveTranscribe.net
+                </a>
+              </p>
             </div>
           </div>
         </footer>
