@@ -500,6 +500,14 @@ export function BroadcastInterface({ slug, eventName, eventId, userId }: Broadca
         })
         .eq("id", currentSessionId)
 
+      await supabase.from("usage_logs").insert({
+        user_id: userId,
+        event_id: eventId,
+        session_start: sessionStartTime.toISOString(),
+        session_end: endTime.toISOString(),
+        duration_minutes: durationMinutes,
+      })
+
       const { error: deductError } = await supabase.rpc("deduct_event_credits", {
         p_event_id: eventId,
         p_duration_minutes: durationMinutes,

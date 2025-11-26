@@ -71,6 +71,14 @@ export default async function DashboardPage() {
   let totalMinutes = 0
   let totalTranscriptions = 0
 
+  // This ensures stats persist even after events are deleted
+
+  // First, get permanent usage logs
+  const { data: usageLogs } = await supabase.from("usage_logs").select("duration_minutes").eq("user_id", user.id)
+
+  const usageLogMinutes = usageLogs?.reduce((sum, log) => sum + (log.duration_minutes || 0), 0) || 0
+
+  // Then, calculate additional time from current active sessions (not yet in usage_logs)
   if (allEventIds.length > 0) {
     const { data: transcriptions } = await supabase
       .from("transcriptions")
@@ -95,7 +103,7 @@ export default async function DashboardPage() {
       )
 
       // Calculate total minutes across all events
-      totalMinutes = Math.round(
+      const currentTranscriptionMinutes = Math.round(
         Object.values(eventGroups).reduce((sum, group) => {
           const first = new Date(group.first).getTime()
           const last = new Date(group.last).getTime()
@@ -103,7 +111,17 @@ export default async function DashboardPage() {
           return sum + minutes
         }, 0),
       )
+
+      // Use the greater of usage logs or transcription calculation
+      // (Usage logs are the source of truth, but transcriptions may include recent sessions)
+      totalMinutes = Math.max(usageLogMinutes, currentTranscriptionMinutes)
+    } else {
+      // No transcriptions, use usage logs only
+      totalMinutes = usageLogMinutes
     }
+  } else {
+    // No events, use usage logs only (for deleted events)
+    totalMinutes = usageLogMinutes
   }
 
   return (
