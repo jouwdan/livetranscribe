@@ -1,6 +1,6 @@
 import { ViewerInterface } from "@/components/viewer-interface"
 import { createServerClient } from "@/lib/supabase/server"
-import { notFound } from "next/navigation"
+import { redirect } from "next/navigation"
 
 interface ViewerPageProps {
   params: Promise<{ slug: string }>
@@ -19,7 +19,7 @@ export default async function ViewerPage({ params, searchParams }: ViewerPagePro
     .maybeSingle()
 
   if (!event || error) {
-    notFound()
+    redirect(`/view-error?slug=${slug}`)
   }
 
   const initialViewMode =
