@@ -1,76 +1,76 @@
 "use client"
 
 import { Button } from "@/components/ui/button"
-import { CheckCircle2, Users, Clock, AudioLines, Heart } from "lucide-react"
+import { CheckCircle2, AudioLines, Mail, Heart } from "lucide-react"
 import Link from "next/link"
 import { PublicNav } from "@/components/public-nav"
 
 export default function PricingPage() {
-  const pricingTiers = [
-    {
-      size: "Small",
-      attendees: "≤100 attendees",
-      plans: [
-        {
-          duration: "Up to 3 hours",
-          price: 90,
-          notes: "Great for workshops, podcasts, or small panels.",
-        },
-        {
-          duration: "Half-day (≤5 hours)",
-          price: 140,
-          notes: "Includes full-day captioning + transcript storage.",
-        },
-        {
-          duration: "Full-day (≤10 hours)",
-          price: 220,
-          notes: "Extended event support; 30-day transcript retention.",
-        },
-      ],
-    },
-    {
-      size: "Medium",
-      attendees: "101–250 attendees",
-      plans: [
-        {
-          duration: "Up to 3 hours",
-          price: 160,
-          notes: "Supports larger online or hybrid meetups.",
-        },
-        {
-          duration: "Half-day (≤5 hours)",
-          price: 250,
-          notes: "Live captioning + transcript export.",
-        },
-        {
-          duration: "Full-day (≤10 hours)",
-          price: 350,
-          notes: "Ideal for conferences or full workshops.",
-        },
-      ],
-    },
-    {
-      size: "Large",
-      attendees: "251–500 attendees",
-      plans: [
-        {
-          duration: "Up to 3 hours",
-          price: 250,
-          notes: "Handles larger audience throughput; realtime streaming optimized.",
-        },
-        {
-          duration: "Half-day (≤5 hours)",
-          price: 350,
-          notes: "Mid-size hybrid events.",
-        },
-        {
-          duration: "Full-day (≤10 hours)",
-          price: 500,
-          notes: "Day-long community summits or multi-panel events.",
-        },
-      ],
-    },
-  ]
+  // const pricingTiers = [
+  //   {
+  //     size: "Small",
+  //     attendees: "≤100 attendees",
+  //     plans: [
+  //       {
+  //         duration: "Up to 3 hours",
+  //         price: 90,
+  //         notes: "Great for workshops, podcasts, or small panels.",
+  //       },
+  //       {
+  //         duration: "Half-day (≤5 hours)",
+  //         price: 140,
+  //         notes: "Includes full-day captioning + transcript storage.",
+  //       },
+  //       {
+  //         duration: "Full-day (≤10 hours)",
+  //         price: 220,
+  //         notes: "Extended event support; 30-day transcript retention.",
+  //       },
+  //     ],
+  //   },
+  //   {
+  //     size: "Medium",
+  //     attendees: "101–250 attendees",
+  //     plans: [
+  //       {
+  //         duration: "Up to 3 hours",
+  //         price: 160,
+  //         notes: "Supports larger online or hybrid meetups.",
+  //       },
+  //       {
+  //         duration: "Half-day (≤5 hours)",
+  //         price: 250,
+  //         notes: "Live captioning + transcript export.",
+  //       },
+  //       {
+  //         duration: "Full-day (≤10 hours)",
+  //         price: 350,
+  //         notes: "Ideal for conferences or full workshops.",
+  //       },
+  //     ],
+  //   },
+  //   {
+  //     size: "Large",
+  //     attendees: "251–500 attendees",
+  //     plans: [
+  //       {
+  //         duration: "Up to 3 hours",
+  //         price: 250,
+  //         notes: "Handles larger audience throughput; realtime streaming optimized.",
+  //       },
+  //       {
+  //         duration: "Half-day (≤5 hours)",
+  //         price: 350,
+  //         notes: "Mid-size hybrid events.",
+  //       },
+  //       {
+  //         duration: "Full-day (≤10 hours)",
+  //         price: 500,
+  //         notes: "Day-long community summits or multi-panel events.",
+  //       },
+  //     ],
+  //   },
+  // ]
 
   return (
     <div className="min-h-screen bg-black relative overflow-hidden">
@@ -85,63 +85,116 @@ export default function PricingPage() {
           {/* Hero Section */}
           <div className="text-center mb-16">
             <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-purple-500/30 bg-purple-500/10 backdrop-blur-sm mb-6">
-              <CheckCircle2 className="h-4 w-4 text-purple-400" />
-              <span className="text-sm text-purple-300">Simple, Transparent Pricing</span>
+              <Heart className="h-4 w-4 text-purple-400" />
+              <span className="text-sm text-purple-300">Beta Access</span>
             </div>
             <h1 className="text-5xl md:text-6xl font-bold mb-6 tracking-tight bg-gradient-to-br from-white via-white to-white/60 bg-clip-text text-transparent">
-              Pricing built for events
+              Making events accessible
               <br />
-              of every size
+              for everyone
             </h1>
             <p className="text-xl text-muted-foreground mb-8 max-w-2xl mx-auto leading-relaxed">
-              Flat-rate pricing based on event size and duration. No hidden fees, no per-minute charges, just simple
-              pricing that works.
+              LiveTranscribe is currently in beta and we're offering limited access to community groups, non-profits,
+              educational institutions, and organizations committed to accessibility.
             </p>
-            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-green-500/30 bg-green-500/10 backdrop-blur-sm">
-              <CheckCircle2 className="h-4 w-4 text-green-400" />
-              <span className="text-sm text-green-300 font-medium">15-Minute Free Trial Included</span>
+          </div>
+
+          <div className="glass-card p-12 md:p-16 mb-16 relative overflow-hidden">
+            <div className="absolute inset-0 bg-gradient-to-br from-purple-500/5 to-blue-500/5" />
+            <div className="relative z-10 text-center max-w-3xl mx-auto">
+              <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-green-500/30 bg-green-500/10 backdrop-blur-sm mb-6">
+                <CheckCircle2 className="h-4 w-4 text-green-400" />
+                <span className="text-sm text-green-300">Limited Beta Access</span>
+              </div>
+              <h2 className="text-4xl font-bold mb-6">Join our beta program</h2>
+              <p className="text-lg text-muted-foreground mb-8 leading-relaxed">
+                We're working with select community groups to refine LiveTranscribe and ensure it meets the needs of
+                organizations making events more accessible. Our beta program provides early access with special pricing
+                for qualifying organizations.
+              </p>
+
+              <div className="grid md:grid-cols-2 gap-6 text-left mb-10">
+                <div className="p-6 rounded-lg border border-white/10 bg-black/40 backdrop-blur-sm">
+                  <h3 className="text-xl font-semibold mb-3">Who we're looking for</h3>
+                  <ul className="space-y-2 text-muted-foreground">
+                    <li className="flex items-start gap-2">
+                      <CheckCircle2 className="h-5 w-5 text-green-400 flex-shrink-0 mt-0.5" />
+                      <span>Community groups & non-profits</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <CheckCircle2 className="h-5 w-5 text-green-400 flex-shrink-0 mt-0.5" />
+                      <span>Educational institutions</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <CheckCircle2 className="h-5 w-5 text-green-400 flex-shrink-0 mt-0.5" />
+                      <span>Open-source events & conferences</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <CheckCircle2 className="h-5 w-5 text-green-400 flex-shrink-0 mt-0.5" />
+                      <span>Organizations focused on accessibility</span>
+                    </li>
+                  </ul>
+                </div>
+
+                <div className="p-6 rounded-lg border border-white/10 bg-black/40 backdrop-blur-sm">
+                  <h3 className="text-xl font-semibold mb-3">What you'll get</h3>
+                  <ul className="space-y-2 text-muted-foreground">
+                    <li className="flex items-start gap-2">
+                      <CheckCircle2 className="h-5 w-5 text-purple-400 flex-shrink-0 mt-0.5" />
+                      <span>Real-time AI transcription for your events</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <CheckCircle2 className="h-5 w-5 text-purple-400 flex-shrink-0 mt-0.5" />
+                      <span>Special beta pricing & discounts</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <CheckCircle2 className="h-5 w-5 text-purple-400 flex-shrink-0 mt-0.5" />
+                      <span>Direct support from our team</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <CheckCircle2 className="h-5 w-5 text-purple-400 flex-shrink-0 mt-0.5" />
+                      <span>Input on feature development</span>
+                    </li>
+                  </ul>
+                </div>
+              </div>
+
+              <div className="flex flex-col sm:flex-row gap-4 justify-center">
+                <Link href="mailto:hello@livetranscribe.net?subject=Beta%20Access%20Request">
+                  <Button size="lg" className="gap-2 bg-white text-black hover:bg-white/90">
+                    <Mail className="h-5 w-5" />
+                    Request Beta Access
+                  </Button>
+                </Link>
+                <Link href="/dashboard">
+                  <Button size="lg" variant="outline" className="border-white/20 hover:bg-white/5 bg-transparent">
+                    View Dashboard
+                  </Button>
+                </Link>
+              </div>
+
+              <p className="text-sm text-muted-foreground mt-6">
+                Questions? Email us at{" "}
+                <a href="mailto:hello@livetranscribe.net" className="text-purple-400 hover:underline">
+                  hello@livetranscribe.net
+                </a>
+              </p>
             </div>
           </div>
 
-          {/* Pricing Cards */}
+          {/* Pricing cards section commented out but kept for future use
           <div className="grid md:grid-cols-3 gap-6 mb-16">
             {pricingTiers.map((tier) => (
               <div key={tier.size} className="glass-card p-8 hover:bg-white/10 transition-all">
-                <div className="mb-6">
-                  <div className="flex items-center gap-2 mb-2">
-                    <Users className="h-6 w-6 text-purple-400" />
-                    <h2 className="text-2xl font-bold">{tier.size}</h2>
-                  </div>
-                  <p className="text-muted-foreground text-sm">{tier.attendees}</p>
-                </div>
-
-                <div className="space-y-4">
-                  {tier.plans.map((plan, index) => (
-                    <div
-                      key={index}
-                      className="p-4 rounded-lg border border-white/10 bg-black/40 backdrop-blur-sm hover:bg-white/5 transition-all"
-                    >
-                      <div className="flex items-baseline justify-between mb-2">
-                        <div className="flex items-center gap-2">
-                          <Clock className="h-4 w-4 text-purple-400" />
-                          <span className="text-sm font-medium text-foreground">{plan.duration}</span>
-                        </div>
-                        <div className="text-right">
-                          <span className="text-2xl font-bold text-purple-400">€{plan.price}</span>
-                          <span className="text-sm text-muted-foreground ml-1">flat</span>
-                        </div>
-                      </div>
-                      <p className="text-xs text-muted-foreground leading-relaxed">{plan.notes}</p>
-                    </div>
-                  ))}
-                </div>
+                ... existing pricing cards ...
               </div>
             ))}
           </div>
+          */}
 
           {/* Features Included */}
           <div className="glass-card p-8 md:p-12 mb-16">
-            <h2 className="text-3xl font-bold text-center mb-8">Everything included in every plan</h2>
+            <h2 className="text-3xl font-bold text-center mb-8">Features included in beta access</h2>
             <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
               {[
                 "Real-time AI transcription",
@@ -154,7 +207,8 @@ export default function PricingPage() {
                 "Mobile & TV optimized",
                 "Usage analytics",
                 "Viewer engagement metrics",
-                "Email support",
+                "Direct email support",
+                "Feature request input",
               ].map((feature) => (
                 <div key={feature} className="flex items-start gap-3">
                   <CheckCircle2 className="h-5 w-5 text-green-400 flex-shrink-0 mt-0.5" />
@@ -169,72 +223,40 @@ export default function PricingPage() {
             <h2 className="text-3xl font-bold text-center mb-8">Frequently asked questions</h2>
             <div className="space-y-6 max-w-3xl mx-auto">
               <div>
-                <h3 className="text-lg font-semibold mb-2">What counts as an attendee?</h3>
+                <h3 className="text-lg font-semibold mb-2">Who can apply for beta access?</h3>
                 <p className="text-muted-foreground text-sm leading-relaxed">
-                  An attendee is the total expected size of your event (all physical or virtual attendees), not just
-                  those viewing the transcription. Choose your tier based on your total event capacity.
+                  We're currently accepting applications from community groups, non-profits, educational institutions,
+                  open-source events, and organizations committed to making their events more accessible.
                 </p>
               </div>
               <div>
-                <h3 className="text-lg font-semibold mb-2">Can I upgrade during an event?</h3>
+                <h3 className="text-lg font-semibold mb-2">What does beta access include?</h3>
                 <p className="text-muted-foreground text-sm leading-relaxed">
-                  Yes! If your event grows beyond your current tier, contact us and we'll upgrade you immediately with
-                  prorated pricing.
+                  Beta participants get full access to all LiveTranscribe features with special pricing, direct support
+                  from our team, and the opportunity to provide feedback that shapes the product.
                 </p>
               </div>
               <div>
-                <h3 className="text-lg font-semibold mb-2">What happens after the event?</h3>
+                <h3 className="text-lg font-semibold mb-2">How do I apply?</h3>
                 <p className="text-muted-foreground text-sm leading-relaxed">
-                  All transcripts are available for download immediately after your event. Depending on your plan,
-                  transcripts are stored for 30-60 days for easy access.
+                  Email us at hello@livetranscribe.net with information about your organization and events. We'll review
+                  your application and get back to you within 48 hours.
                 </p>
               </div>
               <div>
-                <h3 className="text-lg font-semibold mb-2">Do you offer volume discounts?</h3>
+                <h3 className="text-lg font-semibold mb-2">Is there a cost for beta access?</h3>
                 <p className="text-muted-foreground text-sm leading-relaxed">
-                  Yes! If you're running multiple events or a recurring event series, contact us for custom pricing and
-                  volume discounts.
+                  Beta participants receive special discounted pricing based on their organization type and event needs.
+                  We work with each group individually to ensure accessibility is affordable.
                 </p>
               </div>
               <div>
-                <h3 className="text-lg font-semibold mb-2">Is the free trial really free?</h3>
+                <h3 className="text-lg font-semibold mb-2">When will LiveTranscribe be generally available?</h3>
                 <p className="text-muted-foreground text-sm leading-relaxed">
-                  Every new account gets 15 minutes of free transcription time to test the service. No credit card
-                  required.
+                  We're focused on working closely with beta participants to refine the platform. General availability
+                  timing will depend on feedback and feature development during the beta period.
                 </p>
               </div>
-            </div>
-          </div>
-
-          {/* Community Discount Section */}
-          <div className="glass-card p-8 md:p-12 mb-16 relative overflow-hidden">
-            <div className="absolute inset-0 bg-gradient-to-br from-green-500/5 to-blue-500/5" />
-            <div className="relative z-10 text-center">
-              <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-green-500/30 bg-green-500/10 backdrop-blur-sm mb-4">
-                <Heart className="h-4 w-4 text-green-400" />
-                <span className="text-sm text-green-300">Community Support</span>
-              </div>
-              <h2 className="text-3xl font-bold mb-4">Supporting community groups</h2>
-              <p className="text-lg text-muted-foreground mb-6 max-w-2xl mx-auto leading-relaxed">
-                We believe accessibility should be available to everyone. That's why we offer{" "}
-                <span className="text-green-400 font-semibold">up to 70% discounts</span> on our rates for community
-                groups, non-profits, educational institutions, and open-source events.
-              </p>
-              <p className="text-muted-foreground mb-8">
-                Running a community event, hackathon, or educational workshop?{" "}
-                <a
-                  href="mailto:hello@livetranscribe.net?subject=Community%20Discount%20Request"
-                  className="text-purple-400 hover:underline font-medium"
-                >
-                  Get in touch
-                </a>{" "}
-                and we'll work with you to make accessibility affordable.
-              </p>
-              <Link href="mailto:hello@livetranscribe.net?subject=Community%20Discount%20Request">
-                <Button variant="outline" className="border-green-500/30 hover:bg-green-500/10 bg-transparent">
-                  Contact Us for Community Pricing
-                </Button>
-              </Link>
             </div>
           </div>
 
@@ -242,18 +264,13 @@ export default function PricingPage() {
           <div className="glass-card p-12 md:p-16 text-center">
             <h2 className="text-4xl md:text-5xl font-bold mb-6">Ready to make your events accessible?</h2>
             <p className="text-xl text-muted-foreground mb-8 max-w-2xl mx-auto">
-              Start with a free 15-minute trial. No credit card required.
+              Join our beta program and help shape the future of live transcription.
             </p>
             <div className="flex gap-4 justify-center flex-wrap">
-              <Link href="/auth/sign-up">
+              <Link href="mailto:hello@livetranscribe.net?subject=Beta%20Access%20Request">
                 <Button size="lg" className="gap-2 bg-white text-black hover:bg-white/90">
-                  Get Started Free
-                  <CheckCircle2 className="h-5 w-5" />
-                </Button>
-              </Link>
-              <Link href="/dashboard">
-                <Button size="lg" variant="outline" className="border-white/20 hover:bg-white/5 bg-transparent">
-                  View Dashboard
+                  Request Beta Access
+                  <Mail className="h-5 w-5" />
                 </Button>
               </Link>
             </div>
