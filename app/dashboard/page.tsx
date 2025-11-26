@@ -66,14 +66,17 @@ export default async function DashboardPage() {
     .eq("archived", true)
     .order("created_at", { ascending: false })
 
-  const { data: usage } = await supabase
-    .from("usage_logs")
-    .select("*")
-    .eq("user_id", user.id)
-    .order("created_at", { ascending: false })
+  const { data: sessions } = await supabase
+    .from("event_sessions")
+    .select("duration_minutes, event_id")
+    .in(
+      "event_id",
+      [...(activeEvents || []), ...(archivedEvents || [])].map((e) => e.id),
+    )
+    .not("duration_minutes", "is", null)
 
-  const totalMinutes = usage?.reduce((sum, log) => sum + (log.duration_minutes || 0), 0) || 0
-  const totalSessions = usage?.length || 0
+  const totalMinutes = sessions?.reduce((sum, session) => sum + (session.duration_minutes || 0), 0) || 0
+  const totalSessions = sessions?.length || 0
 
   return (
     <div className="min-h-screen bg-black">
