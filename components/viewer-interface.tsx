@@ -805,8 +805,12 @@ export function ViewerInterface({ event, slug }: ViewerInterfaceProps) {
                   {new Date().toLocaleTimeString()}
                 </div>
                 <div
-                  className={cn("leading-relaxed italic", theme === "dark" ? "text-gray-400" : "text-gray-500")}
-                  style={{ fontSize: `${fontSize}px` }}
+                  className={cn(
+                    "italic",
+                    fontSizeClasses[fontSize],
+                    fontFamilyClasses[fontFamily],
+                    theme === "dark" ? "text-gray-400" : "text-gray-500",
+                  )}
                 >
                   {currentInterim.text}
                   <span className="inline-block w-2 h-5 ml-1 bg-current animate-pulse" />
