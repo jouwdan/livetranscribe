@@ -66,64 +66,6 @@ export default async function DashboardPage() {
     .eq("archived", true)
     .order("created_at", { ascending: false })
 
-  const allEventIds = [...(activeEvents || []), ...(archivedEvents || [])].map((e) => e.id)
-
-  let totalMinutes = 0
-  let totalTranscriptions = 0
-
-  // This ensures stats persist even after events are deleted
-
-  // First, get permanent usage logs
-  const { data: usageLogs } = await supabase.from("usage_logs").select("duration_minutes").eq("user_id", user.id)
-
-  const usageLogMinutes = usageLogs?.reduce((sum, log) => sum + (log.duration_minutes || 0), 0) || 0
-
-  // Then, calculate additional time from current active sessions (not yet in usage_logs)
-  if (allEventIds.length > 0) {
-    const { data: transcriptions } = await supabase
-      .from("transcriptions")
-      .select("event_id, created_at")
-      .in("event_id", allEventIds)
-      .order("created_at", { ascending: true })
-
-    if (transcriptions && transcriptions.length > 0) {
-      totalTranscriptions = transcriptions.length
-
-      // Group by event and calculate duration for each
-      const eventGroups = transcriptions.reduce(
-        (acc, t) => {
-          if (!acc[t.event_id]) {
-            acc[t.event_id] = { first: t.created_at, last: t.created_at }
-          } else {
-            acc[t.event_id].last = t.created_at
-          }
-          return acc
-        },
-        {} as Record<string, { first: string; last: string }>,
-      )
-
-      // Calculate total minutes across all events
-      const currentTranscriptionMinutes = Math.round(
-        Object.values(eventGroups).reduce((sum, group) => {
-          const first = new Date(group.first).getTime()
-          const last = new Date(group.last).getTime()
-          const minutes = (last - first) / (1000 * 60)
-          return sum + minutes
-        }, 0),
-      )
-
-      // Use the greater of usage logs or transcription calculation
-      // (Usage logs are the source of truth, but transcriptions may include recent sessions)
-      totalMinutes = Math.max(usageLogMinutes, currentTranscriptionMinutes)
-    } else {
-      // No transcriptions, use usage logs only
-      totalMinutes = usageLogMinutes
-    }
-  } else {
-    // No events, use usage logs only (for deleted events)
-    totalMinutes = usageLogMinutes
-  }
-
   return (
     <div className="min-h-screen bg-black">
       <AppNav />
@@ -133,18 +75,6 @@ export default async function DashboardPage() {
             <div>
               <h1 className="text-3xl font-bold text-white">Dashboard</h1>
               <p className="text-slate-400">{user.email}</p>
-            </div>
-            <div className="flex flex-col sm:flex-row items-end sm:items-center gap-2 sm:gap-3 text-sm">
-              <div className="flex items-center gap-1.5 px-2.5 py-1 bg-muted/50 rounded-full">
-                <Clock className="h-3.5 w-3.5 text-muted-foreground" />
-                <span className="font-semibold text-foreground">{totalMinutes}</span>
-                <span className="text-muted-foreground text-xs">min</span>
-              </div>
-              <div className="flex items-center gap-1.5 px-2.5 py-1 bg-muted/50 rounded-full">
-                <BarChart3 className="h-3.5 w-3.5 text-muted-foreground" />
-                <span className="font-semibold text-foreground">{totalTranscriptions}</span>
-                <span className="text-muted-foreground text-xs">transcripts</span>
-              </div>
             </div>
           </div>
 

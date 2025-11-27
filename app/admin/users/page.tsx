@@ -26,21 +26,10 @@ export default async function UsersPage() {
     eventCountMap.set(event.user_id, count + 1)
   })
 
-  // Fetch usage logs per user
-  const { data: usageLogs } = await supabase.from("usage_logs").select("user_id, duration_minutes")
-
-  // Calculate total usage per user
-  const usageMap = new Map<string, number>()
-  usageLogs?.forEach((log) => {
-    const total = usageMap.get(log.user_id) || 0
-    usageMap.set(log.user_id, total + (log.duration_minutes || 0))
-  })
-
   // Combine data
   const usersWithStats = users?.map((user) => ({
     ...user,
     total_events: eventCountMap.get(user.id) || 0,
-    total_usage_minutes: usageMap.get(user.id) || 0,
   }))
 
   return (

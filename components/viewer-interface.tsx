@@ -18,6 +18,7 @@ import {
   DropdownMenuRadioItem,
 } from "@/components/ui/dropdown-menu"
 import { cn } from "@/lib/utils"
+import { ViewerMetricsTracker } from "@/lib/metrics"
 
 interface Transcription {
   id: string
@@ -121,6 +122,7 @@ export function ViewerInterface({ event, initialViewMode }: ViewerInterfaceProps
   const [currentInterim, setCurrentInterim] = useState<{ text: string; sequence: number } | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [widthMode, setWidthMode] = useState<"constrained" | "full">("constrained")
+  const metricsTrackerRef = useRef<ViewerMetricsTracker | null>(null)
 
   useEffect(() => {
     const savedTheme = localStorage.getItem("viewer-theme") as Theme | null
@@ -306,68 +308,30 @@ export function ViewerInterface({ event, initialViewMode }: ViewerInterfaceProps
   }, [eventSlug])
 
   useEffect(() => {
-    const sessionId = `viewer-${Date.now()}-${Math.random().toString(36).substring(7)}`
-    let pingInterval: NodeJS.Timeout | null = null
-
     const setupViewerTracking = async () => {
       const { data: eventData } = await createBrowserClient().from("events").select("id").eq("slug", eventSlug).single()
 
       if (!eventData) return
 
-      await createBrowserClient().from("viewer_sessions").insert({
-        event_id: eventData.id,
-        session_id: sessionId,
-        joined_at: new Date().toISOString(),
-        last_ping: new Date().toISOString(),
-        scroll_events: 0,
-        visibility_changes: 0,
-        total_active_time_seconds: 0,
-        transcriptions_viewed: 0,
-      })
-
-      pingInterval = setInterval(async () => {
-        await createBrowserClient()
-          .from("viewer_sessions")
-          .update({
-            last_ping: new Date().toISOString(),
-            last_activity_at: new Date().toISOString(),
-            scroll_events: 0,
-            visibility_changes: 0,
-            total_active_time_seconds: 0,
-            transcriptions_viewed: 0,
-          })
-          .eq("event_id", eventData.id)
-          .eq("session_id", sessionId)
-      }, 15000)
+      const tracker = new ViewerMetricsTracker(eventData.id)
+      await tracker.initialize()
+      metricsTrackerRef.current = tracker
     }
 
     setupViewerTracking()
 
     return () => {
-      clearInterval(pingInterval)
-      const cleanup = async () => {
-        const { data: eventData } = await createBrowserClient()
-          .from("events")
-          .select("id")
-          .eq("slug", eventSlug)
-          .single()
-        if (eventData) {
-          await createBrowserClient()
-            .from("viewer_sessions")
-            .update({
-              left_at: new Date().toISOString(),
-              scroll_events: 0,
-              visibility_changes: 0,
-              total_active_time_seconds: 0,
-              transcriptions_viewed: 0,
-            })
-            .eq("event_id", eventData.id)
-            .eq("session_id", sessionId)
-        }
+      if (metricsTrackerRef.current) {
+        metricsTrackerRef.current.cleanup()
       }
-      cleanup()
     }
   }, [eventSlug])
+
+  useEffect(() => {
+    if (transcriptions.length > 0 && metricsTrackerRef.current) {
+      metricsTrackerRef.current.incrementTranscriptionsViewed()
+    }
+  }, [transcriptions.length])
 
   useEffect(() => {
     if (!autoScroll || !scrollAreaRef.current) return
