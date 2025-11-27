@@ -134,7 +134,7 @@ export default async function DashboardPage() {
               <h1 className="text-3xl font-bold text-white">Dashboard</h1>
               <p className="text-slate-400">{user.email}</p>
             </div>
-            <div className="flex items-center gap-3 text-sm">
+            <div className="flex flex-col sm:flex-row items-end sm:items-center gap-2 sm:gap-3 text-sm">
               <div className="flex items-center gap-1.5 px-2.5 py-1 bg-muted/50 rounded-full">
                 <Clock className="h-3.5 w-3.5 text-muted-foreground" />
                 <span className="font-semibold text-foreground">{totalMinutes}</span>

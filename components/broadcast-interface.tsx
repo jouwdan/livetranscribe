@@ -11,6 +11,7 @@ import { createClient as createBrowserClient } from "@/lib/supabase/client"
 import QRCode from "qrcode"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import Link from "next/link"
+import { validateTranscription } from "@/lib/validate-transcription"
 
 interface BroadcastInterfaceProps {
   slug: string
@@ -46,6 +47,7 @@ export function BroadcastInterface({ slug, eventName, eventId, userId }: Broadca
   const broadcastChannelRef = useRef<any>(null)
   const lastInterimBroadcastRef = useRef<number>(0)
   const pendingInterimRef = useRef<{ text: string; sequence: number } | null>(null)
+  const eventDescriptionRef = useRef<string | null>(null)
 
   useEffect(() => {
     if (!isStreaming || !sessionStartTime) return
@@ -266,9 +268,37 @@ export function BroadcastInterface({ slug, eventName, eventId, userId }: Broadca
 
   const handleTranscription = async (text: string, isFinal: boolean, sequence: number) => {
     const adjustedSequence = lastSequenceNumber + sequence
+    let validatedText = text // Declare validatedText here
 
     if (isFinal) {
-      setTranscriptions((prev) => [...prev, { text, isFinal, sequence: adjustedSequence, timestamp: new Date() }])
+      try {
+        // Get recent transcripts from the past minute for context
+        const oneMinuteAgo = new Date(Date.now() - 60000)
+        const recentTranscripts = transcriptions
+          .filter((t) => t.isFinal && t.timestamp >= oneMinuteAgo)
+          .map((t) => ({ text: t.text, timestamp: t.timestamp }))
+
+        // Validate with GPT-5-mini
+        validatedText = await validateTranscription({
+          currentTranscript: text,
+          recentTranscripts,
+          eventName,
+          eventDescription: eventDescriptionRef.current,
+          sessionName: sessions.find((s) => s.id === currentSessionId)?.name,
+          sessionDescription: sessions.find((s) => s.id === currentSessionId)?.description,
+        })
+
+        console.log("[v0] Original:", text)
+        console.log("[v0] Validated:", validatedText)
+      } catch (error) {
+        console.error("[v0] Validation failed, using original:", error)
+        validatedText = text
+      }
+
+      setTranscriptions((prev) => [
+        ...prev,
+        { text: validatedText, isFinal, sequence: adjustedSequence, timestamp: new Date() },
+      ])
       setCurrentInterim("")
 
       pendingInterimRef.current = null
@@ -279,7 +309,6 @@ export function BroadcastInterface({ slug, eventName, eventId, userId }: Broadca
 
       const now = Date.now()
       if (now - lastInterimBroadcastRef.current < 50) {
-        // Skip this broadcast, will send the accumulated text on next interval
         return
       }
       lastInterimBroadcastRef.current = now
@@ -309,7 +338,7 @@ export function BroadcastInterface({ slug, eventName, eventId, userId }: Broadca
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({
-                text,
+                text: validatedText, // Send validated text instead of original
                 isFinal,
                 sequenceNumber: adjustedSequence,
                 eventName,
@@ -330,18 +359,16 @@ export function BroadcastInterface({ slug, eventName, eventId, userId }: Broadca
               saved = true
             } else if (result.skipped) {
               console.warn(`[v0] Transcription skipped by API (seq: ${adjustedSequence})`)
-              saved = true // Don't retry if API intentionally skipped
+              saved = true
             }
           } catch (error) {
             retries--
             console.error(`[v0] Failed to save transcription (retries left: ${retries}):`, error)
 
             if (retries > 0) {
-              // Wait before retrying (exponential backoff)
               await new Promise((resolve) => setTimeout(resolve, 1000 * (4 - retries)))
             } else {
-              // All retries exhausted
-              setError(`Failed to save transcription: "${text.substring(0, 50)}..."`)
+              setError(`Failed to save transcription: "${validatedText.substring(0, 50)}..."`) // Use validatedText
             }
           }
         }
@@ -458,6 +485,7 @@ export function BroadcastInterface({ slug, eventName, eventId, userId }: Broadca
       await transcriber.start()
       transcriberRef.current = transcriber
       setIsStreaming(true)
+      eventDescriptionRef.current = event.description || null
     } catch (error) {
       setError(error instanceof Error ? error.message : "Failed to start streaming")
       setIsStreaming(false)
