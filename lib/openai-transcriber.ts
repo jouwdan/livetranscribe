@@ -119,10 +119,9 @@ Transcription Rules (STRICT):
    Never guess or substitute.
 4. **No hallucinations**, no invented fillers, no paraphrasing, no interpretation.
 5. Preserve natural sentence boundaries with accurate punctuation and capitalization.
-6. Output short, readable caption chunks (1–2 sentences or ~8–15 words).
-7. Do not include timestamps, speaker labels, emojis, or symbols unless spoken.
-8. Only transcribe speech — ignore background noise, non-speech sounds, or music.
-9. If you're unsure whether a word was spoken, mark it as [unclear] instead of inventing.
+6. Do not include timestamps, speaker labels, emojis, or symbols unless spoken.
+7. Only transcribe speech — ignore background noise, non-speech sounds, or music.
+8. If you're unsure whether a word was spoken, mark it as [unclear] instead of inventing.
 
 Your output must be clean, literal, strictly English, and faithful to the spoken audio.
           `,
