@@ -107,7 +107,7 @@ const TranscriptionText = ({
   return <span>{text}</span>
 }
 
-function ViewerInterface({ event, initialViewMode }: ViewerInterfaceProps) {
+export function ViewerInterface({ event, initialViewMode }: ViewerInterfaceProps) {
   const eventSlug = event.slug
   const [transcriptions, setTranscriptions] = useState<Transcription[]>([])
   const [isLive, setIsLive] = useState(false)
@@ -861,5 +861,3 @@ function ViewerInterface({ event, initialViewMode }: ViewerInterfaceProps) {
     </div>
   )
 }
-
-export { ViewerInterface }
