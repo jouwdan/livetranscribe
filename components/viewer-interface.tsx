@@ -41,13 +41,10 @@ interface ViewerInterfaceProps {
   event: {
     slug: string
     name: string
-    description?: string | null
-    logo_url?: string | null
-    event_name?: string
-    speaker?: string
-    id: string
+    description: string
+    logo_url: string | null
   }
-  slug: string
+  initialViewMode: "laptop" | "mobile" | "stage"
 }
 
 type FontSize = "xs" | "small" | "medium" | "large" | "xl" | "xxl"
@@ -110,7 +107,8 @@ const TranscriptionText = ({
   return <span>{text}</span>
 }
 
-export function ViewerInterface({ event, slug }: ViewerInterfaceProps) {
+function ViewerInterface({ event, initialViewMode }: ViewerInterfaceProps) {
+  const eventSlug = event.slug
   const [transcriptions, setTranscriptions] = useState<Transcription[]>([])
   const [isLive, setIsLive] = useState(false)
   const [autoScroll, setAutoScroll] = useState(true)
@@ -122,6 +120,7 @@ export function ViewerInterface({ event, slug }: ViewerInterfaceProps) {
   const [fontFamily, setFontFamily] = useState<FontFamily>("sans")
   const [currentInterim, setCurrentInterim] = useState<{ text: string; sequence: number } | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [widthMode, setWidthMode] = useState<"constrained" | "full">("constrained")
 
   useEffect(() => {
     const savedTheme = localStorage.getItem("viewer-theme") as Theme | null
@@ -132,17 +131,51 @@ export function ViewerInterface({ event, slug }: ViewerInterfaceProps) {
     if (savedFont) {
       setFontFamily(savedFont)
     }
+    const savedWidth = localStorage.getItem("viewerWidthMode")
+    if (savedWidth === "full" || savedWidth === "constrained") {
+      setWidthMode(savedWidth)
+    }
   }, [])
+
+  useEffect(() => {
+    localStorage.setItem("viewer-theme", theme)
+    localStorage.setItem("viewer-font", fontFamily)
+    localStorage.setItem("viewerWidthMode", widthMode)
+  }, [theme, fontFamily, widthMode])
 
   const toggleTheme = () => {
     const newTheme = theme === "dark" ? "light" : "dark"
     setTheme(newTheme)
-    localStorage.setItem("viewer-theme", newTheme)
   }
 
   const changeFontFamily = (font: FontFamily) => {
     setFontFamily(font)
-    localStorage.setItem("viewer-font", font)
+  }
+
+  const increaseFontSize = () => {
+    if (fontSize === "xs") setFontSize("small")
+    else if (fontSize === "small") setFontSize("medium")
+    else if (fontSize === "medium") setFontSize("large")
+    else if (fontSize === "large") setFontSize("xl")
+    else if (fontSize === "xl") setFontSize("xxl")
+    if (autoScroll) {
+      setTimeout(scrollToBottom, 100)
+    }
+  }
+
+  const decreaseFontSize = () => {
+    if (fontSize === "xxl") setFontSize("xl")
+    else if (fontSize === "xl") setFontSize("large")
+    else if (fontSize === "large") setFontSize("medium")
+    else if (fontSize === "medium") setFontSize("small")
+    else if (fontSize === "small") setFontSize("xs")
+    if (autoScroll) {
+      setTimeout(scrollToBottom, 100)
+    }
+  }
+
+  const toggleWidthMode = () => {
+    setWidthMode(widthMode === "constrained" ? "full" : "constrained")
   }
 
   useEffect(() => {
@@ -150,7 +183,7 @@ export function ViewerInterface({ event, slug }: ViewerInterfaceProps) {
     let channel: RealtimeChannel | null = null
 
     const initializeViewer = async () => {
-      const response = await fetch(`/api/stream/${event.slug}`)
+      const response = await fetch(`/api/stream/${eventSlug}`)
       const result = await response.json()
 
       if (result.error) {
@@ -172,7 +205,7 @@ export function ViewerInterface({ event, slug }: ViewerInterfaceProps) {
         )
       }
 
-      const channelName = `transcriptions-${event.slug}`
+      const channelName = `transcriptions-${eventSlug}`
 
       channel = createBrowserClient()
         .channel(channelName, {
@@ -270,18 +303,14 @@ export function ViewerInterface({ event, slug }: ViewerInterfaceProps) {
     }
 
     initializeViewer()
-  }, [event.slug])
+  }, [eventSlug])
 
   useEffect(() => {
     const sessionId = `viewer-${Date.now()}-${Math.random().toString(36).substring(7)}`
     let pingInterval: NodeJS.Timeout | null = null
 
     const setupViewerTracking = async () => {
-      const { data: eventData } = await createBrowserClient()
-        .from("events")
-        .select("id")
-        .eq("slug", event.slug)
-        .single()
+      const { data: eventData } = await createBrowserClient().from("events").select("id").eq("slug", eventSlug).single()
 
       if (!eventData) return
 
@@ -320,7 +349,7 @@ export function ViewerInterface({ event, slug }: ViewerInterfaceProps) {
         const { data: eventData } = await createBrowserClient()
           .from("events")
           .select("id")
-          .eq("slug", event.slug)
+          .eq("slug", eventSlug)
           .single()
         if (eventData) {
           await createBrowserClient()
@@ -338,7 +367,7 @@ export function ViewerInterface({ event, slug }: ViewerInterfaceProps) {
       }
       cleanup()
     }
-  }, [event.slug])
+  }, [eventSlug])
 
   useEffect(() => {
     if (!autoScroll || !scrollAreaRef.current) return
@@ -428,28 +457,6 @@ export function ViewerInterface({ event, slug }: ViewerInterfaceProps) {
     }
   }
 
-  const increaseFontSize = () => {
-    if (fontSize === "xs") setFontSize("small")
-    else if (fontSize === "small") setFontSize("medium")
-    else if (fontSize === "medium") setFontSize("large")
-    else if (fontSize === "large") setFontSize("xl")
-    else if (fontSize === "xl") setFontSize("xxl")
-    if (autoScroll) {
-      setTimeout(scrollToBottom, 100)
-    }
-  }
-
-  const decreaseFontSize = () => {
-    if (fontSize === "xxl") setFontSize("xl")
-    else if (fontSize === "xl") setFontSize("large")
-    else if (fontSize === "large") setFontSize("medium")
-    else if (fontSize === "medium") setFontSize("small")
-    else if (fontSize === "small") setFontSize("xs")
-    if (autoScroll) {
-      setTimeout(scrollToBottom, 100)
-    }
-  }
-
   const fontFamilyLabels = {
     sans: "System Sans",
     serif: "System Serif",
@@ -484,16 +491,16 @@ export function ViewerInterface({ event, slug }: ViewerInterfaceProps) {
         <div className="px-6 sm:px-8 lg:px-12 py-4 mx-auto w-full">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div className="flex items-center gap-4">
-              {event?.logo_url && (
-                <img
-                  src={event.logo_url || "/placeholder.svg"}
-                  alt="Event logo"
-                  className="h-12 w-12 rounded-lg object-contain"
-                />
-              )}
+              {/* Placeholder for event logo */}
+              <img
+                src={event.logo_url || "/placeholder.svg"}
+                alt="Event logo"
+                className="h-12 w-12 rounded-lg object-contain"
+              />
               <div>
                 <h1 className={`text-xl sm:text-2xl font-bold ${textColorClass}`}>Live Transcription</h1>
-                {event?.name && <p className={`text-sm ${mutedTextClass} mt-0.5`}>{event.name}</p>}
+                {/* Placeholder for event name */}
+                <p className={`text-sm ${mutedTextClass} mt-0.5`}>{event.name}</p>
               </div>
             </div>
 
@@ -687,6 +694,59 @@ export function ViewerInterface({ event, slug }: ViewerInterfaceProps) {
                       Monospace
                     </DropdownMenuRadioItem>
                   </DropdownMenuRadioGroup>
+
+                  <DropdownMenuSeparator className={theme === "dark" ? "bg-gray-800" : "bg-gray-200"} />
+
+                  {/* Width Mode Toggle */}
+                  <DropdownMenuLabel className={theme === "dark" ? "text-gray-400" : "text-gray-600"}>
+                    Width
+                  </DropdownMenuLabel>
+                  <DropdownMenuItem
+                    className={cn(
+                      "cursor-pointer",
+                      theme === "dark"
+                        ? "hover:bg-white/10 hover:text-white focus:bg-white/10 focus:text-white"
+                        : "hover:bg-gray-100 hover:text-gray-900 focus:bg-gray-100 focus:text-gray-900",
+                    )}
+                    onSelect={(e) => e.preventDefault()}
+                  >
+                    <div
+                      className="flex items-center justify-between w-full"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        toggleWidthMode()
+                      }}
+                    >
+                      <span>{widthMode === "constrained" ? "Constrained" : "Full Width"}</span>
+                      <button
+                        className={cn(
+                          "relative inline-flex h-5 w-9 items-center rounded-full transition-colors",
+                          widthMode === "full"
+                            ? theme === "dark"
+                              ? "bg-white"
+                              : "bg-gray-900"
+                            : theme === "dark"
+                              ? "bg-gray-700"
+                              : "bg-gray-300",
+                        )}
+                      >
+                        <span
+                          className={cn(
+                            "inline-block h-4 w-4 transform rounded-full transition-transform",
+                            widthMode === "full"
+                              ? theme === "dark"
+                                ? "translate-x-5 bg-black"
+                                : "translate-x-5 bg-white"
+                              : theme === "dark"
+                                ? "translate-x-0.5 bg-white"
+                                : "translate-x-0.5 bg-gray-600",
+                          )}
+                        />
+                      </button>
+                    </div>
+                  </DropdownMenuItem>
+
+                  <DropdownMenuSeparator className={theme === "dark" ? "bg-gray-800" : "bg-gray-200"} />
                 </DropdownMenuContent>
               </DropdownMenu>
             </div>
@@ -708,7 +768,13 @@ export function ViewerInterface({ event, slug }: ViewerInterfaceProps) {
       {/* Transcription Content */}
       <div className="flex-1 overflow-y-auto" ref={scrollAreaRef}>
         <div className={cn("p-6", bgColorClass)}>
-          <div className={cn("space-y-6 max-w-4xl mx-auto", fontFamilyClasses[fontFamily])}>
+          <div
+            className={cn(
+              "space-y-6 mx-auto",
+              widthMode === "constrained" ? "max-w-4xl" : "w-full px-4",
+              fontFamilyClasses[fontFamily],
+            )}
+          >
             {transcriptions.length === 0 && !currentInterim && (
               <div className="text-center py-20 opacity-50">
                 {isLoading
@@ -795,3 +861,5 @@ export function ViewerInterface({ event, slug }: ViewerInterfaceProps) {
     </div>
   )
 }
+
+export { ViewerInterface }
