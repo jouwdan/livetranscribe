@@ -52,7 +52,7 @@ interface ViewerInterfaceProps {
 
 type FontSize = "xs" | "small" | "medium" | "large" | "xl" | "xxl"
 type Theme = "dark" | "light"
-type FontFamily = "sans" | "serif" | "mono" | "inter" | "roboto" | "merriweather" | "playfair"
+type FontFamily = "sans" | "serif" | "mono"
 
 const StreamingText = ({
   text,
@@ -345,7 +345,7 @@ export function ViewerInterface({ event, slug }: ViewerInterfaceProps) {
 
     const scrollContainer = scrollAreaRef.current
     scrollContainer.scrollTop = scrollContainer.scrollHeight
-  }, [transcriptions, autoScroll, newestTranscriptionId, isLive])
+  }, [transcriptions, autoScroll, newestTranscriptionId, isLive, fontSize, fontFamily, currentInterim])
 
   const displayTranscriptions = useMemo(() => {
     return transcriptions
@@ -413,8 +413,8 @@ export function ViewerInterface({ event, slug }: ViewerInterfaceProps) {
         const shouldAnimate = isLastInGroup && isLastGroup && transcription?.id === newestTranscriptionId
 
         return (
-          <span key={`${index}-${textIndex}`}>
-            <TranscriptionText text={text} shouldAnimate={shouldAnimate} />
+          <span key={`${index}-${textIndex}`} className={cn(shouldAnimate && "animate-fade-in")}>
+            {text}
             {textIndex < group.texts.length - 1 && " "}
           </span>
         )
@@ -434,7 +434,9 @@ export function ViewerInterface({ event, slug }: ViewerInterfaceProps) {
     else if (fontSize === "medium") setFontSize("large")
     else if (fontSize === "large") setFontSize("xl")
     else if (fontSize === "xl") setFontSize("xxl")
-    setTimeout(scrollToBottom, 100)
+    if (autoScroll) {
+      setTimeout(scrollToBottom, 100)
+    }
   }
 
   const decreaseFontSize = () => {
@@ -443,17 +445,15 @@ export function ViewerInterface({ event, slug }: ViewerInterfaceProps) {
     else if (fontSize === "large") setFontSize("medium")
     else if (fontSize === "medium") setFontSize("small")
     else if (fontSize === "small") setFontSize("xs")
-    setTimeout(scrollToBottom, 100)
+    if (autoScroll) {
+      setTimeout(scrollToBottom, 100)
+    }
   }
 
   const fontFamilyLabels = {
     sans: "System Sans",
     serif: "System Serif",
     mono: "Monospace",
-    inter: "Inter",
-    roboto: "Roboto",
-    merriweather: "Merriweather",
-    playfair: "Playfair Display",
   }
 
   const fontSizeClasses = {
@@ -469,10 +469,6 @@ export function ViewerInterface({ event, slug }: ViewerInterfaceProps) {
     sans: "font-sans",
     serif: "font-serif",
     mono: "font-mono",
-    inter: "font-sans",
-    roboto: "font-sans",
-    merriweather: "font-serif",
-    playfair: "font-serif",
   }
 
   const bgColorClass = theme === "dark" ? "bg-black" : "bg-white"
@@ -662,6 +658,7 @@ export function ViewerInterface({ event, slug }: ViewerInterfaceProps) {
                           : "hover:bg-gray-100 focus:bg-gray-100 text-gray-900 hover:text-gray-900 focus:text-gray-900"
                       }`}
                       onClick={(e) => e.stopPropagation()}
+                      onSelect={(e) => e.preventDefault()}
                     >
                       System Sans
                     </DropdownMenuRadioItem>
@@ -673,6 +670,7 @@ export function ViewerInterface({ event, slug }: ViewerInterfaceProps) {
                           : "hover:bg-gray-100 focus:bg-gray-100 text-gray-900 hover:text-gray-900 focus:text-gray-900"
                       }`}
                       onClick={(e) => e.stopPropagation()}
+                      onSelect={(e) => e.preventDefault()}
                     >
                       System Serif
                     </DropdownMenuRadioItem>
@@ -684,52 +682,9 @@ export function ViewerInterface({ event, slug }: ViewerInterfaceProps) {
                           : "hover:bg-gray-100 focus:bg-gray-100 text-gray-900 hover:text-gray-900 focus:text-gray-900"
                       }`}
                       onClick={(e) => e.stopPropagation()}
+                      onSelect={(e) => e.preventDefault()}
                     >
                       Monospace
-                    </DropdownMenuRadioItem>
-                    <DropdownMenuRadioItem
-                      value="inter"
-                      className={`cursor-pointer ${
-                        theme === "dark"
-                          ? "hover:bg-white/10 focus:bg-white/10 text-white hover:text-white focus:text-white"
-                          : "hover:bg-gray-100 focus:bg-gray-100 text-gray-900 hover:text-gray-900 focus:text-gray-900"
-                      }`}
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      Inter
-                    </DropdownMenuRadioItem>
-                    <DropdownMenuRadioItem
-                      value="roboto"
-                      className={`cursor-pointer ${
-                        theme === "dark"
-                          ? "hover:bg-white/10 focus:bg-white/10 text-white hover:text-white focus:text-white"
-                          : "hover:bg-gray-100 focus:bg-gray-100 text-gray-900 hover:text-gray-900 focus:text-gray-900"
-                      }`}
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      Roboto
-                    </DropdownMenuRadioItem>
-                    <DropdownMenuRadioItem
-                      value="merriweather"
-                      className={`cursor-pointer ${
-                        theme === "dark"
-                          ? "hover:bg-white/10 focus:bg-white/10 text-white hover:text-white focus:text-white"
-                          : "hover:bg-gray-100 focus:bg-gray-100 text-gray-900 hover:text-gray-900 focus:text-gray-900"
-                      }`}
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      Merriweather
-                    </DropdownMenuRadioItem>
-                    <DropdownMenuRadioItem
-                      value="playfair"
-                      className={`cursor-pointer ${
-                        theme === "dark"
-                          ? "hover:bg-white/10 focus:bg-white/10 text-white hover:text-white focus:text-white"
-                          : "hover:bg-gray-100 focus:bg-gray-100 text-gray-900 hover:text-gray-900 focus:text-gray-900"
-                      }`}
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      Playfair Display
                     </DropdownMenuRadioItem>
                   </DropdownMenuRadioGroup>
                 </DropdownMenuContent>
