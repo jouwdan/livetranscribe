@@ -33,7 +33,7 @@ export default function Home() {
             <div className="text-center mb-16">
               <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-purple-500/30 bg-purple-500/10 backdrop-blur-sm mb-6">
                 <AudioLines className="h-4 w-4 text-purple-400" />
-                <span className="text-sm text-purple-300">AI-Powered Live Transcription</span>
+                <span className="text-sm text-purple-300">Agentic AI Transcription</span>
               </div>
               <h1 className="text-5xl md:text-7xl font-bold mb-6 tracking-tight bg-gradient-to-br from-white via-white to-white/60 bg-clip-text text-transparent">
                 Make every event
@@ -133,7 +133,8 @@ export default function Home() {
                 {
                   icon: Zap,
                   title: "Real-Time AI Processing",
-                  description: "Advanced AI models transcribe speech in real-time for live event streaming.",
+                  description:
+                    "Advanced AI models transcribe speech in real-time, cross-examined by AI agents to ensure accuracy for in-person events.",
                 },
                 {
                   icon: Users,
@@ -189,7 +190,7 @@ export default function Home() {
                   title: "Workshops & Training",
                   description:
                     "Hands-on workshops and training sessions. Attendees follow along in real-time without missing critical instructions.",
-                  highlights: ["Real-time streaming", "Custom event URLs", "Session tracking"],
+                  highlights: ["Real-time transcription", "Custom event URLs", "Session tracking"],
                 },
                 {
                   title: "Community Events",
