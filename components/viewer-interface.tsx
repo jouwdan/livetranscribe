@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useMemo } from "react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { ArrowDownToLine, ArrowUpFromLine, Radio, Sun, Moon, Minus, Plus, Settings } from "lucide-react"
-import { createClient } from "@/lib/supabase/client"
+import { createClient as createBrowserClient } from "@/lib/supabase/client"
 import type { RealtimeChannel } from "@supabase/supabase-js"
 import type { EventSession } from "@/types/event-session"
 import {
@@ -45,6 +45,7 @@ interface ViewerInterfaceProps {
     logo_url?: string | null
     event_name?: string
     speaker?: string
+    id: string
   }
   slug: string
 }
@@ -120,6 +121,7 @@ export function ViewerInterface({ event, slug }: ViewerInterfaceProps) {
   const [theme, setTheme] = useState<Theme>("dark")
   const [fontFamily, setFontFamily] = useState<FontFamily>("sans")
   const [currentInterim, setCurrentInterim] = useState<{ text: string; sequence: number } | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
     const savedTheme = localStorage.getItem("viewer-theme") as Theme | null
@@ -172,7 +174,7 @@ export function ViewerInterface({ event, slug }: ViewerInterfaceProps) {
 
       const channelName = `transcriptions-${event.slug}`
 
-      channel = createClient()
+      channel = createBrowserClient()
         .channel(channelName, {
           config: {
             broadcast: { self: true },
@@ -200,7 +202,7 @@ export function ViewerInterface({ event, slug }: ViewerInterfaceProps) {
 
             let sessionInfo = null
             if (newTranscription.session_id) {
-              const { data: sessionData } = await createClient()
+              const { data: sessionData } = await createBrowserClient()
                 .from("event_sessions")
                 .select("name, session_number")
                 .eq("id", newTranscription.session_id)
@@ -262,7 +264,7 @@ export function ViewerInterface({ event, slug }: ViewerInterfaceProps) {
       return () => {
         isSubscribed = false
         if (channel) {
-          createClient().removeChannel(channel)
+          createBrowserClient().removeChannel(channel)
         }
       }
     }
@@ -275,11 +277,15 @@ export function ViewerInterface({ event, slug }: ViewerInterfaceProps) {
     let pingInterval: NodeJS.Timeout | null = null
 
     const setupViewerTracking = async () => {
-      const { data: eventData } = await createClient().from("events").select("id").eq("slug", event.slug).single()
+      const { data: eventData } = await createBrowserClient()
+        .from("events")
+        .select("id")
+        .eq("slug", event.slug)
+        .single()
 
       if (!eventData) return
 
-      await createClient().from("viewer_sessions").insert({
+      await createBrowserClient().from("viewer_sessions").insert({
         event_id: eventData.id,
         session_id: sessionId,
         joined_at: new Date().toISOString(),
@@ -291,7 +297,7 @@ export function ViewerInterface({ event, slug }: ViewerInterfaceProps) {
       })
 
       pingInterval = setInterval(async () => {
-        await createClient()
+        await createBrowserClient()
           .from("viewer_sessions")
           .update({
             last_ping: new Date().toISOString(),
@@ -311,9 +317,13 @@ export function ViewerInterface({ event, slug }: ViewerInterfaceProps) {
     return () => {
       clearInterval(pingInterval)
       const cleanup = async () => {
-        const { data: eventData } = await createClient().from("events").select("id").eq("slug", event.slug).single()
+        const { data: eventData } = await createBrowserClient()
+          .from("events")
+          .select("id")
+          .eq("slug", event.slug)
+          .single()
         if (eventData) {
-          await createClient()
+          await createBrowserClient()
             .from("viewer_sessions")
             .update({
               left_at: new Date().toISOString(),
@@ -369,7 +379,7 @@ export function ViewerInterface({ event, slug }: ViewerInterfaceProps) {
         const currTimestamp = curr.timestamp.getTime()
         const timeDiff = (currTimestamp - prevTimestamp) / 1000
 
-        if (timeDiff > 10) {
+        if (timeDiff > 8) {
           currentGroup = {
             timestamp: curr.timestamp,
             texts: [curr.text],
@@ -469,7 +479,7 @@ export function ViewerInterface({ event, slug }: ViewerInterfaceProps) {
   const textColorClass = theme === "dark" ? "text-white" : "text-gray-900"
   const mutedTextClass = theme === "dark" ? "text-muted-foreground" : "text-gray-500"
   const borderClass = theme === "dark" ? "border-border" : "border-gray-200"
-  const timestampColorClass = theme === "dark" ? "text-foreground/40" : "text-gray-400"
+  const timestampColorClass = theme === "dark" ? "text-gray-400" : "text-gray-600"
 
   return (
     <div className={cn("flex flex-col h-screen", bgColorClass)}>
@@ -741,39 +751,66 @@ export function ViewerInterface({ event, slug }: ViewerInterfaceProps) {
       </div>
 
       {/* Transcription Content */}
-      <div className="flex-1 overflow-hidden">
-        <div ref={scrollAreaRef} className="h-full overflow-y-auto p-8" style={{ fontFamily: fontFamily }}>
-          <div className={cn("space-y-6 max-w-4xl mx-auto", textColorClass, fontSizeClasses[fontSize])}>
+      <div className="flex-1 overflow-y-auto" ref={scrollAreaRef}>
+        <div className={cn("p-6", bgColorClass)}>
+          <div className={cn("space-y-6 max-w-4xl mx-auto", fontFamilyClasses[fontFamily])}>
             {transcriptions.length === 0 && !currentInterim && (
               <div className="text-center py-20 opacity-50">
-                {isLive ? "Waiting for transcription..." : "No transcriptions yet. Waiting for broadcast to start."}
+                {isLoading
+                  ? "Loading Transcript..."
+                  : isLive
+                    ? "Waiting for transcription..."
+                    : "No transcriptions yet. Waiting for broadcast to start."}
               </div>
             )}
 
-            {transcriptions.map((transcription) => (
-              <div
-                key={transcription.id}
-                className={cn(
-                  "transition-all duration-300 leading-relaxed",
-                  transcription.id === newestTranscriptionId && "animate-fade-in",
-                )}
-              >
-                {transcription.text}
-                <span className={cn("text-xs ml-3 opacity-40", timestampColorClass)}>
-                  {transcription.timestamp.toLocaleTimeString()}
-                </span>
+            {groupedTranscriptions.map((group, groupIndex) => (
+              <div key={`group-${groupIndex}`} className="mb-6 last:mb-0">
+                {/* Timestamp for the group */}
+                <div className={cn("text-xs mb-2 opacity-60", timestampColorClass)}>
+                  {group.timestamp.toLocaleTimeString()}
+                </div>
+
+                {/* All transcripts in this group */}
+                <div
+                  className={cn(
+                    "leading-relaxed transition-all duration-300",
+                    fontSizeClasses[fontSize],
+                    fontFamilyClasses[fontFamily],
+                    textColorClass,
+                  )}
+                >
+                  {group.texts.map((text, textIndex) => {
+                    const transcriptionIndex = displayTranscriptions.findIndex((t) => t.text === text)
+                    const transcription =
+                      transcriptionIndex >= 0 ? displayTranscriptions[transcriptionIndex] : undefined
+                    const isLastInGroup = textIndex === group.texts.length - 1
+                    const isLastGroup = groupIndex === groupedTranscriptions.length - 1
+                    const shouldAnimate = isLastInGroup && isLastGroup && transcription?.id === newestTranscriptionId
+
+                    return (
+                      <span key={`${groupIndex}-${textIndex}`} className={cn(shouldAnimate && "animate-fade-in")}>
+                        {text}
+                        {textIndex < group.texts.length - 1 && " "}
+                      </span>
+                    )
+                  })}
+                </div>
               </div>
             ))}
 
             {currentInterim && (
-              <div
-                className={cn(
-                  "transition-all duration-200 leading-relaxed opacity-70 italic",
-                  theme === "dark" ? "text-gray-400" : "text-gray-500",
-                )}
-              >
-                {currentInterim.text}
-                <span className="ml-2 inline-block w-2 h-4 bg-current animate-pulse" />
+              <div className="mb-6">
+                <div className={cn("text-xs mb-2 opacity-60", timestampColorClass)}>
+                  {new Date().toLocaleTimeString()}
+                </div>
+                <div
+                  className={cn("leading-relaxed italic", theme === "dark" ? "text-gray-400" : "text-gray-500")}
+                  style={{ fontSize: `${fontSize}px` }}
+                >
+                  {currentInterim.text}
+                  <span className="inline-block w-2 h-5 ml-1 bg-current animate-pulse" />
+                </div>
               </div>
             )}
           </div>
