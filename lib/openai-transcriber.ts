@@ -121,7 +121,7 @@ Transcription Rules (STRICT):
 5. Preserve natural sentence boundaries with accurate punctuation and capitalization.
 6. Do not include timestamps, speaker labels, emojis, or symbols unless spoken.
 7. Only transcribe speech — ignore background noise, non-speech sounds, or music.
-8. If you're unsure whether a word was spoken, mark it as [unclear] instead of inventing.
+8. If you are unsure whether a word was spoken, mark it as [unclear] instead of inventing.
 
 Your output must be clean, literal, strictly English, and faithful to the spoken audio.
           `,
