@@ -205,7 +205,7 @@ export function BroadcastInterface({ slug, eventName, eventId, userId }: Broadca
         lastInterimBroadcastRef.current = Date.now()
         pendingInterimRef.current = null
       }
-    }, 150)
+    }, 50) // Reduced throttle from 150ms to 50ms for more responsive interim updates
 
     return () => clearInterval(interval)
   }, [isStreaming, currentSessionId])
@@ -278,7 +278,7 @@ export function BroadcastInterface({ slug, eventName, eventId, userId }: Broadca
       pendingInterimRef.current = { text, sequence: adjustedSequence }
 
       const now = Date.now()
-      if (now - lastInterimBroadcastRef.current < 150) {
+      if (now - lastInterimBroadcastRef.current < 50) {
         // Skip this broadcast, will send the accumulated text on next interval
         return
       }

@@ -17,6 +17,7 @@ import {
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
 } from "@/components/ui/dropdown-menu"
+import { cn } from "@/lib/utils"
 
 interface Transcription {
   id: string
@@ -118,6 +119,7 @@ export function ViewerInterface({ event, slug }: ViewerInterfaceProps) {
   const [fontSize, setFontSize] = useState<FontSize>("medium")
   const [theme, setTheme] = useState<Theme>("dark")
   const [fontFamily, setFontFamily] = useState<FontFamily>("sans")
+  const [currentInterim, setCurrentInterim] = useState<{ text: string; sequence: number } | null>(null)
 
   useEffect(() => {
     const savedTheme = localStorage.getItem("viewer-theme") as Theme | null
@@ -194,6 +196,8 @@ export function ViewerInterface({ event, slug }: ViewerInterfaceProps) {
               return
             }
 
+            setCurrentInterim(null)
+
             let sessionInfo = null
             if (newTranscription.session_id) {
               const { data: sessionData } = await createClient()
@@ -232,6 +236,13 @@ export function ViewerInterface({ event, slug }: ViewerInterfaceProps) {
             setIsLive(true)
           },
         )
+        .on("broadcast", { event: "interim_transcription" }, (payload: any) => {
+          const { text, sequence, sessionId } = payload.payload
+
+          // Only show interim if it's from the current session (or any session if not tracking)
+          setCurrentInterim({ text, sequence })
+          setIsLive(true)
+        })
         .on("broadcast", { event: "streaming_status" }, (payload: any) => {
           const { status, sessionId, timestamp } = payload.payload
 
@@ -239,6 +250,7 @@ export function ViewerInterface({ event, slug }: ViewerInterfaceProps) {
             setIsLive(true)
           } else if (status === "stopped") {
             setIsLive(false)
+            setCurrentInterim(null)
           }
         })
         .subscribe((status, err) => {
@@ -406,400 +418,384 @@ export function ViewerInterface({ event, slug }: ViewerInterfaceProps) {
     }
   }
 
-  const TranscriptionContent = ({ fontSize }: { fontSize: FontSize }) => {
-    const fontSizeClasses = {
-      xs: "text-sm leading-relaxed",
-      small: "text-base leading-relaxed",
-      medium: "text-xl leading-relaxed",
-      large: "text-3xl md:text-4xl leading-tight",
-      xl: "text-4xl md:text-5xl leading-tight",
-      xxl: "text-5xl md:text-6xl lg:text-7xl leading-tight",
-    }
+  const increaseFontSize = () => {
+    if (fontSize === "xs") setFontSize("small")
+    else if (fontSize === "small") setFontSize("medium")
+    else if (fontSize === "medium") setFontSize("large")
+    else if (fontSize === "large") setFontSize("xl")
+    else if (fontSize === "xl") setFontSize("xxl")
+    setTimeout(scrollToBottom, 100)
+  }
 
-    const fontFamilyClasses = {
-      sans: "font-sans",
-      serif: "font-serif",
-      mono: "font-mono",
-      inter: "font-sans",
-      roboto: "font-sans",
-      merriweather: "font-serif",
-      playfair: "font-serif",
-    }
+  const decreaseFontSize = () => {
+    if (fontSize === "xxl") setFontSize("xl")
+    else if (fontSize === "xl") setFontSize("large")
+    else if (fontSize === "large") setFontSize("medium")
+    else if (fontSize === "medium") setFontSize("small")
+    else if (fontSize === "small") setFontSize("xs")
+    setTimeout(scrollToBottom, 100)
+  }
 
-    const textClass = fontSizeClasses[fontSize]
-    const fontClass = fontFamilyClasses[fontFamily]
+  const fontFamilyLabels = {
+    sans: "System Sans",
+    serif: "System Serif",
+    mono: "Monospace",
+    inter: "Inter",
+    roboto: "Roboto",
+    merriweather: "Merriweather",
+    playfair: "Playfair Display",
+  }
 
-    const bgClass = theme === "dark" ? "bg-black" : "bg-white"
-    const textColorClass = theme === "dark" ? "text-white" : "text-gray-900"
-    const mutedTextClass = theme === "dark" ? "text-muted-foreground" : "text-gray-500"
-    const borderClass = theme === "dark" ? "border-border" : "border-gray-200"
-    const timestampClass = theme === "dark" ? "text-foreground/40" : "text-gray-400"
+  const fontSizeClasses = {
+    xs: "text-sm leading-relaxed",
+    small: "text-base leading-relaxed",
+    medium: "text-xl leading-relaxed",
+    large: "text-3xl md:text-4xl leading-tight",
+    xl: "text-4xl md:text-5xl leading-tight",
+    xxl: "text-5xl md:text-6xl lg:text-7xl leading-tight",
+  }
 
-    const increaseFontSize = () => {
-      if (fontSize === "xs") setFontSize("small")
-      else if (fontSize === "small") setFontSize("medium")
-      else if (fontSize === "medium") setFontSize("large")
-      else if (fontSize === "large") setFontSize("xl")
-      else if (fontSize === "xl") setFontSize("xxl")
-      setTimeout(scrollToBottom, 100)
-    }
+  const fontFamilyClasses = {
+    sans: "font-sans",
+    serif: "font-serif",
+    mono: "font-mono",
+    inter: "font-sans",
+    roboto: "font-sans",
+    merriweather: "font-serif",
+    playfair: "font-serif",
+  }
 
-    const decreaseFontSize = () => {
-      if (fontSize === "xxl") setFontSize("xl")
-      else if (fontSize === "xl") setFontSize("large")
-      else if (fontSize === "large") setFontSize("medium")
-      else if (fontSize === "medium") setFontSize("small")
-      else if (fontSize === "small") setFontSize("xs")
-      setTimeout(scrollToBottom, 100)
-    }
+  const bgColorClass = theme === "dark" ? "bg-black" : "bg-white"
+  const textColorClass = theme === "dark" ? "text-white" : "text-gray-900"
+  const mutedTextClass = theme === "dark" ? "text-muted-foreground" : "text-gray-500"
+  const borderClass = theme === "dark" ? "border-border" : "border-gray-200"
+  const timestampColorClass = theme === "dark" ? "text-foreground/40" : "text-gray-400"
 
-    const fontFamilyLabels = {
-      sans: "System Sans",
-      serif: "System Serif",
-      mono: "Monospace",
-      inter: "Inter",
-      roboto: "Roboto",
-      merriweather: "Merriweather",
-      playfair: "Playfair Display",
-    }
-
-    return (
-      <div className={`flex flex-col h-screen ${bgClass} overflow-hidden`} key={fontSize}>
-        {/* Header */}
-        <div className={`${bgClass} border-b ${borderClass} flex-shrink-0`}>
-          <div className="px-6 sm:px-8 lg:px-12 py-4 mx-auto w-full">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-              <div className="flex items-center gap-4">
-                {event?.logo_url && (
-                  <img
-                    src={event.logo_url || "/placeholder.svg"}
-                    alt="Event logo"
-                    className="h-12 w-12 rounded-lg object-contain"
-                  />
-                )}
-                <div>
-                  <h1 className={`text-xl sm:text-2xl font-bold ${textColorClass}`}>Live Transcription</h1>
-                  {event?.name && <p className={`text-sm ${mutedTextClass} mt-0.5`}>{event.name}</p>}
-                </div>
+  return (
+    <div className={cn("flex flex-col h-screen", bgColorClass)}>
+      {/* Header */}
+      <div className={`${bgColorClass} border-b ${borderClass} flex-shrink-0`}>
+        <div className="px-6 sm:px-8 lg:px-12 py-4 mx-auto w-full">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div className="flex items-center gap-4">
+              {event?.logo_url && (
+                <img
+                  src={event.logo_url || "/placeholder.svg"}
+                  alt="Event logo"
+                  className="h-12 w-12 rounded-lg object-contain"
+                />
+              )}
+              <div>
+                <h1 className={`text-xl sm:text-2xl font-bold ${textColorClass}`}>Live Transcription</h1>
+                {event?.name && <p className={`text-sm ${mutedTextClass} mt-0.5`}>{event.name}</p>}
               </div>
+            </div>
 
-              {/* Controls */}
-              <div className="flex gap-2 items-center flex-shrink-0">
-                <Badge
-                  variant={isLive ? "default" : "secondary"}
-                  className={`px-3 py-1 ${isLive ? "bg-green-600 hover:bg-green-700" : "bg-muted"}`}
-                >
-                  {isLive ? "Live" : "Offline"}
-                </Badge>
+            {/* Controls */}
+            <div className="flex gap-2 items-center flex-shrink-0">
+              <Badge
+                variant={isLive ? "default" : "secondary"}
+                className={`px-3 py-1 ${isLive ? "bg-green-600 hover:bg-green-700" : "bg-muted"}`}
+              >
+                {isLive ? "Live" : "Offline"}
+              </Badge>
 
-                {/* Auto-scroll toggle */}
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setAutoScroll(!autoScroll)}
-                  className={`h-8 px-3 gap-1.5 text-xs ${
-                    theme === "dark"
-                      ? "text-white hover:bg-white/10"
-                      : "text-gray-900 hover:bg-gray-200 hover:text-gray-900"
+              {/* Auto-scroll toggle */}
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setAutoScroll(!autoScroll)}
+                className={`h-8 px-3 gap-1.5 text-xs ${
+                  theme === "dark"
+                    ? "text-white hover:bg-white/10"
+                    : "text-gray-900 hover:bg-gray-200 hover:text-gray-900"
+                }`}
+              >
+                {autoScroll ? (
+                  <>
+                    <ArrowDownToLine className="h-3 w-3" />
+                    Auto-scroll
+                  </>
+                ) : (
+                  <>
+                    <ArrowUpFromLine className="h-3 w-3" />
+                    Paused
+                  </>
+                )}
+              </Button>
+
+              {/* Settings dropdown menu */}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className={`h-8 w-8 p-0 ${
+                      theme === "dark"
+                        ? "text-white hover:bg-white/10"
+                        : "text-gray-900 hover:bg-gray-200 hover:text-gray-900"
+                    }`}
+                    title="Display settings"
+                  >
+                    <Settings className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent
+                  align="end"
+                  className={`w-56 ${
+                    theme === "dark" ? "bg-black border-gray-800 text-white" : "bg-white border-gray-200 text-gray-900"
                   }`}
                 >
-                  {autoScroll ? (
-                    <>
-                      <ArrowDownToLine className="h-3 w-3" />
-                      Auto-scroll
-                    </>
-                  ) : (
-                    <>
-                      <ArrowUpFromLine className="h-3 w-3" />
-                      Paused
-                    </>
-                  )}
-                </Button>
+                  <DropdownMenuLabel className={theme === "dark" ? "text-white" : "text-gray-900"}>
+                    Display Settings
+                  </DropdownMenuLabel>
+                  <DropdownMenuSeparator className={theme === "dark" ? "bg-gray-800" : "bg-gray-200"} />
 
-                {/* Settings dropdown menu */}
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
+                  {/* Theme Toggle */}
+                  <DropdownMenuItem
+                    onSelect={(e) => e.preventDefault()}
+                    className={`cursor-pointer ${
+                      theme === "dark"
+                        ? "hover:bg-white/10 focus:bg-white/10 text-white hover:text-white focus:text-white"
+                        : "hover:bg-gray-100 focus:bg-gray-100 text-gray-900 hover:text-gray-900 focus:text-gray-900"
+                    }`}
+                  >
+                    <div
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        toggleTheme()
+                      }}
+                      className="flex items-center w-full"
+                    >
+                      {theme === "dark" ? (
+                        <>
+                          <Sun className="mr-2 h-4 w-4" />
+                          <span>Switch to Light Mode</span>
+                        </>
+                      ) : (
+                        <>
+                          <Moon className="mr-2 h-4 w-4" />
+                          <span>Switch to Dark Mode</span>
+                        </>
+                      )}
+                    </div>
+                  </DropdownMenuItem>
+
+                  <DropdownMenuSeparator className={theme === "dark" ? "bg-gray-800" : "bg-gray-200"} />
+
+                  {/* Font Size Controls */}
+                  <DropdownMenuLabel
+                    className={`text-xs font-normal ${theme === "dark" ? "text-gray-400" : "text-gray-500"}`}
+                  >
+                    Text Size
+                  </DropdownMenuLabel>
+                  <div className="flex items-center justify-between px-2 py-1.5" onClick={(e) => e.stopPropagation()}>
                     <Button
                       variant="ghost"
                       size="sm"
-                      className={`h-8 w-8 p-0 ${
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        decreaseFontSize()
+                      }}
+                      disabled={fontSize === "xs"}
+                      className={`h-8 w-8 p-0 disabled:opacity-30 ${
                         theme === "dark"
-                          ? "text-white hover:bg-white/10"
-                          : "text-gray-900 hover:bg-gray-200 hover:text-gray-900"
+                          ? "hover:bg-white/10 text-white hover:text-white"
+                          : "hover:bg-gray-100 text-gray-900 hover:text-gray-900"
                       }`}
-                      title="Display settings"
                     >
-                      <Settings className="h-4 w-4" />
+                      <Minus className="h-4 w-4" />
                     </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent
-                    align="end"
-                    className={`w-56 ${
-                      theme === "dark"
-                        ? "bg-black border-gray-800 text-white"
-                        : "bg-white border-gray-200 text-gray-900"
-                    }`}
-                  >
-                    <DropdownMenuLabel className={theme === "dark" ? "text-white" : "text-gray-900"}>
-                      Display Settings
-                    </DropdownMenuLabel>
-                    <DropdownMenuSeparator className={theme === "dark" ? "bg-gray-800" : "bg-gray-200"} />
+                    <span className={`text-xs ${theme === "dark" ? "text-gray-400" : "text-gray-500"}`}>
+                      {fontSize === "xs" && "XS"}
+                      {fontSize === "small" && "Small"}
+                      {fontSize === "medium" && "Medium"}
+                      {fontSize === "large" && "Large"}
+                      {fontSize === "xl" && "XL"}
+                      {fontSize === "xxl" && "XXL"}
+                    </span>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        increaseFontSize()
+                      }}
+                      disabled={fontSize === "xxl"}
+                      className={`h-8 w-8 p-0 disabled:opacity-30 ${
+                        theme === "dark"
+                          ? "hover:bg-white/10 text-white hover:text-white"
+                          : "hover:bg-gray-100 text-gray-900 hover:text-gray-900"
+                      }`}
+                    >
+                      <Plus className="h-4 w-4" />
+                    </Button>
+                  </div>
 
-                    {/* Theme Toggle */}
-                    <DropdownMenuItem
-                      onSelect={(e) => e.preventDefault()}
+                  <DropdownMenuSeparator className={theme === "dark" ? "bg-gray-800" : "bg-gray-200"} />
+
+                  {/* Font Family Picker */}
+                  <DropdownMenuLabel
+                    className={`text-xs font-normal ${theme === "dark" ? "text-gray-400" : "text-gray-500"}`}
+                  >
+                    Font Family
+                  </DropdownMenuLabel>
+                  <DropdownMenuRadioGroup
+                    value={fontFamily}
+                    onValueChange={(value) => changeFontFamily(value as FontFamily)}
+                  >
+                    <DropdownMenuRadioItem
+                      value="sans"
                       className={`cursor-pointer ${
                         theme === "dark"
                           ? "hover:bg-white/10 focus:bg-white/10 text-white hover:text-white focus:text-white"
                           : "hover:bg-gray-100 focus:bg-gray-100 text-gray-900 hover:text-gray-900 focus:text-gray-900"
                       }`}
+                      onClick={(e) => e.stopPropagation()}
                     >
-                      <div
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          toggleTheme()
-                        }}
-                        className="flex items-center w-full"
-                      >
-                        {theme === "dark" ? (
-                          <>
-                            <Sun className="mr-2 h-4 w-4" />
-                            <span>Switch to Light Mode</span>
-                          </>
-                        ) : (
-                          <>
-                            <Moon className="mr-2 h-4 w-4" />
-                            <span>Switch to Dark Mode</span>
-                          </>
-                        )}
-                      </div>
-                    </DropdownMenuItem>
-
-                    <DropdownMenuSeparator className={theme === "dark" ? "bg-gray-800" : "bg-gray-200"} />
-
-                    {/* Font Size Controls */}
-                    <DropdownMenuLabel
-                      className={`text-xs font-normal ${theme === "dark" ? "text-gray-400" : "text-gray-500"}`}
+                      System Sans
+                    </DropdownMenuRadioItem>
+                    <DropdownMenuRadioItem
+                      value="serif"
+                      className={`cursor-pointer ${
+                        theme === "dark"
+                          ? "hover:bg-white/10 focus:bg-white/10 text-white hover:text-white focus:text-white"
+                          : "hover:bg-gray-100 focus:bg-gray-100 text-gray-900 hover:text-gray-900 focus:text-gray-900"
+                      }`}
+                      onClick={(e) => e.stopPropagation()}
                     >
-                      Text Size
-                    </DropdownMenuLabel>
-                    <div className="flex items-center justify-between px-2 py-1.5" onClick={(e) => e.stopPropagation()}>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          decreaseFontSize()
-                        }}
-                        disabled={fontSize === "xs"}
-                        className={`h-8 w-8 p-0 disabled:opacity-30 ${
-                          theme === "dark"
-                            ? "hover:bg-white/10 text-white hover:text-white"
-                            : "hover:bg-gray-100 text-gray-900 hover:text-gray-900"
-                        }`}
-                      >
-                        <Minus className="h-4 w-4" />
-                      </Button>
-                      <span className={`text-xs ${theme === "dark" ? "text-gray-400" : "text-gray-500"}`}>
-                        {fontSize === "xs" && "XS"}
-                        {fontSize === "small" && "Small"}
-                        {fontSize === "medium" && "Medium"}
-                        {fontSize === "large" && "Large"}
-                        {fontSize === "xl" && "XL"}
-                        {fontSize === "xxl" && "XXL"}
-                      </span>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          increaseFontSize()
-                        }}
-                        disabled={fontSize === "xxl"}
-                        className={`h-8 w-8 p-0 disabled:opacity-30 ${
-                          theme === "dark"
-                            ? "hover:bg-white/10 text-white hover:text-white"
-                            : "hover:bg-gray-100 text-gray-900 hover:text-gray-900"
-                        }`}
-                      >
-                        <Plus className="h-4 w-4" />
-                      </Button>
-                    </div>
-
-                    <DropdownMenuSeparator className={theme === "dark" ? "bg-gray-800" : "bg-gray-200"} />
-
-                    {/* Font Family Picker */}
-                    <DropdownMenuLabel
-                      className={`text-xs font-normal ${theme === "dark" ? "text-gray-400" : "text-gray-500"}`}
+                      System Serif
+                    </DropdownMenuRadioItem>
+                    <DropdownMenuRadioItem
+                      value="mono"
+                      className={`cursor-pointer ${
+                        theme === "dark"
+                          ? "hover:bg-white/10 focus:bg-white/10 text-white hover:text-white focus:text-white"
+                          : "hover:bg-gray-100 focus:bg-gray-100 text-gray-900 hover:text-gray-900 focus:text-gray-900"
+                      }`}
+                      onClick={(e) => e.stopPropagation()}
                     >
-                      Font Family
-                    </DropdownMenuLabel>
-                    <DropdownMenuRadioGroup
-                      value={fontFamily}
-                      onValueChange={(value) => changeFontFamily(value as FontFamily)}
+                      Monospace
+                    </DropdownMenuRadioItem>
+                    <DropdownMenuRadioItem
+                      value="inter"
+                      className={`cursor-pointer ${
+                        theme === "dark"
+                          ? "hover:bg-white/10 focus:bg-white/10 text-white hover:text-white focus:text-white"
+                          : "hover:bg-gray-100 focus:bg-gray-100 text-gray-900 hover:text-gray-900 focus:text-gray-900"
+                      }`}
+                      onClick={(e) => e.stopPropagation()}
                     >
-                      <DropdownMenuRadioItem
-                        value="sans"
-                        className={`cursor-pointer ${
-                          theme === "dark"
-                            ? "hover:bg-white/10 focus:bg-white/10 text-white hover:text-white focus:text-white"
-                            : "hover:bg-gray-100 focus:bg-gray-100 text-gray-900 hover:text-gray-900 focus:text-gray-900"
-                        }`}
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        System Sans
-                      </DropdownMenuRadioItem>
-                      <DropdownMenuRadioItem
-                        value="serif"
-                        className={`cursor-pointer ${
-                          theme === "dark"
-                            ? "hover:bg-white/10 focus:bg-white/10 text-white hover:text-white focus:text-white"
-                            : "hover:bg-gray-100 focus:bg-gray-100 text-gray-900 hover:text-gray-900 focus:text-gray-900"
-                        }`}
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        System Serif
-                      </DropdownMenuRadioItem>
-                      <DropdownMenuRadioItem
-                        value="mono"
-                        className={`cursor-pointer ${
-                          theme === "dark"
-                            ? "hover:bg-white/10 focus:bg-white/10 text-white hover:text-white focus:text-white"
-                            : "hover:bg-gray-100 focus:bg-gray-100 text-gray-900 hover:text-gray-900 focus:text-gray-900"
-                        }`}
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        Monospace
-                      </DropdownMenuRadioItem>
-                      <DropdownMenuRadioItem
-                        value="inter"
-                        className={`cursor-pointer ${
-                          theme === "dark"
-                            ? "hover:bg-white/10 focus:bg-white/10 text-white hover:text-white focus:text-white"
-                            : "hover:bg-gray-100 focus:bg-gray-100 text-gray-900 hover:text-gray-900 focus:text-gray-900"
-                        }`}
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        Inter
-                      </DropdownMenuRadioItem>
-                      <DropdownMenuRadioItem
-                        value="roboto"
-                        className={`cursor-pointer ${
-                          theme === "dark"
-                            ? "hover:bg-white/10 focus:bg-white/10 text-white hover:text-white focus:text-white"
-                            : "hover:bg-gray-100 focus:bg-gray-100 text-gray-900 hover:text-gray-900 focus:text-gray-900"
-                        }`}
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        Roboto
-                      </DropdownMenuRadioItem>
-                      <DropdownMenuRadioItem
-                        value="merriweather"
-                        className={`cursor-pointer ${
-                          theme === "dark"
-                            ? "hover:bg-white/10 focus:bg-white/10 text-white hover:text-white focus:text-white"
-                            : "hover:bg-gray-100 focus:bg-gray-100 text-gray-900 hover:text-gray-900 focus:text-gray-900"
-                        }`}
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        Merriweather
-                      </DropdownMenuRadioItem>
-                      <DropdownMenuRadioItem
-                        value="playfair"
-                        className={`cursor-pointer ${
-                          theme === "dark"
-                            ? "hover:bg-white/10 focus:bg-white/10 text-white hover:text-white focus:text-white"
-                            : "hover:bg-gray-100 focus:bg-gray-100 text-gray-900 hover:text-gray-900 focus:text-gray-900"
-                        }`}
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        Playfair Display
-                      </DropdownMenuRadioItem>
-                    </DropdownMenuRadioGroup>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </div>
+                      Inter
+                    </DropdownMenuRadioItem>
+                    <DropdownMenuRadioItem
+                      value="roboto"
+                      className={`cursor-pointer ${
+                        theme === "dark"
+                          ? "hover:bg-white/10 focus:bg-white/10 text-white hover:text-white focus:text-white"
+                          : "hover:bg-gray-100 focus:bg-gray-100 text-gray-900 hover:text-gray-900 focus:text-gray-900"
+                      }`}
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      Roboto
+                    </DropdownMenuRadioItem>
+                    <DropdownMenuRadioItem
+                      value="merriweather"
+                      className={`cursor-pointer ${
+                        theme === "dark"
+                          ? "hover:bg-white/10 focus:bg-white/10 text-white hover:text-white focus:text-white"
+                          : "hover:bg-gray-100 focus:bg-gray-100 text-gray-900 hover:text-gray-900 focus:text-gray-900"
+                      }`}
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      Merriweather
+                    </DropdownMenuRadioItem>
+                    <DropdownMenuRadioItem
+                      value="playfair"
+                      className={`cursor-pointer ${
+                        theme === "dark"
+                          ? "hover:bg-white/10 focus:bg-white/10 text-white hover:text-white focus:text-white"
+                          : "hover:bg-gray-100 focus:bg-gray-100 text-gray-900 hover:text-gray-900 focus:text-gray-900"
+                      }`}
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      Playfair Display
+                    </DropdownMenuRadioItem>
+                  </DropdownMenuRadioGroup>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
+          </div>
 
-            {/* Current Session Badge */}
-            {currentSession && (
-              <div className="mt-3 flex items-center gap-2 p-3 bg-purple-500/10 border border-purple-500/30 rounded-lg">
-                <Radio className="h-4 w-4 text-purple-400" />
-                <span className="text-sm font-medium text-purple-200">Current Session:</span>
-                <span className="text-sm text-purple-100">
-                  {currentSession.session_number}. {currentSession.name}
+          {/* Current Session Badge */}
+          {currentSession && (
+            <div className="mt-3 flex items-center gap-2 p-3 bg-purple-500/10 border border-purple-500/30 rounded-lg">
+              <Radio className="h-4 w-4 text-purple-400" />
+              <span className="text-sm font-medium text-purple-200">Current Session:</span>
+              <span className="text-sm text-purple-100">
+                {currentSession.session_number}. {currentSession.name}
+              </span>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Transcription Content */}
+      <div className="flex-1 overflow-hidden">
+        <div ref={scrollAreaRef} className="h-full overflow-y-auto p-8" style={{ fontFamily: fontFamily }}>
+          <div className={cn("space-y-6 max-w-4xl mx-auto", textColorClass, fontSizeClasses[fontSize])}>
+            {transcriptions.length === 0 && !currentInterim && (
+              <div className="text-center py-20 opacity-50">
+                {isLive ? "Waiting for transcription..." : "No transcriptions yet. Waiting for broadcast to start."}
+              </div>
+            )}
+
+            {transcriptions.map((transcription) => (
+              <div
+                key={transcription.id}
+                className={cn(
+                  "transition-all duration-300 leading-relaxed",
+                  transcription.id === newestTranscriptionId && "animate-fade-in",
+                )}
+              >
+                {transcription.text}
+                <span className={cn("text-xs ml-3 opacity-40", timestampColorClass)}>
+                  {transcription.timestamp.toLocaleTimeString()}
                 </span>
+              </div>
+            ))}
+
+            {currentInterim && (
+              <div
+                className={cn(
+                  "transition-all duration-200 leading-relaxed opacity-70 italic",
+                  theme === "dark" ? "text-gray-400" : "text-gray-500",
+                )}
+              >
+                {currentInterim.text}
+                <span className="ml-2 inline-block w-2 h-4 bg-current animate-pulse" />
               </div>
             )}
           </div>
         </div>
+      </div>
 
-        {/* Transcription Content */}
-        <div className="flex-1 overflow-hidden px-6 sm:px-8 lg:px-12 py-6 mx-auto w-full">
-          <div ref={scrollAreaRef} className="h-full overflow-y-auto">
-            <div className="space-y-6">
-              {groupedTranscriptions.map((group, index) => (
-                <div key={index}>
-                  {group.isSessionStart && group.sessionInfo && (
-                    <div className="mb-6 py-3 px-4 bg-purple-500/20 border border-purple-500/30 rounded-lg">
-                      <div className="flex items-center gap-2 text-purple-200 text-sm font-semibold">
-                        <Radio className="h-4 w-4" />
-                        New Session: {group.sessionInfo.name}
-                      </div>
-                    </div>
-                  )}
-                  <div className="space-y-1">
-                    <div className={`text-xs ${timestampClass} uppercase tracking-wide`}>
-                      {group.timestamp.toLocaleTimeString("en-US", {
-                        hour: "2-digit",
-                        minute: "2-digit",
-                        second: "2-digit",
-                      })}
-                    </div>
-                    <div className={`${textClass} ${textColorClass} font-bold ${fontClass}`}>
-                      {group.texts.map((text, textIndex) => {
-                        const transcriptionIndex = displayTranscriptions.findIndex((t) => t.text === text)
-                        const transcription =
-                          transcriptionIndex >= 0 ? displayTranscriptions[transcriptionIndex] : undefined
-                        const isLastInGroup = textIndex === group.texts.length - 1
-                        const isLastGroup = index === groupedTranscriptions.length - 1
-                        const shouldAnimate =
-                          isLastInGroup && isLastGroup && transcription?.id === newestTranscriptionId
-
-                        return (
-                          <span key={`${index}-${textIndex}`}>
-                            <TranscriptionText text={text} shouldAnimate={shouldAnimate} />
-                            {textIndex < group.texts.length - 1 && " "}
-                          </span>
-                        )
-                      })}
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        {/* Footer */}
-        <div className={`${bgClass} border-t ${borderClass} flex-shrink-0`}>
-          <div className="px-6 sm:px-8 lg:px-12 py-3 mx-auto w-full">
-            <p className={`text-xs ${mutedTextClass} text-center`}>
-              AI Powered by{" "}
-              <a
-                href="https://livetranscribe.net"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-purple-500 hover:text-purple-700 transition-colors"
-              >
-                LiveTranscribe.net
-              </a>
-            </p>
-          </div>
+      {/* Footer */}
+      <div className={`${bgColorClass} border-t ${borderClass} flex-shrink-0`}>
+        <div className="px-6 sm:px-8 lg:px-12 py-3 mx-auto w-full">
+          <p className={`text-xs ${mutedTextClass} text-center`}>
+            AI Powered by{" "}
+            <a
+              href="https://livetranscribe.net"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-purple-500 hover:text-purple-700 transition-colors"
+            >
+              LiveTranscribe.net
+            </a>
+          </p>
         </div>
       </div>
-    )
-  }
-
-  return <TranscriptionContent fontSize={fontSize} />
+    </div>
+  )
 }
