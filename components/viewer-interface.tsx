@@ -159,7 +159,7 @@ export function ViewerInterface({ event, initialViewMode }: ViewerInterfaceProps
     else if (fontSize === "large") setFontSize("xl")
     else if (fontSize === "xl") setFontSize("xxl")
     if (autoScroll) {
-      setTimeout(scrollToBottom, 100)
+      setTimeout(scrollToBottom, 200)
     }
   }
 
@@ -170,7 +170,7 @@ export function ViewerInterface({ event, initialViewMode }: ViewerInterfaceProps
     else if (fontSize === "medium") setFontSize("small")
     else if (fontSize === "small") setFontSize("xs")
     if (autoScroll) {
-      setTimeout(scrollToBottom, 100)
+      setTimeout(scrollToBottom, 200)
     }
   }
 
@@ -372,8 +372,12 @@ export function ViewerInterface({ event, initialViewMode }: ViewerInterfaceProps
   useEffect(() => {
     if (!autoScroll || !scrollAreaRef.current) return
 
-    const scrollContainer = scrollAreaRef.current
-    scrollContainer.scrollTop = scrollContainer.scrollHeight
+    requestAnimationFrame(() => {
+      const scrollContainer = scrollAreaRef.current
+      if (scrollContainer) {
+        scrollContainer.scrollTop = scrollContainer.scrollHeight
+      }
+    })
   }, [transcriptions, autoScroll, newestTranscriptionId, isLive, fontSize, fontFamily, currentInterim, widthMode])
 
   const displayTranscriptions = useMemo(() => {
