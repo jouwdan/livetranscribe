@@ -374,7 +374,7 @@ export function ViewerInterface({ event, initialViewMode }: ViewerInterfaceProps
 
     const scrollContainer = scrollAreaRef.current
     scrollContainer.scrollTop = scrollContainer.scrollHeight
-  }, [transcriptions, autoScroll, newestTranscriptionId, isLive, fontSize, fontFamily, currentInterim])
+  }, [transcriptions, autoScroll, newestTranscriptionId, isLive, fontSize, fontFamily, currentInterim, widthMode])
 
   const displayTranscriptions = useMemo(() => {
     return transcriptions
