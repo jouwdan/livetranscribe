@@ -261,7 +261,7 @@ export function BroadcastInterface({ slug, eventName, eventId, userId }: Broadca
         }
       })
     } catch (error) {
-      console.error("[v0] Failed to generate QR code:", error)
+      console.error("Failed to generate QR code:", error)
       setError("Failed to generate QR code. Please try again.")
     }
   }
@@ -288,10 +288,10 @@ export function BroadcastInterface({ slug, eventName, eventId, userId }: Broadca
           sessionDescription: sessions.find((s) => s.id === currentSessionId)?.description,
         })
 
-        console.log("[v0] Original:", text)
-        console.log("[v0] Validated:", validatedText)
+        console.log("Original:", text)
+        console.log("Validated:", validatedText)
       } catch (error) {
-        console.error("[v0] Validation failed, using original:", error)
+        console.error("Validation failed, using original:", error)
         validatedText = text
       }
 
@@ -355,15 +355,15 @@ export function BroadcastInterface({ slug, eventName, eventId, userId }: Broadca
             if (result.success && !result.skipped) {
               setTranscriptionCount((prev) => prev + 1)
               setLastSequenceNumber(adjustedSequence)
-              console.log(`[v0] Final transcription saved successfully (seq: ${adjustedSequence})`)
+              console.log(`Final transcription saved successfully (seq: ${adjustedSequence})`)
               saved = true
             } else if (result.skipped) {
-              console.warn(`[v0] Transcription skipped by API (seq: ${adjustedSequence})`)
+              console.warn(`Transcription skipped by API (seq: ${adjustedSequence})`)
               saved = true
             }
           } catch (error) {
             retries--
-            console.error(`[v0] Failed to save transcription (retries left: ${retries}):`, error)
+            console.error(`Failed to save transcription (retries left: ${retries}):`, error)
 
             if (retries > 0) {
               await new Promise((resolve) => setTimeout(resolve, 1000 * (4 - retries)))
@@ -374,7 +374,7 @@ export function BroadcastInterface({ slug, eventName, eventId, userId }: Broadca
         }
       }
     } catch (error) {
-      console.error("[v0] Error broadcasting transcription:", error)
+      console.error("Error broadcasting transcription:", error)
       if (isFinal) {
         setError(`Failed to save final transcription`)
       }
@@ -542,7 +542,7 @@ export function BroadcastInterface({ slug, eventName, eventId, userId }: Broadca
       })
 
       if (deductError) {
-        console.error("[v0] Failed to deduct credits:", deductError)
+        console.error("Failed to deduct credits:", deductError)
       } else {
         const { data: event } = await supabase.from("events").select("credits_minutes").eq("id", eventId).single()
 

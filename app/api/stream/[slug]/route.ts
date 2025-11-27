@@ -24,7 +24,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     .order("sequence_number", { ascending: true })
 
   if (error) {
-    console.error("[v0] Error fetching transcriptions:", error)
+    console.error("Error fetching transcriptions:", error)
     return Response.json({ error: "Failed to fetch transcriptions" }, { status: 500 })
   }
 
@@ -63,18 +63,18 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const { text, isFinal, sequenceNumber, sessionId } = data
 
     if (!text || typeof text !== "string" || text.trim().length === 0) {
-      console.warn("[v0] Skipping empty transcription")
+      console.warn("Skipping empty transcription")
       return Response.json({ success: true, skipped: true, reason: "empty_text" })
     }
 
     if (!isFinal) {
-      console.log("[v0] Skipping interim transcription save (not final)")
+      console.log("Skipping interim transcription save (not final)")
       return Response.json({ success: true, skipped: true, reason: "interim" })
     }
 
     if (!sessionId) {
       console.warn(
-        "[v0] Warning: Transcription saved without session_id. This may make it harder to organize and export transcriptions by session.",
+        "Warning: Transcription saved without session_id. This may make it harder to organize and export transcriptions by session.",
       )
     }
 
@@ -97,7 +97,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         .single()
 
       if (createError) {
-        console.error("[v0] Error creating event:", createError)
+        console.error("Error creating event:", createError)
         return Response.json({ error: "Failed to create event", details: createError.message }, { status: 500 })
       }
 
@@ -112,7 +112,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       .maybeSingle()
 
     if (existingTranscription) {
-      console.log(`[v0] Transcription with sequence ${sequenceNumber} already exists, skipping`)
+      console.log(`Transcription with sequence ${sequenceNumber} already exists, skipping`)
       return Response.json({ success: true, skipped: true, reason: "duplicate_sequence" })
     }
 
@@ -129,7 +129,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       .single()
 
     if (insertError) {
-      console.error("[v0] Error inserting transcription:", insertError)
+      console.error("Error inserting transcription:", insertError)
       return Response.json({ error: "Failed to save transcription", details: insertError.message }, { status: 500 })
     }
 
@@ -141,7 +141,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         column_name: "total_words",
         increment_by: wordCount,
       })
-      .catch((err) => console.warn("[v0] Failed to update event word count:", err))
+      .catch((err) => console.warn("Failed to update event word count:", err))
 
     await supabase
       .rpc("increment", {
@@ -150,7 +150,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         column_name: "total_transcriptions",
         increment_by: 1,
       })
-      .catch((err) => console.warn("[v0] Failed to update event transcription count:", err))
+      .catch((err) => console.warn("Failed to update event transcription count:", err))
 
     // Update session metrics if session_id is provided
     if (sessionId) {
@@ -161,7 +161,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
           column_name: "total_words",
           increment_by: wordCount,
         })
-        .catch((err) => console.warn("[v0] Failed to update session word count:", err))
+        .catch((err) => console.warn("Failed to update session word count:", err))
 
       await supabase
         .rpc("increment", {
@@ -170,10 +170,10 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
           column_name: "total_transcriptions",
           increment_by: 1,
         })
-        .catch((err) => console.warn("[v0] Failed to update session transcription count:", err))
+        .catch((err) => console.warn("Failed to update session transcription count:", err))
     }
 
-    console.log("[v0] Final transcription saved successfully:", {
+    console.log("Final transcription saved successfully:", {
       id: insertedTranscription.id,
       slug,
       sequenceNumber,
@@ -188,7 +188,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       wordCount,
     })
   } catch (error) {
-    console.error("[v0] Stream broadcast error:", error)
+    console.error("Stream broadcast error:", error)
     return Response.json(
       {
         error: "Failed to broadcast",

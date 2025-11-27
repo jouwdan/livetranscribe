@@ -74,12 +74,12 @@ export function CreateEventForm() {
 
     const checkSlug = async () => {
       setCheckingSlug(true)
-      console.log("[v0] Checking slug availability for:", customSlug)
+      console.log("Checking slug availability for:", customSlug)
       try {
         const supabase = createClient()
         const { data, error } = await supabase.from("events").select("slug").eq("slug", customSlug).maybeSingle()
 
-        console.log("[v0] Slug check result:", { data, error, isAvailable: !data })
+        console.log("Slug check result:", { data, error, isAvailable: !data })
 
         if (error && error.code !== "PGRST116") {
           throw error
@@ -87,7 +87,7 @@ export function CreateEventForm() {
 
         setSlugAvailable(data === null)
       } catch (err) {
-        console.error("[v0] Error checking slug:", err)
+        console.error("Error checking slug:", err)
         setSlugAvailable(null)
       } finally {
         setCheckingSlug(false)

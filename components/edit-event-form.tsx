@@ -48,11 +48,11 @@ export function EditEventForm({ event }: EditEventFormProps) {
     }
 
     setCheckingSlug(true)
-    console.log("[v0] Checking slug availability:", newSlug)
+    console.log("Checking slug availability:", newSlug)
 
     const { data, error } = await supabase.from("events").select("id").eq("slug", newSlug).maybeSingle()
 
-    console.log("[v0] Slug check result:", { data, error, available: !data })
+    console.log("Slug check result:", { data, error, available: !data })
 
     const available = !data
     setSlugAvailable(available)
@@ -140,7 +140,7 @@ export function EditEventForm({ event }: EditEventFormProps) {
 
       if (updateError) throw updateError
 
-      console.log("[v0] Event updated successfully, redirecting to dashboard")
+      console.log("Event updated successfully, redirecting to dashboard")
       setSuccess("Event updated successfully") // Set success state
       router.push("/dashboard")
       router.refresh()

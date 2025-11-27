@@ -60,7 +60,7 @@ const StreamingText = ({
   const [isComplete, setIsComplete] = useState(false)
 
   useEffect(() => {
-    console.log("[v0] StreamingText starting animation for text:", text.substring(0, 20) + "...")
+    console.log("StreamingText starting animation for text:", text.substring(0, 20) + "...")
     setDisplayedText("")
     setIsComplete(false)
 
@@ -74,7 +74,7 @@ const StreamingText = ({
         setDisplayedText(text.slice(0, currentIndex + 1))
         currentIndex++
       } else {
-        console.log("[v0] StreamingText animation complete")
+        console.log("StreamingText animation complete")
         setIsComplete(true)
         clearInterval(interval)
       }
@@ -766,7 +766,12 @@ export function ViewerInterface({ event, initialViewMode }: ViewerInterfaceProps
       </div>
 
       {/* Transcription Content */}
-      <div className="flex-1 overflow-y-auto" ref={scrollAreaRef}>
+      <div
+        className={`flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-400 scrollbar-track-transparent hover:scrollbar-thumb-gray-500 dark:scrollbar-thumb-gray-600 dark:hover:scrollbar-thumb-gray-500 ${
+          theme === "dark" ? "bg-black" : "bg-white"
+        }`}
+        ref={scrollAreaRef}
+      >
         <div className={cn("p-6", bgColorClass)}>
           <div
             className={cn(
