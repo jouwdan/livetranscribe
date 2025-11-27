@@ -48,7 +48,7 @@ Rules:
 
 Output the corrected transcript:`,
       temperature: 0.3, // Lower temperature for more consistent corrections
-      maxTokens: 200,
+      maxTokens: 400,
     })
 
     return text.trim()
