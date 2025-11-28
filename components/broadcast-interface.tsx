@@ -41,6 +41,11 @@ export function BroadcastInterface({ slug, eventName, eventId, userId }: Broadca
   const [sessions, setSessions] = useState<Array<{ id: string; name: string; session_number: number }>>([])
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null)
   const [lastSequenceNumber, setLastSequenceNumber] = useState(0)
+  const [eventDescription, setEventDescription] = useState<string | null>(null)
+  const [sessionDetails, setSessionDetails] = useState<{ name: string | null; description: string | null }>({
+    name: null,
+    description: null,
+  })
   const transcriberRef = useRef<OpenAITranscriber | null>(null)
   const viewerUrl = `${typeof window !== "undefined" ? window.location.origin : ""}/view/${slug}`
   const broadcastChannelRef = useRef<any>(null)
@@ -264,14 +269,96 @@ export function BroadcastInterface({ slug, eventName, eventId, userId }: Broadca
     }
   }
 
+  const getRecentTranscriptions = () => {
+    const oneMinuteAgo = new Date(Date.now() - 60000)
+    return transcriptions
+      .filter((t) => t.isFinal && t.timestamp >= oneMinuteAgo)
+      .slice(-10) // Last 10 final transcriptions
+      .map((t) => ({
+        text: t.text,
+        timestamp: t.timestamp.toISOString(),
+      }))
+  }
+
   const handleTranscription = async (text: string, isFinal: boolean, sequence: number) => {
     const adjustedSequence = lastSequenceNumber + sequence
 
     if (isFinal) {
-      setTranscriptions((prev) => [...prev, { text, isFinal, sequence: adjustedSequence, timestamp: new Date() }])
+      setTranscriptions((prev) => [
+        ...prev,
+        { text, isFinal: false, sequence: adjustedSequence, timestamp: new Date() },
+      ])
       setCurrentInterim("")
 
       pendingInterimRef.current = null
+
+      try {
+        if (broadcastChannelRef.current) {
+          await broadcastChannelRef.current.send({
+            type: "broadcast",
+            event: "interim_transcription",
+            payload: {
+              text,
+              sequence: adjustedSequence,
+              sessionId: currentSessionId,
+              timestamp: new Date().toISOString(),
+            },
+          })
+        }
+      } catch (error) {
+        console.error("[v0] Error broadcasting interim:", error)
+      }
+
+      let verifiedText = text
+      try {
+        const recentTranscriptions = getRecentTranscriptions()
+
+        const verificationResponse = await fetch("/api/verify-transcription", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            text,
+            eventContext: {
+              name: eventName,
+              description: eventDescription,
+            },
+            sessionContext: sessionDetails,
+            recentTranscriptions,
+            sequence: adjustedSequence,
+          }),
+        })
+
+        if (verificationResponse.ok) {
+          const verificationResult = await verificationResponse.json()
+          verifiedText = verificationResult.correctedText || text
+
+          if (verificationResult.hadErrors) {
+            console.log(`[v0] GPT-5-mini corrected transcription (seq: ${adjustedSequence}):`, {
+              original: text,
+              corrected: verifiedText,
+              corrections: verificationResult.corrections,
+            })
+          }
+        } else {
+          console.warn("[v0] Verification failed, using original text")
+        }
+      } catch (verifyError) {
+        console.error("[v0] Verification error, using original text:", verifyError)
+      }
+
+      setTranscriptions((prev) => {
+        const updated = [...prev]
+        const lastIndex = updated.length - 1
+        if (lastIndex >= 0 && updated[lastIndex].sequence === adjustedSequence) {
+          updated[lastIndex] = {
+            text: verifiedText,
+            isFinal: true,
+            sequence: adjustedSequence,
+            timestamp: new Date(),
+          }
+        }
+        return updated
+      })
     } else {
       setCurrentInterim(text)
 
@@ -302,6 +389,7 @@ export function BroadcastInterface({ slug, eventName, eventId, userId }: Broadca
       if (isFinal) {
         let retries = 3
         let saved = false
+        const verifiedText = transcriptions.find((t) => t.sequence === adjustedSequence)?.text || text
 
         while (retries > 0 && !saved) {
           try {
@@ -309,7 +397,7 @@ export function BroadcastInterface({ slug, eventName, eventId, userId }: Broadca
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({
-                text,
+                text: verifiedText,
                 isFinal,
                 sequenceNumber: adjustedSequence,
                 eventName,
@@ -341,7 +429,7 @@ export function BroadcastInterface({ slug, eventName, eventId, userId }: Broadca
               await new Promise((resolve) => setTimeout(resolve, 1000 * (4 - retries)))
             } else {
               // All retries exhausted
-              setError(`Failed to save transcription: "${text.substring(0, 50)}..."`)
+              setError(`Failed to save transcription: "${verifiedText.substring(0, 50)}..."`)
             }
           }
         }
@@ -404,11 +492,18 @@ export function BroadcastInterface({ slug, eventName, eventId, userId }: Broadca
         return
       }
 
+      setEventDescription(event.description || null)
+
       const { data: session } = await supabase
         .from("event_sessions")
         .select("name, description, started_at")
         .eq("id", currentSessionId)
         .single()
+
+      setSessionDetails({
+        name: session?.name || null,
+        description: session?.description || null,
+      })
 
       const startTime = new Date()
       setSessionStartTime(startTime)
