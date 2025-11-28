@@ -45,11 +45,10 @@ export async function signUp(formData: FormData) {
   const userId = userData?.user?.id
 
   if (userId) {
-    await supabase.from("user_profiles").insert({
-      id: userId,
-      email: email,
-      full_name: fullName,
-    })
+    await supabase
+      .from("user_profiles")
+      .update({ full_name: fullName })
+      .eq("id", userId)
   }
 
   await supabase
