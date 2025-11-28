@@ -34,14 +34,20 @@ export function DownloadTranscriptionsButton({
 
       const blob = await response.blob()
       const url = window.URL.createObjectURL(blob)
+
+      const disposition = response.headers.get("content-disposition") || ""
+      const filenameMatch = disposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/)
+      const rawFilename = filenameMatch?.[1]?.replace(/^["']|["']$/g, "")
+      const safeFilename = rawFilename?.replace(/[^a-zA-Z0-9._-]/g, "_") || "transcriptions.txt"
+
       const a = document.createElement("a")
       a.href = url
-      a.download =
-        response.headers.get("content-disposition")?.split("filename=")[1]?.replace(/"/g, "") || "transcriptions.txt"
-      document.body.appendChild(a)
+      a.download = safeFilename
+      a.rel = "noopener"
+      a.target = "_blank"
       a.click()
+
       window.URL.revokeObjectURL(url)
-      document.body.removeChild(a)
     } catch (error) {
       console.error("Download error:", error)
       alert("Failed to download transcriptions")
