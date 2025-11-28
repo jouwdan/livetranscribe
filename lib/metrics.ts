@@ -173,7 +173,7 @@ export class BroadcastMetricsTracker {
   async endSession() {
     const supabase = createBrowserClient()
     const endTime = new Date()
-    const durationMinutes = Math.round((endTime.getTime() - this.startTime.getTime()) / 60000)
+    const durationMinutes = Math.max(1, Math.ceil((endTime.getTime() - this.startTime.getTime()) / 60000))
 
     await supabase
       .from("event_sessions")

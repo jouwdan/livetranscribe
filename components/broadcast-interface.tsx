@@ -494,51 +494,68 @@ export function BroadcastInterface({ slug, eventName, eventId, userId }: Broadca
       transcriberRef.current = null
     }
 
-    if (sessionStartTime && currentSessionId) {
-      const endTime = new Date()
-      const durationMinutes = Math.ceil((endTime.getTime() - sessionStartTime.getTime()) / 60000)
+    const supabase = createBrowserClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    )
 
-      const supabase = createBrowserClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      )
+    const endTime = new Date()
 
-      if (broadcastChannelRef.current) {
-        broadcastChannelRef.current.send({
-          type: "broadcast",
-          event: "streaming_status",
-          payload: {
-            status: "stopped",
-            sessionId: currentSessionId,
-            timestamp: endTime.toISOString(),
-          },
-        })
+    if (broadcastChannelRef.current) {
+      broadcastChannelRef.current.send({
+        type: "broadcast",
+        event: "streaming_status",
+        payload: {
+          status: "stopped",
+          sessionId: currentSessionId,
+          timestamp: endTime.toISOString(),
+        },
+      })
+    }
+
+    let durationMinutes = 0
+
+    if (currentSessionId) {
+      if (broadcastMetricsRef.current) {
+        try {
+          durationMinutes = await broadcastMetricsRef.current.endSession()
+        } catch (err) {
+          console.error("Failed to finalize broadcast metrics:", err)
+        } finally {
+          broadcastMetricsRef.current = null
+        }
+      } else if (sessionStartTime) {
+        durationMinutes = Math.max(1, Math.ceil((endTime.getTime() - sessionStartTime.getTime()) / 60000))
+        await supabase
+          .from("event_sessions")
+          .update({
+            ended_at: endTime.toISOString(),
+            duration_minutes: durationMinutes,
+          })
+          .eq("id", currentSessionId)
+      } else {
+        await supabase
+          .from("event_sessions")
+          .update({ ended_at: endTime.toISOString() })
+          .eq("id", currentSessionId)
       }
 
-      await supabase
-        .from("event_sessions")
-        .update({
-          ended_at: endTime.toISOString(),
-          duration_minutes: durationMinutes,
+      if (durationMinutes > 0) {
+        const { error: deductError } = await supabase.rpc("deduct_event_credits", {
+          p_event_id: eventId,
+          p_duration_minutes: durationMinutes,
         })
-        .eq("id", currentSessionId)
 
-      const { error: deductError } = await supabase.rpc("deduct_event_credits", {
-        p_event_id: eventId,
-        p_duration_minutes: durationMinutes,
-      })
+        if (deductError) {
+          console.error("Failed to deduct credits:", deductError)
+        } else {
+          const { data: event } = await supabase.from("events").select("credits_minutes").eq("id", eventId).single()
 
-      if (deductError) {
-        console.error("Failed to deduct credits:", deductError)
-      } else {
-        const { data: event } = await supabase.from("events").select("credits_minutes").eq("id", eventId).single()
-
-        if (event) {
-          setCreditsRemaining(event.credits_minutes)
+          if (event) {
+            setCreditsRemaining(event.credits_minutes)
+          }
         }
       }
-
-      broadcastMetricsRef.current = null
     }
 
     setIsStreaming(false)

@@ -95,7 +95,7 @@ export default async function MetricsPage({ params }: MetricsPageProps) {
   // Fetch usage logs (broadcaster sessions)
   const { data: eventSessions } = await supabase
     .from("event_sessions")
-    .select("duration_minutes, started_at, ended_at")
+    .select("id, duration_minutes, started_at, ended_at")
     .eq("event_id", event.id)
     .order("started_at", { ascending: false })
 
