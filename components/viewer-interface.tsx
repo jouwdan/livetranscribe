@@ -248,6 +248,7 @@ export function ViewerInterface({ event, initialViewMode }: ViewerInterfaceProps
 
             setTranscriptions((prev) => {
               if (prev.some((t) => t.id === newTranscription.id)) {
+                console.log("Duplicate transcription detected, skipping:", newTranscription.id)
                 return prev
               }
 
@@ -275,6 +276,7 @@ export function ViewerInterface({ event, initialViewMode }: ViewerInterfaceProps
           },
         )
         .on("broadcast", { event: "interim_transcription" }, (payload: any) => {
+          if (!isSubscribed) return
           const { text, sequence, sessionId } = payload.payload
 
           // Only show interim if it's from the current session (or any session if not tracking)
@@ -282,6 +284,7 @@ export function ViewerInterface({ event, initialViewMode }: ViewerInterfaceProps
           setIsLive(true)
         })
         .on("broadcast", { event: "streaming_status" }, (payload: any) => {
+          if (!isSubscribed) return
           const { status, sessionId, timestamp } = payload.payload
 
           if (status === "started") {
@@ -296,16 +299,16 @@ export function ViewerInterface({ event, initialViewMode }: ViewerInterfaceProps
             console.error("Supabase subscription error:", err)
           }
         })
-
-      return () => {
-        isSubscribed = false
-        if (channel) {
-          createBrowserClient().removeChannel(channel)
-        }
-      }
     }
 
     initializeViewer()
+
+    return () => {
+      isSubscribed = false
+      if (channel) {
+        createBrowserClient().removeChannel(channel)
+      }
+    }
   }, [eventSlug])
 
   useEffect(() => {
@@ -418,25 +421,6 @@ export function ViewerInterface({ event, initialViewMode }: ViewerInterfaceProps
   const groupedTranscriptions = useMemo(() => {
     return groupTranscriptionsBySessionAndTime(displayTranscriptions)
   }, [displayTranscriptions])
-
-  const allDisplayItems = useMemo(() => {
-    return groupedTranscriptions.flatMap((group, index) =>
-      group.texts.map((text, textIndex) => {
-        const transcriptionIndex = displayTranscriptions.findIndex((t) => t.text === text)
-        const transcription = transcriptionIndex >= 0 ? displayTranscriptions[transcriptionIndex] : undefined
-        const isLastInGroup = textIndex === group.texts.length - 1
-        const isLastGroup = index === groupedTranscriptions.length - 1
-        const shouldAnimate = isLastInGroup && isLastGroup && transcription?.id === newestTranscriptionId
-
-        return (
-          <span key={`${index}-${textIndex}`} className={cn(shouldAnimate && "animate-fade-in")}>
-            {text}
-            {textIndex < group.texts.length - 1 && " "}
-          </span>
-        )
-      }),
-    )
-  }, [groupedTranscriptions, displayTranscriptions])
 
   const scrollToBottom = () => {
     if (scrollAreaRef.current) {

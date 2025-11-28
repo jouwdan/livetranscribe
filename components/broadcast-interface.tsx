@@ -41,7 +41,7 @@ export function BroadcastInterface({ slug, eventName, eventId, userId }: Broadca
   const [sessionDuration, setSessionDuration] = useState(0)
   const [sessionStartTime, setSessionStartTime] = useState<Date | null>(null)
   const [creditsRemaining, setCreditsRemaining] = useState<number | null>(null)
-  const [sessions, setSessions] = useState<Array<{ id: string; name: string; session_number: number }>>([])
+  const [sessions, setSessions] = useState<Array<{ id: string; name: string; session_number: number; description?: string | null }>>([])
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null)
   const [lastSequenceNumber, setLastSequenceNumber] = useState(0)
   const transcriberRef = useRef<OpenAITranscriber | null>(null)
@@ -51,6 +51,12 @@ export function BroadcastInterface({ slug, eventName, eventId, userId }: Broadca
   const pendingInterimRef = useRef<{ text: string; sequence: number } | null>(null)
   const eventDescriptionRef = useRef<string | null>(null)
   const broadcastMetricsRef = useRef<BroadcastMetricsTracker | null>(null)
+  const transcriptionsRef = useRef<Transcription[]>([])
+  
+  // Keep ref in sync with state
+  useEffect(() => {
+    transcriptionsRef.current = transcriptions
+  }, [transcriptions])
 
   useEffect(() => {
     if (!isStreaming || !sessionStartTime) return
@@ -118,7 +124,7 @@ export function BroadcastInterface({ slug, eventName, eventId, userId }: Broadca
     const fetchSessions = async () => {
       const { data } = await supabase
         .from("event_sessions")
-        .select("id, name, session_number")
+        .select("id, name, session_number, description")
         .eq("event_id", eventId)
         .order("session_number", { ascending: true })
 
@@ -278,7 +284,7 @@ export function BroadcastInterface({ slug, eventName, eventId, userId }: Broadca
         try {
           // Get recent transcripts from the past minute for context
           const oneMinuteAgo = new Date(Date.now() - 60000)
-          const recentTranscripts = transcriptions
+          const recentTranscripts = transcriptionsRef.current
             .filter((t) => t.isFinal && t.timestamp >= oneMinuteAgo)
             .map((t) => ({ text: t.text, timestamp: t.timestamp }))
 
@@ -390,7 +396,7 @@ export function BroadcastInterface({ slug, eventName, eventId, userId }: Broadca
         }
       }
     },
-    [eventId, currentSessionId, transcriptions],
+    [eventId, currentSessionId, lastSequenceNumber, eventName, sessions],
   )
 
   const handleStartStreaming = async () => {
