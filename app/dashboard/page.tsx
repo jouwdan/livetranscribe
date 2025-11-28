@@ -3,10 +3,10 @@ import { redirect } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import Link from "next/link"
-import { PlusCircle, Clock, Archive, ArchiveRestore, BarChart3, List, Users } from "lucide-react"
+import { PlusCircle, Clock, Archive, BarChart3, List, Users } from "lucide-react"
 import { AppNav } from "@/components/app-nav"
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
-import { archiveEvent, unarchiveEvent } from "./actions"
+import { ArchiveEventButton, UnarchiveEventButton } from "@/components/archive-event-buttons"
 import { DeleteEventDialog } from "@/components/delete-event-dialog"
 import { DownloadTranscriptionsButton } from "@/components/download-transcriptions-button"
 import { formatMinutesToHoursAndMinutes } from "@/lib/format-time"
@@ -191,13 +191,7 @@ export default async function DashboardPage() {
                       <Link href={`/edit/${event.slug}`}>
                         <Button variant="outline">Edit</Button>
                       </Link>
-                      <form action={archiveEvent}>
-                        <input type="hidden" name="eventId" value={event.id} />
-                        <Button variant="ghost" size="sm" className="gap-2">
-                          <Archive className="h-4 w-4" />
-                          Archive
-                        </Button>
-                      </form>
+                      <ArchiveEventButton eventId={event.id} />
                     </div>
                   </CardContent>
                 </Card>
@@ -237,13 +231,7 @@ export default async function DashboardPage() {
                                 View
                               </Button>
                             </Link>
-                            <form action={unarchiveEvent}>
-                              <input type="hidden" name="eventId" value={event.id} />
-                              <Button variant="ghost" size="sm" className="gap-2">
-                                <ArchiveRestore className="h-4 w-4" />
-                                Unarchive
-                              </Button>
-                            </form>
+                            <UnarchiveEventButton eventId={event.id} />
                             <DeleteEventDialog eventId={event.id} eventSlug={event.slug} eventName={event.name} />
                           </div>
                         </CardContent>

@@ -10,6 +10,7 @@ import { createClient } from "@/lib/supabase/client"
 import { Search, Clock, Users, Calendar, ExternalLink, Plus } from "lucide-react"
 import Link from "next/link"
 import { formatMinutesToHoursAndMinutes } from "@/lib/format-time"
+import { toast } from "sonner"
 
 interface Event {
   id: string
@@ -55,53 +56,56 @@ export function EventCreditManager({ events: initialEvents }: { events: Event[] 
 
   const handleAddCredits = async (event: Event) => {
     if (!addMinutes || !addAttendees) {
-      alert("Please enter both minutes and attendees")
+      toast.error("Please enter both minutes and attendees")
       return
     }
 
     setLoading(event.id)
 
-    try {
-      // Update the event's credits
-      const { error: updateError } = await supabase
-        .from("events")
-        .update({
-          credits_minutes: event.credits_minutes + Number.parseInt(addMinutes),
-          max_attendees: event.max_attendees + Number.parseInt(addAttendees),
-        })
-        .eq("id", event.id)
+    toast.promise(
+      (async () => {
+        const { error: updateError } = await supabase
+          .from("events")
+          .update({
+            credits_minutes: event.credits_minutes + Number.parseInt(addMinutes),
+            max_attendees: event.max_attendees + Number.parseInt(addAttendees),
+          })
+          .eq("id", event.id)
 
-      if (updateError) throw updateError
+        if (updateError) throw updateError
 
-      // Update local state
-      setEvents((prev) =>
-        prev.map((e) =>
-          e.id === event.id
-            ? {
-                ...e,
-                credits_minutes: e.credits_minutes + Number.parseInt(addMinutes),
-                max_attendees: e.max_attendees + Number.parseInt(addAttendees),
-              }
-            : e,
-        ),
-      )
+        setEvents((prev) =>
+          prev.map((e) =>
+            e.id === event.id
+              ? {
+                  ...e,
+                  credits_minutes: e.credits_minutes + Number.parseInt(addMinutes),
+                  max_attendees: e.max_attendees + Number.parseInt(addAttendees),
+                }
+              : e,
+          ),
+        )
 
-      // Reset form
-      setAddMinutes("")
-      setAddAttendees("")
-      setAddingCreditsTo(null)
-      alert("Credits added successfully!")
-    } catch (error) {
-      console.error("Error adding credits:", error)
-      alert("Failed to add credits")
-    } finally {
-      setLoading(null)
-    }
+        setAddMinutes("")
+        setAddAttendees("")
+        setAddingCreditsTo(null)
+
+        return { minutes: addMinutes, attendees: addAttendees }
+      })(),
+      {
+        loading: "Adding credits...",
+        success: ({ minutes, attendees }) =>
+          `Added ${formatMinutesToHoursAndMinutes(Number.parseInt(minutes))} and ${attendees} attendees!`,
+        error: (err) => err.message || "Failed to add credits",
+        finally: () => {
+          setLoading(null)
+        },
+      },
+    )
   }
 
   return (
     <div className="space-y-6">
-      {/* Search */}
       <Card className="bg-card/50 backdrop-blur-sm border-border/80">
         <CardHeader>
           <CardTitle className="text-white flex items-center gap-2">
@@ -119,7 +123,6 @@ export function EventCreditManager({ events: initialEvents }: { events: Event[] 
         </CardContent>
       </Card>
 
-      {/* Event List */}
       <div className="grid gap-4">
         {filteredEvents.map((event) => (
           <Card key={event.id} className="bg-card/50 backdrop-blur-sm border-border/80">
@@ -173,7 +176,6 @@ export function EventCreditManager({ events: initialEvents }: { events: Event[] 
               </div>
             </CardHeader>
             <CardContent className="space-y-4">
-              {/* Current Credits Summary */}
               <div className="grid grid-cols-2 gap-4">
                 <div className="flex items-center gap-3 p-3 bg-black/30 rounded-lg border border-border/50">
                   <Clock className="h-5 w-5 text-purple-400" />

@@ -7,6 +7,7 @@ import { ArrowDownToLine, ArrowUpFromLine, Radio, Sun, Moon, Minus, Plus, Settin
 import { createClient as createBrowserClient } from "@/lib/supabase/client"
 import type { RealtimeChannel } from "@supabase/supabase-js"
 import type { EventSession } from "@/types/event-session"
+import { toast } from "sonner"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -343,6 +344,24 @@ export function ViewerInterface({ event, initialViewMode }: ViewerInterfaceProps
       }
     })
   }, [transcriptions, autoScroll, newestTranscriptionId, isLive, fontSize, fontFamily, currentInterim, widthMode])
+
+  useEffect(() => {
+    if (isLive) {
+      toast.success("Stream is now live", {
+        description: "The broadcaster has started streaming",
+        duration: 3000,
+      })
+    } else {
+      // Only show offline toast if we were previously live (not on initial load)
+      const hasBeenLive = transcriptions.length > 0 || currentInterim !== null
+      if (hasBeenLive) {
+        toast.info("Stream went offline", {
+          description: "The broadcaster has stopped streaming",
+          duration: 3000,
+        })
+      }
+    }
+  }, [isLive])
 
   const displayTranscriptions = useMemo(() => {
     return transcriptions
