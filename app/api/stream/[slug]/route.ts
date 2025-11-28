@@ -214,14 +214,3 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     )
   }
 }
-  } catch (error) {
-    console.error("Stream broadcast error:", error)
-    return Response.json(
-      {
-        error: "Failed to broadcast",
-        details: error instanceof Error ? error.message : "Unknown error",
-      },
-      { status: 500 },
-    )
-  }
-}
