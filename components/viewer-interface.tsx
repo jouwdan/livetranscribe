@@ -186,119 +186,125 @@ export function ViewerInterface({ event, initialViewMode }: ViewerInterfaceProps
     let channel: RealtimeChannel | null = null
 
     const initializeViewer = async () => {
-      const response = await fetch(`/api/stream/${eventSlug}`)
-      const result = await response.json()
+      try {
+        const response = await fetch(`/api/stream/${eventSlug}`)
+        const result = await response.json()
 
-      if (result.error) {
-        console.error("Error initializing viewer:", result.error)
-        return
-      }
+        if (result.error) {
+          console.error("Error initializing viewer:", result.error)
+          return
+        }
 
-      if (result.transcriptions) {
-        const filtered = result.transcriptions.filter((t: any) => t.isFinal)
-        setTranscriptions(
-          filtered.map((t: any) => ({
-            id: t.id,
-            text: t.text,
-            isFinal: t.isFinal,
-            sequenceNumber: t.sequenceNumber,
-            timestamp: new Date(t.timestamp),
-            sessionId: t.sessionId,
-          })),
-        )
-      }
+        if (result.transcriptions) {
+          const filtered = result.transcriptions.filter((t: any) => t.isFinal)
+          setTranscriptions(
+            filtered.map((t: any) => ({
+              id: t.id,
+              text: t.text,
+              isFinal: t.isFinal,
+              sequenceNumber: t.sequenceNumber,
+              timestamp: new Date(t.timestamp),
+              sessionId: t.sessionId,
+            })),
+          )
+        }
 
-      const channelName = `transcriptions-${eventSlug}`
+        const channelName = `transcriptions-${eventSlug}`
 
-      channel = createBrowserClient()
-        .channel(channelName, {
-          config: {
-            broadcast: { self: true },
-            presence: { key: "" },
-          },
-        })
-        .on(
-          "postgres_changes",
-          {
-            event: "INSERT",
-            schema: "public",
-            table: "transcriptions",
-            filter: `event_id=eq.${result.eventId}`,
-          },
-          async (payload) => {
+        channel = createBrowserClient()
+          .channel(channelName, {
+            config: {
+              broadcast: { self: true },
+              presence: { key: "" },
+            },
+          })
+          .on(
+            "postgres_changes",
+            {
+              event: "INSERT",
+              schema: "public",
+              table: "transcriptions",
+              filter: `event_id=eq.${result.eventId}`,
+            },
+            async (payload) => {
+              if (!isSubscribed) return
+
+              const newTranscription = payload.new as any
+
+              if (!newTranscription.text || newTranscription.text.trim() === "" || !newTranscription.is_final) {
+                return
+              }
+
+              setCurrentInterim(null)
+
+              let sessionInfo = null
+              if (newTranscription.session_id) {
+                const { data: sessionData } = await createBrowserClient()
+                  .from("event_sessions")
+                  .select("name, session_number")
+                  .eq("id", newTranscription.session_id)
+                  .single()
+                sessionInfo = sessionData
+              }
+
+              setTranscriptions((prev) => {
+                if (prev.some((t) => t.id === newTranscription.id)) {
+                  console.log("Duplicate transcription detected, skipping:", newTranscription.id)
+                  return prev
+                }
+
+                const newItem = {
+                  id: newTranscription.id,
+                  text: newTranscription.text,
+                  isFinal: newTranscription.is_final,
+                  sequenceNumber: newTranscription.sequence_number,
+                  timestamp: new Date(newTranscription.created_at),
+                  sessionId: newTranscription.session_id,
+                  sessionInfo,
+                }
+
+                if (prev.length > 0) {
+                  setNewestTranscriptionId(newTranscription.id)
+                  setTimeout(() => {
+                    setNewestTranscriptionId(null)
+                  }, 2000)
+                }
+
+                return [...prev, newItem].sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime())
+              })
+
+              setIsLive(true)
+            },
+          )
+          .on("broadcast", { event: "interim_transcription" }, (payload: any) => {
             if (!isSubscribed) return
+            const { text, sequence, sessionId } = payload.payload
 
-            const newTranscription = payload.new as any
-
-            if (!newTranscription.text || newTranscription.text.trim() === "" || !newTranscription.is_final) {
-              return
-            }
-
-            setCurrentInterim(null)
-
-            let sessionInfo = null
-            if (newTranscription.session_id) {
-              const { data: sessionData } = await createBrowserClient()
-                .from("event_sessions")
-                .select("name, session_number")
-                .eq("id", newTranscription.session_id)
-                .single()
-              sessionInfo = sessionData
-            }
-
-            setTranscriptions((prev) => {
-              if (prev.some((t) => t.id === newTranscription.id)) {
-                console.log("Duplicate transcription detected, skipping:", newTranscription.id)
-                return prev
-              }
-
-              const newItem = {
-                id: newTranscription.id,
-                text: newTranscription.text,
-                isFinal: newTranscription.is_final,
-                sequenceNumber: newTranscription.sequence_number,
-                timestamp: new Date(newTranscription.created_at),
-                sessionId: newTranscription.session_id,
-                sessionInfo,
-              }
-
-              if (prev.length > 0) {
-                setNewestTranscriptionId(newTranscription.id)
-                setTimeout(() => {
-                  setNewestTranscriptionId(null)
-                }, 2000)
-              }
-
-              return [...prev, newItem].sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime())
-            })
-
+            // Only show interim if it's from the current session (or any session if not tracking)
+            setCurrentInterim({ text, sequence })
             setIsLive(true)
-          },
-        )
-        .on("broadcast", { event: "interim_transcription" }, (payload: any) => {
-          if (!isSubscribed) return
-          const { text, sequence, sessionId } = payload.payload
+          })
+          .on("broadcast", { event: "streaming_status" }, (payload: any) => {
+            if (!isSubscribed) return
+            const { status, sessionId, timestamp } = payload.payload
 
-          // Only show interim if it's from the current session (or any session if not tracking)
-          setCurrentInterim({ text, sequence })
-          setIsLive(true)
-        })
-        .on("broadcast", { event: "streaming_status" }, (payload: any) => {
-          if (!isSubscribed) return
-          const { status, sessionId, timestamp } = payload.payload
-
-          if (status === "started") {
-            setIsLive(true)
-          } else if (status === "stopped") {
-            setIsLive(false)
-            setCurrentInterim(null)
-          }
-        })
-        .subscribe((status, err) => {
-          if (err) {
-            console.error("Supabase subscription error:", err)
-          }
-        })
+            if (status === "started") {
+              setIsLive(true)
+            } else if (status === "stopped") {
+              setIsLive(false)
+              setCurrentInterim(null)
+            }
+          })
+          .subscribe((status, err) => {
+            if (err) {
+              console.error("Supabase subscription error:", err)
+            }
+          })
+      } catch (err) {
+        console.error("Failed to initialize viewer:", err)
+      } finally {
+        setIsLoading(false)
+      }
     }
 
     initializeViewer()
