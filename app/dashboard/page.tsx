@@ -33,6 +33,7 @@ export default async function DashboardPage() {
 
   const availableCredits = eventCredits?.filter((c) => !c.allocated_to_event_id) || []
   const allocatedCredits = eventCredits?.filter((c) => c.allocated_to_event_id) || []
+  const canCreateEvent = availableCredits.length > 0
 
   const groupedCredits = availableCredits.reduce(
     (acc, credit) => {
@@ -113,15 +114,22 @@ export default async function DashboardPage() {
 
           <div className="flex items-center justify-between">
             <h2 className="text-2xl font-bold text-white">Your Events</h2>
-            <Link href="/create">
-              <Button className="gap-2" disabled={availableCredits.length === 0}>
+            {canCreateEvent ? (
+              <Link href="/create">
+                <Button className="gap-2">
+                  <PlusCircle className="h-4 w-4" />
+                  Create Event
+                </Button>
+              </Link>
+            ) : (
+              <Button className="gap-2" disabled title="You need event credits to create events">
                 <PlusCircle className="h-4 w-4" />
                 Create Event
               </Button>
-            </Link>
+            )}
           </div>
 
-          {availableCredits.length === 0 && (
+          {!canCreateEvent && (
             <Card className="bg-card/50 backdrop-blur-sm border-red-500/50">
               <CardContent className="pt-6">
                 <p className="text-center text-red-400">
