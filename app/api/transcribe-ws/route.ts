@@ -37,6 +37,12 @@ export async function POST(request: Request) {
 
       if (createError) throw createError
       event = newEvent
+
+      await supabase.from("usage_logs").insert({
+        user_id: user.id,
+        event_id: event.id,
+        session_start: new Date().toISOString(),
+      })
     } else {
       await supabase.from("events").update({ session_active: true }).eq("id", event.id)
     }
@@ -47,7 +53,7 @@ export async function POST(request: Request) {
       apiKey: process.env.OPENAI_API_KEY,
     })
   } catch (error) {
-    console.error("Error starting transcription session:", error)
+    console.error("[v0] Error starting transcription session:", error)
     return Response.json({ error: "Failed to start session" }, { status: 500 })
   }
 }

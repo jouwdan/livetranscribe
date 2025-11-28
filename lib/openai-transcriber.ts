@@ -58,9 +58,9 @@ export class OpenAITranscriber {
 
       source.connect(this.processor)
       this.processor.connect(this.audioContext.destination)
-      console.log("Continuous audio streaming started")
+      console.log("[v0] Continuous audio streaming started")
     } catch (error) {
-      console.error("Failed to start transcription:", error)
+      console.error("[v0] Failed to start transcription:", error)
       this.onError(error instanceof Error ? error.message : "Failed to start")
       throw error
     }
@@ -73,7 +73,7 @@ export class OpenAITranscriber {
       this.ws = new WebSocket(url, ["realtime", `openai-insecure-api-key.${this.apiKey}`, "openai-beta.realtime-v1"])
 
       this.ws.onopen = () => {
-        console.log("WebSocket connected")
+        console.log("[v0] WebSocket connected")
         this.isConnected = true
 
         let contextInfo = `Event: ${this.eventName}`
@@ -119,9 +119,10 @@ Transcription Rules (STRICT):
    Never guess or substitute.
 4. **No hallucinations**, no invented fillers, no paraphrasing, no interpretation.
 5. Preserve natural sentence boundaries with accurate punctuation and capitalization.
-6. Do not include timestamps, speaker labels, emojis, or symbols unless spoken.
-7. Only transcribe speech — ignore background noise, non-speech sounds, or music.
-8. If you are unsure whether a word was spoken, mark it as [unclear] instead of inventing.
+6. Output short, readable caption chunks (1–2 sentences or ~8–15 words).
+7. Do not include timestamps, speaker labels, emojis, or symbols unless spoken.
+8. Only transcribe speech — ignore background noise, non-speech sounds, or music.
+9. If you're unsure whether a word was spoken, mark it as [unclear] instead of inventing.
 
 Your output must be clean, literal, strictly English, and faithful to the spoken audio.
           `,
@@ -146,7 +147,7 @@ Your output must be clean, literal, strictly English, and faithful to the spoken
       }
 
       this.ws.onerror = (event) => {
-        console.error("WebSocket error:", event)
+        console.error("[v0] WebSocket error:", event)
         this.isConnected = false
         this.onError("WebSocket error")
         reject(event)
@@ -157,12 +158,12 @@ Your output must be clean, literal, strictly English, and faithful to the spoken
           const message: AnyEvent = JSON.parse(event.data)
           this.handleServerMessage(message)
         } catch (error) {
-          console.error("Failed to parse message:", error)
+          console.error("[v0] Failed to parse message:", error)
         }
       }
 
       this.ws.onclose = () => {
-        console.log("WebSocket closed")
+        console.log("[v0] WebSocket closed")
         this.isConnected = false
       }
     })
@@ -204,7 +205,7 @@ Your output must be clean, literal, strictly English, and faithful to the spoken
       }
 
       case "error": {
-        console.error("OpenAI error:", message.error)
+        console.error("[v0] OpenAI error:", message.error)
         this.onError(message?.error?.message || "OpenAI error")
         break
       }
@@ -215,7 +216,7 @@ Your output must be clean, literal, strictly English, and faithful to the spoken
   }
 
   stop() {
-    console.log("Stopping transcription")
+    console.log("[v0] Stopping transcription")
     try {
       if (this.processor) {
         this.processor.disconnect()

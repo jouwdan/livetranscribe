@@ -44,10 +44,14 @@ export default function Home() {
                 Real-time AI transcription for conferences, workshops, and in-person events. Built by event organizers
                 who understand accessibility matters.
               </p>
+              <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-green-500/30 bg-green-500/10 backdrop-blur-sm mb-6">
+                <CheckCircle2 className="h-4 w-4 text-green-400" />
+                <span className="text-sm text-green-300 font-medium">15-Minute Free Trial on Sign Up</span>
+              </div>
               <div className="flex gap-4 justify-center flex-wrap">
-                <Link href="/beta">
+                <Link href="/auth/sign-up">
                   <Button size="lg" className="gap-2 bg-primary hover:bg-primary/90 text-white">
-                    Get Beta Access
+                    Start Free Trial
                     <ArrowRight className="h-4 w-4" />
                   </Button>
                 </Link>
@@ -133,8 +137,7 @@ export default function Home() {
                 {
                   icon: Zap,
                   title: "Real-Time AI Processing",
-                  description:
-                    "Advanced AI models transcribe speech in real-time, cross-examined by AI agents to ensure accuracy for in-person events.",
+                  description: "Advanced AI models transcribe speech in real-time for live event streaming.",
                 },
                 {
                   icon: Users,
@@ -190,7 +193,7 @@ export default function Home() {
                   title: "Workshops & Training",
                   description:
                     "Hands-on workshops and training sessions. Attendees follow along in real-time without missing critical instructions.",
-                  highlights: ["Real-time transcription", "Custom event URLs", "Session tracking"],
+                  highlights: ["Real-time streaming", "Custom event URLs", "Session tracking"],
                 },
                 {
                   title: "Community Events",
@@ -225,12 +228,13 @@ export default function Home() {
                 <p className="text-xl text-muted-foreground mb-8 max-w-2xl mx-auto">
                   We understand the challenges of running events. That's why we built LiveTranscribe to be effortless.
                 </p>
-                <Link href="/beta">
+                <Link href="/auth/sign-up">
                   <Button size="lg" className="gap-2 bg-white text-black hover:bg-white/90">
-                    Get Beta Access
+                    Get Started Free
                     <ArrowRight className="h-5 w-5" />
                   </Button>
                 </Link>
+                <p className="text-sm text-muted-foreground mt-4">No credit card required · Free trial included</p>
               </div>
             </div>
           </section>

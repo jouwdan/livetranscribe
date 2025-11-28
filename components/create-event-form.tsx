@@ -12,8 +12,6 @@ import { createClient } from "@/lib/supabase/client"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Textarea } from "@/components/ui/textarea"
-import { formatMinutesToHoursAndMinutes } from "@/lib/format-time"
-import { toast } from "sonner"
 
 interface EventCredit {
   id: string
@@ -76,12 +74,12 @@ export function CreateEventForm() {
 
     const checkSlug = async () => {
       setCheckingSlug(true)
-      console.log("Checking slug availability for:", customSlug)
+      console.log("[v0] Checking slug availability for:", customSlug)
       try {
         const supabase = createClient()
         const { data, error } = await supabase.from("events").select("slug").eq("slug", customSlug).maybeSingle()
 
-        console.log("Slug check result:", { data, error, isAvailable: !data })
+        console.log("[v0] Slug check result:", { data, error, isAvailable: !data })
 
         if (error && error.code !== "PGRST116") {
           throw error
@@ -89,7 +87,7 @@ export function CreateEventForm() {
 
         setSlugAvailable(data === null)
       } catch (err) {
-        console.error("Error checking slug:", err)
+        console.error("[v0] Error checking slug:", err)
         setSlugAvailable(null)
       } finally {
         setCheckingSlug(false)
@@ -149,103 +147,99 @@ export function CreateEventForm() {
     setIsLoading(true)
     setError(null)
 
-    toast.promise(
-      (async () => {
-        const supabase = createClient()
+    try {
+      const supabase = createClient()
 
-        const {
-          data: { user },
-        } = await supabase.auth.getUser()
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
 
-        if (!user) {
-          router.push("/auth/login")
-          throw new Error("Not authenticated")
-        }
+      if (!user) {
+        router.push("/auth/login")
+        return
+      }
 
-        if (!selectedCreditId) {
-          throw new Error("Please select an event credit to use")
-        }
+      if (!selectedCreditId) {
+        setError("Please select an event credit to use")
+        setIsLoading(false)
+        return
+      }
 
-        const selectedCredit = availableCredits.find((c) => c.id === selectedCreditId)
-        if (!selectedCredit) {
-          throw new Error("Invalid credit selection")
-        }
+      const selectedCredit = availableCredits.find((c) => c.id === selectedCreditId)
+      if (!selectedCredit) {
+        setError("Invalid credit selection")
+        setIsLoading(false)
+        return
+      }
 
-        const slug = customSlug && slugAvailable ? sanitizeSlug(customSlug) : generateSlug(eventName)
+      const slug = customSlug && slugAvailable ? sanitizeSlug(customSlug) : generateSlug(eventName)
 
-        if (customSlug && slugAvailable) {
-          const { data: existingEvent } = await supabase.from("events").select("slug").eq("slug", slug).maybeSingle()
+      if (customSlug && slugAvailable) {
+        const { data: existingEvent } = await supabase.from("events").select("slug").eq("slug", slug).maybeSingle()
 
-          if (existingEvent) {
-            setSlugAvailable(false)
-            throw new Error("This slug was just taken. Please try another.")
-          }
-        }
-
-        let logoUrl: string | null = null
-        if (logoFile) {
-          setUploadingLogo(true)
-          const formData = new FormData()
-          formData.append("file", logoFile)
-
-          const uploadResponse = await fetch("/api/upload-logo", {
-            method: "POST",
-            body: formData,
-          })
-
-          if (!uploadResponse.ok) {
-            throw new Error("Failed to upload logo")
-          }
-
-          const uploadData = await uploadResponse.json()
-          logoUrl = uploadData.url
-          setUploadingLogo(false)
-        }
-
-        const { data: event, error: createError } = await supabase
-          .from("events")
-          .insert({
-            slug,
-            name: eventName,
-            description: eventDescription || null,
-            user_id: user.id,
-            organizer_key: Math.random().toString(36).substring(7),
-            is_active: true,
-            credits_minutes: selectedCredit.credits_minutes,
-            max_attendees: selectedCredit.max_attendees,
-            logo_url: logoUrl,
-          })
-          .select()
-          .single()
-
-        if (createError) throw createError
-
-        const { error: updateError } = await supabase
-          .from("event_credits")
-          .update({
-            allocated_to_event_id: event.id,
-            allocated_at: new Date().toISOString(),
-          })
-          .eq("id", selectedCreditId)
-
-        if (updateError) throw updateError
-
-        router.push(`/broadcast/${slug}`)
-        return event
-      })(),
-      {
-        loading: "Creating event...",
-        success: (event) => `Event "${event.name}" created successfully!`,
-        error: (err) => {
-          setError(err.message)
-          return err.message || "Failed to create event"
-        },
-        finally: () => {
+        if (existingEvent) {
+          setError("This slug was just taken. Please try another.")
+          setSlugAvailable(false)
           setIsLoading(false)
-          setUploadingLogo(false)
-        },
-      },
-    )
+          return
+        }
+      }
+
+      let logoUrl: string | null = null
+      if (logoFile) {
+        setUploadingLogo(true)
+        const formData = new FormData()
+        formData.append("file", logoFile)
+
+        const uploadResponse = await fetch("/api/upload-logo", {
+          method: "POST",
+          body: formData,
+        })
+
+        if (!uploadResponse.ok) {
+          throw new Error("Failed to upload logo")
+        }
+
+        const uploadData = await uploadResponse.json()
+        logoUrl = uploadData.url
+        setUploadingLogo(false)
+      }
+
+      const { data: event, error: createError } = await supabase
+        .from("events")
+        .insert({
+          slug,
+          name: eventName,
+          description: eventDescription || null,
+          user_id: user.id,
+          organizer_key: Math.random().toString(36).substring(7),
+          is_active: true,
+          credits_minutes: selectedCredit.credits_minutes,
+          max_attendees: selectedCredit.max_attendees,
+          logo_url: logoUrl,
+        })
+        .select()
+        .single()
+
+      if (createError) throw createError
+
+      const { error: updateError } = await supabase
+        .from("event_credits")
+        .update({
+          allocated_to_event_id: event.id,
+          allocated_at: new Date().toISOString(),
+        })
+        .eq("id", selectedCreditId)
+
+      if (updateError) throw updateError
+
+      router.push(`/broadcast/${slug}`)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to create event")
+    } finally {
+      setIsLoading(false)
+      setUploadingLogo(false)
+    }
   }
 
   return (
@@ -274,7 +268,7 @@ export function CreateEventForm() {
                         <div className="flex items-center gap-4 text-sm text-slate-400">
                           <span className="flex items-center gap-1">
                             <Clock className="h-3 w-3" />
-                            {formatMinutesToHoursAndMinutes(credit.credits_minutes)}
+                            {credit.credits_minutes} minutes
                           </span>
                           <span className="flex items-center gap-1">
                             <Users className="h-3 w-3" />

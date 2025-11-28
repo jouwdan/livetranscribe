@@ -16,7 +16,6 @@ import { Label } from "@/components/ui/label"
 import { Trash2 } from "lucide-react"
 import { deleteEvent } from "@/app/dashboard/actions"
 import { useRouter } from "next/navigation"
-import { toast } from "sonner"
 
 interface DeleteEventDialogProps {
   eventId: string
@@ -28,6 +27,7 @@ export function DeleteEventDialog({ eventId, eventSlug, eventName }: DeleteEvent
   const [open, setOpen] = useState(false)
   const [confirmSlug, setConfirmSlug] = useState("")
   const [isDeleting, setIsDeleting] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   const router = useRouter()
 
   const handleDelete = async () => {
@@ -36,31 +36,26 @@ export function DeleteEventDialog({ eventId, eventSlug, eventName }: DeleteEvent
     }
 
     setIsDeleting(true)
+    setError(null)
 
-    toast.promise(
-      (async () => {
-        const result = await deleteEvent(eventId)
+    try {
+      const result = await deleteEvent(eventId)
 
-        if (result.error) {
-          throw new Error(result.error)
-        }
-
+      if (result.error) {
+        setError(result.error)
+        setIsDeleting(false)
+      } else {
         setOpen(false)
         setConfirmSlug("")
+        // Navigate to dashboard which will force a fresh server render
         router.push("/dashboard")
+        // Also trigger a refresh to ensure cache is cleared
         router.refresh()
-
-        return { eventName }
-      })(),
-      {
-        loading: "Deleting event...",
-        success: ({ eventName }) => `Event "${eventName}" deleted successfully!`,
-        error: (err) => err.message || "An unexpected error occurred",
-        finally: () => {
-          setIsDeleting(false)
-        },
-      },
-    )
+      }
+    } catch (err) {
+      setError("An unexpected error occurred")
+      setIsDeleting(false)
+    }
   }
 
   return (
@@ -92,6 +87,9 @@ export function DeleteEventDialog({ eventId, eventSlug, eventName }: DeleteEvent
               className="bg-background border-border text-foreground"
             />
           </div>
+          {error && (
+            <div className="text-sm text-red-400 bg-red-500/10 p-2 rounded border border-red-500/20">{error}</div>
+          )}
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => setOpen(false)} disabled={isDeleting}>

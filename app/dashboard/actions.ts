@@ -24,7 +24,7 @@ export async function archiveEvent(formData: FormData) {
   const { error } = await supabase.from("events").update({ archived: true }).eq("id", eventId).eq("user_id", user.id)
 
   if (error) {
-    console.error("Error archiving event:", error)
+    console.error("[v0] Error archiving event:", error)
     return { error: "Failed to archive event" }
   }
 
@@ -53,7 +53,7 @@ export async function unarchiveEvent(formData: FormData) {
   const { error } = await supabase.from("events").update({ archived: false }).eq("id", eventId).eq("user_id", user.id)
 
   if (error) {
-    console.error("Error unarchiving event:", error)
+    console.error("[v0] Error unarchiving event:", error)
     return { error: "Failed to unarchive event" }
   }
 
@@ -62,10 +62,10 @@ export async function unarchiveEvent(formData: FormData) {
 }
 
 export async function deleteEvent(eventId: string) {
-  console.log("deleteEvent called with ID:", eventId)
+  console.log("[v0] deleteEvent called with ID:", eventId)
 
   if (!eventId) {
-    console.log("No event ID provided")
+    console.log("[v0] No event ID provided")
     return { error: "Event ID is required" }
   }
 
@@ -76,11 +76,11 @@ export async function deleteEvent(eventId: string) {
   } = await supabase.auth.getUser()
 
   if (!user) {
-    console.log("User not authenticated")
+    console.log("[v0] User not authenticated")
     return { error: "Not authenticated" }
   }
 
-  console.log("Verifying event ownership for user:", user.id)
+  console.log("[v0] Verifying event ownership for user:", user.id)
 
   // Verify the event is archived and belongs to the user
   const { data: event, error: fetchError } = await supabase
@@ -91,43 +91,43 @@ export async function deleteEvent(eventId: string) {
     .single()
 
   if (fetchError || !event) {
-    console.error("Event not found or error:", fetchError)
+    console.error("[v0] Event not found or error:", fetchError)
     return { error: "Event not found" }
   }
 
   if (!event.archived) {
-    console.log("Event is not archived")
+    console.log("[v0] Event is not archived")
     return { error: "Only archived events can be deleted" }
   }
 
-  console.log("Deleting transcriptions...")
+  console.log("[v0] Deleting transcriptions...")
   // Delete transcriptions first (due to foreign key constraints)
   const { error: transcriptionsError } = await supabase.from("transcriptions").delete().eq("event_id", eventId)
 
   if (transcriptionsError) {
-    console.error("Error deleting transcriptions:", transcriptionsError)
+    console.error("[v0] Error deleting transcriptions:", transcriptionsError)
     return { error: "Failed to delete event transcriptions" }
   }
 
-  console.log("Deleting viewer sessions...")
+  console.log("[v0] Deleting viewer sessions...")
   // Delete viewer sessions
   const { error: viewersError } = await supabase.from("viewer_sessions").delete().eq("event_id", eventId)
 
   if (viewersError) {
-    console.error("Error deleting viewer sessions:", viewersError)
+    console.error("[v0] Error deleting viewer sessions:", viewersError)
     return { error: "Failed to delete viewer sessions" }
   }
 
-  console.log("Deleting event...")
+  console.log("[v0] Deleting event...")
   // Delete the event
   const { error: deleteError } = await supabase.from("events").delete().eq("id", eventId).eq("user_id", user.id)
 
   if (deleteError) {
-    console.error("Error deleting event:", deleteError)
+    console.error("[v0] Error deleting event:", deleteError)
     return { error: "Failed to delete event" }
   }
 
-  console.log("Event deleted successfully, revalidating path")
+  console.log("[v0] Event deleted successfully, revalidating path")
   revalidatePath("/dashboard", "page")
   revalidatePath("/")
 

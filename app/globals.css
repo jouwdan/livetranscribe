@@ -182,44 +182,4 @@
   .animate-float-2 {
     animation: float-2 10s ease-in-out infinite;
   }
-
-  /* Custom scrollbar styling for webkit browsers */
-  /* Scrollbar track */
-  ::-webkit-scrollbar {
-    width: 8px;
-    height: 8px;
-  }
-
-  ::-webkit-scrollbar-track {
-    background: transparent;
-  }
-
-  /* Scrollbar thumb - light mode */
-  ::-webkit-scrollbar-thumb {
-    background: rgb(156 163 175 / 0.5); /* gray-400 with opacity */
-    border-radius: 4px;
-  }
-
-  ::-webkit-scrollbar-thumb:hover {
-    background: rgb(107 114 128 / 0.7); /* gray-500 with opacity */
-  }
-
-  /* Scrollbar thumb - dark mode */
-  .dark ::-webkit-scrollbar-thumb {
-    background: rgb(75 85 99 / 0.5); /* gray-600 with opacity */
-  }
-
-  .dark ::-webkit-scrollbar-thumb:hover {
-    background: rgb(107 114 128 / 0.7); /* gray-500 with opacity */
-  }
-
-  /* For Firefox */
-  * {
-    scrollbar-width: thin;
-    scrollbar-color: rgb(156 163 175 / 0.5) transparent;
-  }
-
-  .dark * {
-    scrollbar-color: rgb(75 85 99 / 0.5) transparent;
-  }
 }

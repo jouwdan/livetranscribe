@@ -93,14 +93,14 @@ export default async function MetricsPage({ params }: MetricsPageProps) {
       : 0
 
   // Fetch usage logs (broadcaster sessions)
-  const { data: eventSessions } = await supabase
-    .from("event_sessions")
-    .select("duration_minutes, started_at, ended_at")
+  const { data: usageLogs } = await supabase
+    .from("usage_logs")
+    .select("*")
     .eq("event_id", event.id)
-    .order("started_at", { ascending: false })
+    .order("session_start", { ascending: false })
 
-  const totalBroadcastMinutes = eventSessions?.reduce((sum, session) => sum + (session.duration_minutes || 0), 0) || 0
-  const broadcastSessions = eventSessions?.length || 0
+  const totalBroadcastMinutes = usageLogs?.reduce((sum, log) => sum + (log.duration_minutes || 0), 0) || 0
+  const broadcastSessions = usageLogs?.length || 0
 
   // Calculate engagement rate (unique viewers / total sessions)
   const engagementRate = totalSessions > 0 ? Math.round((uniqueViewers / totalSessions) * 100) : 0
@@ -309,45 +309,41 @@ export default async function MetricsPage({ params }: MetricsPageProps) {
               <CardDescription>History of your streaming sessions</CardDescription>
             </CardHeader>
             <CardContent>
-              {eventSessions && eventSessions.filter((s) => s.started_at).length > 0 ? (
+              {usageLogs && usageLogs.length > 0 ? (
                 <div className="space-y-3">
-                  {eventSessions
-                    .filter((s) => s.started_at)
-                    .map((session, index) => (
-                      <div
-                        key={session.id || `session-${index}`}
-                        className="flex items-center justify-between p-4 bg-background border border-border rounded-md"
-                      >
-                        <div className="space-y-1">
-                          <div className="text-sm font-medium text-foreground">
-                            {new Date(session.started_at).toLocaleDateString("en-US", {
-                              month: "short",
-                              day: "numeric",
-                              year: "numeric",
-                            })}
-                          </div>
-                          <div className="text-xs text-muted-foreground">
-                            {new Date(session.started_at).toLocaleTimeString("en-US", {
+                  {usageLogs.map((log) => (
+                    <div
+                      key={log.id}
+                      className="flex items-center justify-between p-4 bg-background border border-border rounded-md"
+                    >
+                      <div className="space-y-1">
+                        <div className="text-sm font-medium text-foreground">
+                          {new Date(log.session_start).toLocaleDateString("en-US", {
+                            month: "short",
+                            day: "numeric",
+                            year: "numeric",
+                          })}
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          {new Date(log.session_start).toLocaleTimeString("en-US", {
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })}
+                          {log.session_end &&
+                            ` - ${new Date(log.session_end).toLocaleTimeString("en-US", {
                               hour: "2-digit",
                               minute: "2-digit",
-                            })}
-                            {session.ended_at &&
-                              ` - ${new Date(session.ended_at).toLocaleTimeString("en-US", {
-                                hour: "2-digit",
-                                minute: "2-digit",
-                              })}`}
-                          </div>
-                        </div>
-                        <div className="text-right">
-                          <div className="text-lg font-semibold text-foreground">
-                            {session.duration_minutes || 0} min
-                          </div>
-                          <div className="text-xs text-muted-foreground">
-                            {session.ended_at ? "Completed" : "In Progress"}
-                          </div>
+                            })}`}
                         </div>
                       </div>
-                    ))}
+                      <div className="text-right">
+                        <div className="text-lg font-semibold text-foreground">{log.duration_minutes || 0} min</div>
+                        <div className="text-xs text-muted-foreground">
+                          {log.session_end ? "Completed" : "In Progress"}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               ) : (
                 <p className="text-center text-muted-foreground py-8">No broadcast sessions yet</p>
