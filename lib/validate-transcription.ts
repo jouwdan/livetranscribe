@@ -1,6 +1,6 @@
 "use server"
 
-import { generateText } from "ai"
+import OpenAI from "openai"
 
 interface ValidationContext {
   currentTranscript: string
@@ -23,18 +23,19 @@ export async function validateTranscription(context: ValidationContext): Promise
   if (sessionDescription) eventContext += `\nSession Description: ${sessionDescription}`
 
   try {
-    const { text } = await generateText({
-      model: "openai/gpt-5-mini",
-      prompt: `You are a transcription validation agent. Your job is to verify and correct live English transcriptions.
+    const openai = new OpenAI({
+      apiKey: process.env.OPENAI_API_KEY,
+    })
+
+    const completion = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [
+        {
+          role: "system",
+          content: `You are a transcription validation agent. Your job is to verify and correct live English transcriptions.
 
 Context:
 ${eventContext}
-
-Recent transcript context (past minute):
-${recentContext || "[No recent transcripts]"}
-
-Current transcript to validate:
-"${currentTranscript}"
 
 Rules:
 1. Check if the transcript is in English - if not, return "[non-English speech]"
@@ -44,14 +45,25 @@ Rules:
 5. Do NOT add words that weren't said
 6. Do NOT remove words unless they are clear hallucinations
 7. Keep the same casual/formal tone as the original
-8. Return ONLY the corrected transcript text, no explanations
+8. Return ONLY the corrected transcript text, no explanations`,
+        },
+        {
+          role: "user",
+          content: `Recent transcript context (past minute):
+${recentContext || "[No recent transcripts]"}
+
+Current transcript to validate:
+"${currentTranscript}"
 
 Output the corrected transcript:`,
+        },
+      ],
       temperature: 0.3, // Lower temperature for more consistent corrections
-      maxTokens: 400,
+      max_tokens: 400,
     })
 
-    return text.trim()
+    const text = completion.choices[0]?.message?.content?.trim() || currentTranscript
+    return text
   } catch (error) {
     console.error("[v0] Transcription validation error:", error)
     // If validation fails, return original transcript
