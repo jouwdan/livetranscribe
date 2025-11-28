@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge"
 import { createClient } from "@/lib/supabase/client"
 import { Key, Plus, Trash2, Copy, Check, Calendar, Hash, Edit } from "lucide-react"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { toast } from "sonner"
 
 interface BetaKey {
   id: string
@@ -83,13 +84,13 @@ export function BetaKeysManager({ betaKeys: initialKeys }: { betaKeys: BetaKey[]
 
   const handleCreateKey = async () => {
     if (maxUses < 1) {
-      alert("Max uses must be at least 1")
+      toast.error("Max uses must be at least 1")
       return
     }
 
     setLoading(true)
 
-    try {
+    const promise = (async () => {
       const key = generateRandomKey()
       const expiresAt = expiresInDays ? new Date(Date.now() + expiresInDays * 24 * 60 * 60 * 1000).toISOString() : null
 
@@ -108,14 +109,14 @@ export function BetaKeysManager({ betaKeys: initialKeys }: { betaKeys: BetaKey[]
       setExpiresInDays(null)
       setNotes("")
       setShowCreateForm(false)
+    })()
 
-      alert("Beta key created successfully!")
-    } catch (error) {
-      console.error("Error creating key:", error)
-      alert("Failed to create beta key")
-    } finally {
-      setLoading(false)
-    }
+    toast.promise(promise, {
+      loading: "Creating beta key...",
+      success: "Beta key created successfully!",
+      error: "Failed to create beta key",
+      finally: () => setLoading(false),
+    })
   }
 
   const handleDeleteKey = async (keyId: string) => {
@@ -125,20 +126,20 @@ export function BetaKeysManager({ betaKeys: initialKeys }: { betaKeys: BetaKey[]
 
     setLoading(true)
 
-    try {
+    const promise = (async () => {
       const { error } = await supabase.from("beta_access_keys").delete().eq("id", keyId)
 
       if (error) throw error
 
       await fetchKeys()
+    })()
 
-      alert("Beta key deleted successfully!")
-    } catch (error) {
-      console.error("Error deleting key:", error)
-      alert("Failed to delete beta key")
-    } finally {
-      setLoading(false)
-    }
+    toast.promise(promise, {
+      loading: "Deleting beta key...",
+      success: "Beta key deleted successfully!",
+      error: "Failed to delete beta key",
+      finally: () => setLoading(false),
+    })
   }
 
   const handleCopyKey = (key: string) => {
@@ -158,13 +159,13 @@ export function BetaKeysManager({ betaKeys: initialKeys }: { betaKeys: BetaKey[]
     if (!editingKey) return
 
     if (editMaxUses < 1) {
-      alert("Max uses must be at least 1")
+      toast.error("Max uses must be at least 1")
       return
     }
 
     setLoading(true)
 
-    try {
+    const promise = (async () => {
       const { error } = await supabase
         .from("beta_access_keys")
         .update({
@@ -179,13 +180,14 @@ export function BetaKeysManager({ betaKeys: initialKeys }: { betaKeys: BetaKey[]
       await fetchKeys()
 
       setEditingKey(null)
-      alert("Beta key updated successfully!")
-    } catch (error) {
-      console.error("Error updating key:", error)
-      alert("Failed to update beta key")
-    } finally {
-      setLoading(false)
-    }
+    })()
+
+    toast.promise(promise, {
+      loading: "Updating beta key...",
+      success: "Beta key updated successfully!",
+      error: "Failed to update beta key",
+      finally: () => setLoading(false),
+    })
   }
 
   const isExpired = (expiresAt: string | null) => {

@@ -10,6 +10,7 @@ import { createClient } from "@/lib/supabase/client"
 import { Users, Edit, Search, Calendar, Clock, ShieldCheck } from "lucide-react"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Switch } from "@/components/ui/switch"
+import { toast } from "sonner"
 
 interface User {
   id: string
@@ -48,7 +49,7 @@ export function UserManager({ users: initialUsers }: { users: User[] }) {
 
     setLoading(true)
 
-    try {
+    const promise = (async () => {
       const { error } = await supabase
         .from("user_profiles")
         .update({
@@ -79,13 +80,14 @@ export function UserManager({ users: initialUsers }: { users: User[] }) {
       }
 
       setEditingUser(null)
-      alert("User updated successfully!")
-    } catch (error) {
-      console.error("Error updating user:", error)
-      alert("Failed to update user")
-    } finally {
-      setLoading(false)
-    }
+    })()
+
+    toast.promise(promise, {
+      loading: "Updating user...",
+      success: "User updated successfully!",
+      error: "Failed to update user",
+      finally: () => setLoading(false),
+    })
   }
 
   return (
