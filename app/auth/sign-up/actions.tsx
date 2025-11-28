@@ -9,6 +9,8 @@ export async function signUp(formData: FormData) {
   const accessKey = formData.get("access-key") as string
   const fullName = formData.get("full-name") as string
 
+  console.log("[sign-up] start", { email, accessKey })
+
   const supabase = await createServerClient()
 
   // Check if the access key exists and is valid
@@ -19,6 +21,7 @@ export async function signUp(formData: FormData) {
     .single()
 
   if (keyError || !keyData) {
+    console.error("[sign-up] invalid key", keyError)
     return { error: "Invalid beta access key. Please request access from the beta page." }
   }
 
@@ -38,20 +41,29 @@ export async function signUp(formData: FormData) {
   })
 
   if (error) {
+    console.error("[sign-up] auth signup failed", error)
     return { error: error.message }
   }
 
-  const { data: userData } = await supabase.auth.getUser()
+  const { data: userData, error: userFetchError } = await supabase.auth.getUser()
+  if (userFetchError) {
+    console.error("[sign-up] failed to fetch user", userFetchError)
+    return { error: "Failed to fetch user after signup" }
+  }
   const userId = userData?.user?.id
 
   if (userId) {
-    await supabase
+    const { error: profileError } = await supabase
       .from("user_profiles")
       .update({ full_name: fullName })
       .eq("id", userId)
+    if (profileError) {
+      console.error("[sign-up] failed to update profile", profileError)
+      return { error: "Failed to update user profile" }
+    }
   }
 
-  await supabase
+  const { error: keyUpdateError } = await supabase
     .from("beta_access_keys")
     .update({
       current_uses: keyData.current_uses + 1,
@@ -60,14 +72,23 @@ export async function signUp(formData: FormData) {
       is_used: keyData.current_uses + 1 >= keyData.max_uses,
     })
     .eq("id", keyData.id)
+  if (keyUpdateError) {
+    console.error("[sign-up] failed to update beta key", keyUpdateError)
+    return { error: "Failed to update beta key usage" }
+  }
 
   if (userId) {
-    await supabase.from("beta_key_usage").insert({
+    const { error: usageError } = await supabase.from("beta_key_usage").insert({
       beta_key_id: keyData.id,
       user_id: userId,
       email: email,
     })
+    if (usageError) {
+      console.error("[sign-up] failed to insert key usage", usageError)
+      return { error: "Failed to record beta key usage" }
+    }
   }
 
+  console.log("[sign-up] success", { email, userId })
   redirect("/dashboard")
 }
