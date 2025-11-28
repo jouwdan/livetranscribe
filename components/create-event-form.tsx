@@ -37,15 +37,20 @@ export function CreateEventForm() {
   const [logoFile, setLogoFile] = useState<File | null>(null)
   const [logoPreview, setLogoPreview] = useState<string | null>(null)
   const [uploadingLogo, setUploadingLogo] = useState(false)
+  const [creditsLoading, setCreditsLoading] = useState(true)
 
   useEffect(() => {
     const fetchCredits = async () => {
+      setCreditsLoading(true)
       const supabase = createClient()
       const {
         data: { user },
       } = await supabase.auth.getUser()
 
-      if (!user) return
+      if (!user) {
+        setCreditsLoading(false)
+        return
+      }
 
       const { data, error } = await supabase
         .from("event_credits")
@@ -56,6 +61,7 @@ export function CreateEventForm() {
 
       if (error) {
         console.error("Error fetching credits:", error)
+        setCreditsLoading(false)
         return
       }
 
@@ -63,6 +69,7 @@ export function CreateEventForm() {
       if (data && data.length > 0) {
         setSelectedCreditId(data[0].id)
       }
+      setCreditsLoading(false)
     }
 
     fetchCredits()
@@ -250,7 +257,21 @@ export function CreateEventForm() {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
-      {availableCredits.length > 0 ? (
+      {creditsLoading ? (
+        <Card className="bg-card/50 backdrop-blur-sm border-border/80 animate-pulse">
+          <CardHeader>
+            <div className="h-6 w-48 bg-white/10 rounded" />
+            <div className="h-4 w-64 bg-white/5 rounded" />
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              <div className="h-12 bg-white/5 rounded" />
+              <div className="h-12 bg-white/5 rounded" />
+              <div className="h-12 bg-white/5 rounded" />
+            </div>
+          </CardContent>
+        </Card>
+      ) : availableCredits.length > 0 ? (
         <Card className="bg-card/50 backdrop-blur-sm border-border/80">
           <CardHeader>
             <CardTitle className="text-white flex items-center gap-2">
