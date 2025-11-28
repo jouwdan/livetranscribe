@@ -3,7 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 
 export default function JoinPage() {
   return (
-    <div className="min-h-screen bg-gradient-to-b from-slate-50 to-slate-100 py-12">
+    <div className="min-h-screen py-12 bg-black">
       <div className="container mx-auto px-4">
         <div className="max-w-md mx-auto">
           <Card>
