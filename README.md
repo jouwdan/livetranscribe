@@ -88,7 +88,7 @@ An AI-powered real-time transcription platform designed for in-person events, co
 
 Create a `.env.local` file in the root directory:
 
-```env
+\`\`\`env
 # OpenAI
 OPENAI_API_KEY=your_openai_api_key
 
@@ -115,7 +115,7 @@ POSTGRES_HOST=your_postgres_host
 
 # Optional: Development redirect URL for Supabase auth
 NEXT_PUBLIC_DEV_SUPABASE_REDIRECT_URL=http://localhost:3000
-```
+\`\`\`
 
 **Where to find these:**
 
@@ -127,34 +127,34 @@ NEXT_PUBLIC_DEV_SUPABASE_REDIRECT_URL=http://localhost:3000
 
 1. Clone the repository:
 
-```bash
+\`\`\`bash
 git clone https://github.com/jouwdan/livetranscribe.git
 cd livetranscribe
-```
+\`\`\`
 
 2. Install dependencies:
 
-```bash
+\`\`\`bash
 npm install
 or
 pnpm install
-```
+\`\`\`
 
 3. Set up the database:
 
 Run the migration scripts in the `scripts/` folder in numerical order. Open the Supabase SQL Editor (Project → SQL Editor) and execute each file:
 
-```bash
+\`\`\`bash
 # Execute in order:
 scripts/002_add_users_and_usage.sql
 scripts/003_add_viewer_tracking.sql
 scripts/004_enable_realtime.sql
 # ... continue with remaining numbered scripts
-```
+\`\`\`
 
 Alternatively, use the Supabase CLI:
 
-```bash
+\`\`\`bash
 # Install Supabase CLI (macOS)
 brew install supabase/tap/supabase
 
@@ -162,7 +162,7 @@ brew install supabase/tap/supabase
 supabase link --project-ref your-project-ref
 
 # Apply migrations manually or set up proper migration folder structure
-```
+\`\`\`
 
 **Key tables created:**
 
@@ -176,15 +176,15 @@ supabase link --project-ref your-project-ref
 
 4. Start the development server:
 
-```bash
+\`\`\`bash
 pnpm dev
-```
+\`\`\`
 
 5. Open [http://localhost:3000](http://localhost:3000) in your browser.
 
 ## Project Structure
 
-```
+\`\`\`
 ├── app/                          # Next.js App Router pages
 │   ├── admin/                   # Admin dashboard pages
 │   ├── api/                     # API routes and WebSocket handlers
@@ -225,7 +225,7 @@ pnpm dev
 ├── next.config.mjs              # Next.js configuration
 ├── tailwind.config.ts           # Tailwind CSS configuration
 └── tsconfig.json                # TypeScript configuration
-```
+\`\`\`
 
 ## Key Components
 
@@ -366,13 +366,13 @@ Vercel automatically:
 
 ### Manual Deployment
 
-```bash
+\`\`\`bash
 npm run build
 npm start
 or
 pnpm build
 pnpm start
-```
+\`\`\`
 
 Ensure all environment variables are set in your hosting environment.
 
@@ -393,7 +393,7 @@ Ensure all environment variables are set in your hosting environment.
 
 Create new migration files in `scripts/` with sequential numbering:
 
-```sql
+\`\`\`sql
 -- scripts/019_your_feature.sql
 -- Description of what this migration does
 
@@ -401,7 +401,7 @@ ALTER TABLE your_table ADD COLUMN new_field text;
 
 -- Update RLS policies if needed
 CREATE POLICY "policy_name" ON your_table ...
-```
+\`\`\`
 
 ### Styling Guidelines
 
