@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { PlusCircle, Edit2, Trash2, Calendar, Clock } from "lucide-react"
-import { createSession, updateSession, deleteSession } from "@/app/sessions/actions"
+import { createSession, updateSession, deleteSession } from "@/app/(authenticated)/sessions/actions"
 import { Badge } from "@/components/ui/badge"
 import { DownloadTranscriptionsButton } from "@/components/download-transcriptions-button"
 

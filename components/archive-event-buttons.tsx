@@ -3,7 +3,7 @@
 import { Button } from "@/components/ui/button"
 import { Archive, ArchiveRestore } from "lucide-react"
 import { toast } from "sonner"
-import { archiveEvent, unarchiveEvent } from "@/app/dashboard/actions"
+import { archiveEvent, unarchiveEvent } from "@/app/(authenticated)/dashboard/actions"
 
 export function ArchiveEventButton({ eventId }: { eventId: string }) {
   const handleArchive = async () => {

@@ -14,7 +14,7 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Trash2 } from "lucide-react"
-import { deleteEvent } from "@/app/dashboard/actions"
+import { deleteEvent } from "@/app/(authenticated)/dashboard/actions"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 
