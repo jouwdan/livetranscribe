@@ -62,6 +62,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const data = await request.json()
     const { text, isFinal, sequenceNumber, sessionId } = data
 
+    console.log(`[API] POST /api/stream/${slug} - seq: ${sequenceNumber}, isFinal: ${isFinal}, sessionId: ${sessionId}`)
+
     if (!text || typeof text !== "string" || text.trim().length === 0) {
       console.warn("Skipping empty transcription")
       return Response.json({ success: true, skipped: true, reason: "empty_text" })
@@ -134,57 +136,71 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     }
 
     const wordCount = text.trim().split(/\s+/).length
-    await supabase
+    
+    const incrementResult1 = await supabase
       .rpc("increment", {
         row_id: event.id,
         table_name: "events",
         column_name: "total_words",
         increment_by: wordCount,
       })
-      .catch((err) => console.warn("Failed to update event word count:", err))
+    
+    if (incrementResult1.error) {
+      console.error("Failed to increment event word count:", incrementResult1.error)
+    }
 
-    await supabase
+    const incrementResult2 = await supabase
       .rpc("increment", {
         row_id: event.id,
         table_name: "events",
         column_name: "total_transcriptions",
         increment_by: 1,
       })
-      .catch((err) => console.warn("Failed to update event transcription count:", err))
+    
+    if (incrementResult2.error) {
+      console.error("Failed to increment event transcription count:", incrementResult2.error)
+    }
 
     // Update session metrics if session_id is provided
     if (sessionId) {
-      await supabase
+      const incrementResult3 = await supabase
         .rpc("increment", {
           row_id: sessionId,
           table_name: "event_sessions",
           column_name: "total_words",
           increment_by: wordCount,
         })
-        .catch((err) => console.warn("Failed to update session word count:", err))
+      
+      if (incrementResult3.error) {
+        console.error("Failed to increment session word count:", incrementResult3.error)
+      }
 
-      await supabase
+      const incrementResult4 = await supabase
         .rpc("increment", {
           row_id: sessionId,
           table_name: "event_sessions",
           column_name: "total_transcriptions",
           increment_by: 1,
         })
-        .catch((err) => console.warn("Failed to update session transcription count:", err))
+      
+      if (incrementResult4.error) {
+        console.error("Failed to increment session transcription count:", incrementResult4.error)
+      }
     }
 
     console.log("Final transcription saved successfully:", {
-      id: insertedTranscription.id,
-      slug,
-      sequenceNumber,
-      sessionId,
-      wordCount,
-    })
-
-    return Response.json({
-      success: true,
-      transcriptionId: insertedTranscription.id,
-      sequenceNumber,
+  } catch (error) {
+    console.error("Stream broadcast error:", error)
+    console.error("Error stack:", error instanceof Error ? error.stack : "No stack trace")
+    return Response.json(
+      {
+        error: "Failed to broadcast",
+        details: error instanceof Error ? error.message : "Unknown error",
+      },
+      { status: 500 },
+    )
+  }
+}     sequenceNumber,
       wordCount,
     })
   } catch (error) {
