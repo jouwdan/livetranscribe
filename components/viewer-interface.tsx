@@ -184,6 +184,7 @@ export function ViewerInterface({ event, initialViewMode }: ViewerInterfaceProps
   useEffect(() => {
     let isSubscribed = true
     let channel: RealtimeChannel | null = null
+    let cleanupFn: (() => void) | undefined
 
     const initializeViewer = async () => {
       const response = await fetch(`/api/stream/${eventSlug}`)
@@ -209,8 +210,9 @@ export function ViewerInterface({ event, initialViewMode }: ViewerInterfaceProps
       }
 
       const channelName = `transcriptions-${eventSlug}`
+      const supabase = createBrowserClient()
 
-      channel = createBrowserClient()
+      channel = supabase
         .channel(channelName, {
           config: {
             broadcast: { self: true },
@@ -226,7 +228,10 @@ export function ViewerInterface({ event, initialViewMode }: ViewerInterfaceProps
             filter: `event_id=eq.${result.eventId}`,
           },
           async (payload) => {
-            if (!isSubscribed) return
+            if (!isSubscribed) {
+              console.log("[v0] Ignoring transcription - component unmounted")
+              return
+            }
 
             const newTranscription = payload.new as any
 
@@ -234,11 +239,13 @@ export function ViewerInterface({ event, initialViewMode }: ViewerInterfaceProps
               return
             }
 
+            console.log("[v0] New transcription received:", newTranscription.id)
+
             setCurrentInterim(null)
 
             let sessionInfo = null
             if (newTranscription.session_id) {
-              const { data: sessionData } = await createBrowserClient()
+              const { data: sessionData } = await supabase
                 .from("event_sessions")
                 .select("name, session_number")
                 .eq("id", newTranscription.session_id)
@@ -247,7 +254,9 @@ export function ViewerInterface({ event, initialViewMode }: ViewerInterfaceProps
             }
 
             setTranscriptions((prev) => {
-              if (prev.some((t) => t.id === newTranscription.id)) {
+              const isDuplicate = prev.some((t) => t.id === newTranscription.id)
+              if (isDuplicate) {
+                console.log("[v0] Duplicate transcription ignored:", newTranscription.id)
                 return prev
               }
 
@@ -260,6 +269,8 @@ export function ViewerInterface({ event, initialViewMode }: ViewerInterfaceProps
                 sessionId: newTranscription.session_id,
                 sessionInfo,
               }
+
+              console.log("[v0] Adding new transcription to list:", newTranscription.id)
 
               if (prev.length > 0) {
                 setNewestTranscriptionId(newTranscription.id)
@@ -275,6 +286,8 @@ export function ViewerInterface({ event, initialViewMode }: ViewerInterfaceProps
           },
         )
         .on("broadcast", { event: "interim_transcription" }, (payload: any) => {
+          if (!isSubscribed) return
+
           const { text, sequence, sessionId } = payload.payload
 
           // Only show interim if it's from the current session (or any session if not tracking)
@@ -282,6 +295,8 @@ export function ViewerInterface({ event, initialViewMode }: ViewerInterfaceProps
           setIsLive(true)
         })
         .on("broadcast", { event: "streaming_status" }, (payload: any) => {
+          if (!isSubscribed) return
+
           const { status, sessionId, timestamp } = payload.payload
 
           if (status === "started") {
@@ -293,19 +308,25 @@ export function ViewerInterface({ event, initialViewMode }: ViewerInterfaceProps
         })
         .subscribe((status, err) => {
           if (err) {
-            console.error("Supabase subscription error:", err)
+            console.error("[v0] Supabase subscription error:", err)
+          } else {
+            console.log("[v0] Supabase channel subscribed:", status)
           }
         })
-
-      return () => {
-        isSubscribed = false
-        if (channel) {
-          createBrowserClient().removeChannel(channel)
-        }
-      }
     }
 
     initializeViewer()
+
+    return () => {
+      console.log("[v0] Cleaning up viewer subscriptions")
+      isSubscribed = false
+      if (channel) {
+        const supabase = createBrowserClient()
+        supabase.removeChannel(channel).then(() => {
+          console.log("[v0] Channel removed successfully")
+        })
+      }
+    }
   }, [eventSlug])
 
   useEffect(() => {
@@ -753,12 +774,7 @@ export function ViewerInterface({ event, initialViewMode }: ViewerInterfaceProps
       </div>
 
       {/* Transcription Content */}
-      <div
-        className={`flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-400 scrollbar-track-transparent hover:scrollbar-thumb-gray-500 dark:scrollbar-thumb-gray-600 dark:hover:scrollbar-thumb-gray-500 ${
-          theme === "dark" ? "bg-black" : "bg-white"
-        }`}
-        ref={scrollAreaRef}
-      >
+      <div className={`flex-1 overflow-y-auto ${theme === "dark" ? "bg-black" : "bg-white"}`} ref={scrollAreaRef}>
         <div className={cn("p-6", bgColorClass)}>
           <div
             className={cn(
