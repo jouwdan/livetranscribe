@@ -6,7 +6,8 @@ export class OpenAITranscriber {
   private ws: WebSocket | null = null
   private audioContext: AudioContext | null = null
   private mediaStream: MediaStream | null = null
-  private processor: ScriptProcessorNode | null = null
+  private processor: AudioWorkletNode | ScriptProcessorNode | null = null
+  private sourceNode: MediaStreamAudioSourceNode | null = null
   private isConnected = false
   private sequenceNumber = 0
   private currentItemId: string | null = null
@@ -42,28 +43,94 @@ export class OpenAITranscriber {
       } as AudioContextOptions)
 
       const source = this.audioContext.createMediaStreamSource(this.mediaStream)
+      this.sourceNode = source
 
       await this.connectWebSocket()
 
-      this.processor = this.audioContext.createScriptProcessor(2048, 1, 1) // Smaller buffer for lower latency
-      this.processor.onaudioprocess = (e) => {
-        if (!this.isConnected || !this.ws) return
-        const audioData = e.inputBuffer.getChannelData(0)
-
-        const int16Data = this.float32ToInt16(audioData)
-        const base64Audio = this.arrayBufferToBase64(int16Data.buffer)
-
-        this.ws.send(JSON.stringify({ type: "input_audio_buffer.append", audio: base64Audio }))
-      }
-
-      source.connect(this.processor)
-      this.processor.connect(this.audioContext.destination)
+      await this.initializeAudioProcessing(source)
       console.log("Continuous audio streaming started")
     } catch (error) {
       console.error("Failed to start transcription:", error)
       this.onError(error instanceof Error ? error.message : "Failed to start")
       throw error
     }
+  }
+
+  private async initializeAudioProcessing(source: MediaStreamAudioSourceNode) {
+    if (!this.audioContext) return
+
+    if (this.audioContext.audioWorklet) {
+      try {
+        await this.initializeAudioWorklet(source)
+        return
+      } catch (error) {
+        console.warn("AudioWorklet initialization failed, falling back to ScriptProcessor", error)
+      }
+    }
+
+    this.initializeLegacyProcessor(source)
+  }
+
+  private async initializeAudioWorklet(source: MediaStreamAudioSourceNode) {
+    if (!this.audioContext) return
+
+    const workletCode = `class PCMProcessor extends AudioWorkletProcessor {
+  process(inputs) {
+    const channelData = inputs?.[0]?.[0]
+    if (channelData) {
+      this.port.postMessage(channelData)
+    }
+    return true
+  }
+}
+registerProcessor("pcm-processor", PCMProcessor)
+`
+
+    const blob = new Blob([workletCode], { type: "application/javascript" })
+    const url = URL.createObjectURL(blob)
+
+    try {
+      await this.audioContext.audioWorklet.addModule(url)
+    } finally {
+      URL.revokeObjectURL(url)
+    }
+
+    const workletNode = new AudioWorkletNode(this.audioContext, "pcm-processor", {
+      numberOfInputs: 1,
+      numberOfOutputs: 0,
+      channelCount: 1,
+    })
+
+    workletNode.port.onmessage = (event) => {
+      const audioData = event.data as Float32Array
+      this.handleAudioChunk(audioData)
+    }
+
+    source.connect(workletNode)
+    this.processor = workletNode
+  }
+
+  private initializeLegacyProcessor(source: MediaStreamAudioSourceNode) {
+    if (!this.audioContext) return
+
+    const processor = this.audioContext.createScriptProcessor(2048, 1, 1)
+    processor.addEventListener("audioprocess", (e) => {
+      const audioData = e.inputBuffer.getChannelData(0)
+      this.handleAudioChunk(audioData)
+    })
+
+    source.connect(processor)
+    processor.connect(this.audioContext.destination)
+    this.processor = processor
+  }
+
+  private handleAudioChunk(audioData: Float32Array) {
+    if (!this.isConnected || !this.ws) return
+
+    const int16Data = this.float32ToInt16(audioData)
+    const base64Audio = this.arrayBufferToBase64(int16Data.buffer)
+
+    this.ws.send(JSON.stringify({ type: "input_audio_buffer.append", audio: base64Audio }))
   }
 
   private async connectWebSocket() {
@@ -217,8 +284,23 @@ Your output must be clean, literal, strictly English, and faithful to the spoken
   stop() {
     console.log("Stopping transcription")
     try {
+      if (this.sourceNode) {
+        try {
+          this.sourceNode.disconnect()
+        } catch (error) {
+          console.warn("Failed to disconnect source node", error)
+        }
+        this.sourceNode = null
+      }
       if (this.processor) {
-        this.processor.disconnect()
+        try {
+          this.processor.disconnect()
+        } catch (error) {
+          console.warn("Failed to disconnect processor", error)
+        }
+        if (this.processor instanceof AudioWorkletNode) {
+          this.processor.port.onmessage = null
+        }
         this.processor = null
       }
       if (this.audioContext) {
@@ -247,7 +329,7 @@ Your output must be clean, literal, strictly English, and faithful to the spoken
     return int16
   }
 
-  private arrayBufferToBase64(buffer: ArrayBuffer): string {
+  private arrayBufferToBase64(buffer: ArrayBufferLike): string {
     let binary = ""
     const bytes = new Uint8Array(buffer)
     for (let i = 0; i < bytes.byteLength; i++) {
