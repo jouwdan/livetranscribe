@@ -13,6 +13,18 @@ import { DownloadTranscriptionsButton } from "@/components/download-transcriptio
 export const dynamic = "force-dynamic"
 export const revalidate = 0
 
+function formatMinutesToHoursAndMinutes(minutes: number): string {
+  if (minutes < 60) {
+    return `${minutes}m`
+  }
+  const hours = Math.floor(minutes / 60)
+  const remainingMinutes = minutes % 60
+  if (remainingMinutes === 0) {
+    return `${hours}h`
+  }
+  return `${hours}h ${remainingMinutes}m`
+}
+
 export default async function DashboardPage() {
   const supabase = await createServerClient()
 
@@ -91,7 +103,7 @@ export default async function DashboardPage() {
                   <div className="flex items-center gap-2 text-xs text-slate-300">
                     <span className="flex items-center gap-1">
                       <Clock className="h-3 w-3" />
-                      {group.credits_minutes}m
+                      {formatMinutesToHoursAndMinutes(group.credits_minutes)}
                     </span>
                     <span className="text-slate-600">•</span>
                     <span className="flex items-center gap-1">
@@ -141,7 +153,9 @@ export default async function DashboardPage() {
                         <div className="flex items-center gap-4 mt-2">
                           <span className="text-sm text-muted-foreground">
                             Credits:{" "}
-                            <span className="text-purple-400 font-semibold">{event.credits_minutes || 0} min</span>
+                            <span className="text-purple-400 font-semibold">
+                              {formatMinutesToHoursAndMinutes(event.credits_minutes || 0)}
+                            </span>
                           </span>
                           <span className="text-sm text-muted-foreground">
                             Max attendees:{" "}
