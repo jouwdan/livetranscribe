@@ -7,6 +7,7 @@ import { ArrowDownToLine, ArrowUpFromLine, Radio, Sun, Moon, Minus, Plus, Settin
 import { createClient as createBrowserClient } from "@/lib/supabase/client"
 import type { RealtimeChannel } from "@supabase/supabase-js"
 import type { EventSession } from "@/types/event-session"
+import { toast } from "sonner"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -18,6 +19,7 @@ import {
   DropdownMenuRadioItem,
 } from "@/components/ui/dropdown-menu"
 import { cn } from "@/lib/utils"
+import { ViewerMetricsTracker } from "@/lib/metrics"
 
 interface Transcription {
   id: string
@@ -41,18 +43,15 @@ interface ViewerInterfaceProps {
   event: {
     slug: string
     name: string
-    description?: string | null
-    logo_url?: string | null
-    event_name?: string
-    speaker?: string
-    id: string
+    description: string
+    logo_url: string | null
   }
-  slug: string
+  initialViewMode: "laptop" | "mobile" | "stage"
 }
 
 type FontSize = "xs" | "small" | "medium" | "large" | "xl" | "xxl"
 type Theme = "dark" | "light"
-type FontFamily = "sans" | "serif" | "mono" | "inter" | "roboto" | "merriweather" | "playfair"
+type FontFamily = "sans" | "serif" | "mono"
 
 const StreamingText = ({
   text,
@@ -63,7 +62,7 @@ const StreamingText = ({
   const [isComplete, setIsComplete] = useState(false)
 
   useEffect(() => {
-    console.log("[v0] StreamingText starting animation for text:", text.substring(0, 20) + "...")
+    console.log("StreamingText starting animation for text:", text.substring(0, 20) + "...")
     setDisplayedText("")
     setIsComplete(false)
 
@@ -77,7 +76,7 @@ const StreamingText = ({
         setDisplayedText(text.slice(0, currentIndex + 1))
         currentIndex++
       } else {
-        console.log("[v0] StreamingText animation complete")
+        console.log("StreamingText animation complete")
         setIsComplete(true)
         clearInterval(interval)
       }
@@ -110,7 +109,8 @@ const TranscriptionText = ({
   return <span>{text}</span>
 }
 
-export function ViewerInterface({ event, slug }: ViewerInterfaceProps) {
+export function ViewerInterface({ event, initialViewMode }: ViewerInterfaceProps) {
+  const eventSlug = event.slug
   const [transcriptions, setTranscriptions] = useState<Transcription[]>([])
   const [isLive, setIsLive] = useState(false)
   const [autoScroll, setAutoScroll] = useState(true)
@@ -122,6 +122,8 @@ export function ViewerInterface({ event, slug }: ViewerInterfaceProps) {
   const [fontFamily, setFontFamily] = useState<FontFamily>("sans")
   const [currentInterim, setCurrentInterim] = useState<{ text: string; sequence: number } | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [widthMode, setWidthMode] = useState<"constrained" | "full">("constrained")
+  const metricsTrackerRef = useRef<ViewerMetricsTracker | null>(null)
 
   useEffect(() => {
     const savedTheme = localStorage.getItem("viewer-theme") as Theme | null
@@ -132,17 +134,51 @@ export function ViewerInterface({ event, slug }: ViewerInterfaceProps) {
     if (savedFont) {
       setFontFamily(savedFont)
     }
+    const savedWidth = localStorage.getItem("viewerWidthMode")
+    if (savedWidth === "full" || savedWidth === "constrained") {
+      setWidthMode(savedWidth)
+    }
   }, [])
+
+  useEffect(() => {
+    localStorage.setItem("viewer-theme", theme)
+    localStorage.setItem("viewer-font", fontFamily)
+    localStorage.setItem("viewerWidthMode", widthMode)
+  }, [theme, fontFamily, widthMode])
 
   const toggleTheme = () => {
     const newTheme = theme === "dark" ? "light" : "dark"
     setTheme(newTheme)
-    localStorage.setItem("viewer-theme", newTheme)
   }
 
   const changeFontFamily = (font: FontFamily) => {
     setFontFamily(font)
-    localStorage.setItem("viewer-font", font)
+  }
+
+  const increaseFontSize = () => {
+    if (fontSize === "xs") setFontSize("small")
+    else if (fontSize === "small") setFontSize("medium")
+    else if (fontSize === "medium") setFontSize("large")
+    else if (fontSize === "large") setFontSize("xl")
+    else if (fontSize === "xl") setFontSize("xxl")
+    if (autoScroll) {
+      setTimeout(scrollToBottom, 200)
+    }
+  }
+
+  const decreaseFontSize = () => {
+    if (fontSize === "xxl") setFontSize("xl")
+    else if (fontSize === "xl") setFontSize("large")
+    else if (fontSize === "large") setFontSize("medium")
+    else if (fontSize === "medium") setFontSize("small")
+    else if (fontSize === "small") setFontSize("xs")
+    if (autoScroll) {
+      setTimeout(scrollToBottom, 200)
+    }
+  }
+
+  const toggleWidthMode = () => {
+    setWidthMode(widthMode === "constrained" ? "full" : "constrained")
   }
 
   useEffect(() => {
@@ -150,7 +186,7 @@ export function ViewerInterface({ event, slug }: ViewerInterfaceProps) {
     let channel: RealtimeChannel | null = null
 
     const initializeViewer = async () => {
-      const response = await fetch(`/api/stream/${event.slug}`)
+      const response = await fetch(`/api/stream/${eventSlug}`)
       const result = await response.json()
 
       if (result.error) {
@@ -172,7 +208,7 @@ export function ViewerInterface({ event, slug }: ViewerInterfaceProps) {
         )
       }
 
-      const channelName = `transcriptions-${event.slug}`
+      const channelName = `transcriptions-${eventSlug}`
 
       channel = createBrowserClient()
         .channel(channelName, {
@@ -270,82 +306,62 @@ export function ViewerInterface({ event, slug }: ViewerInterfaceProps) {
     }
 
     initializeViewer()
-  }, [event.slug])
+  }, [eventSlug])
 
   useEffect(() => {
-    const sessionId = `viewer-${Date.now()}-${Math.random().toString(36).substring(7)}`
-    let pingInterval: NodeJS.Timeout | null = null
-
     const setupViewerTracking = async () => {
-      const { data: eventData } = await createBrowserClient()
-        .from("events")
-        .select("id")
-        .eq("slug", event.slug)
-        .single()
+      const { data: eventData } = await createBrowserClient().from("events").select("id").eq("slug", eventSlug).single()
 
       if (!eventData) return
 
-      await createBrowserClient().from("viewer_sessions").insert({
-        event_id: eventData.id,
-        session_id: sessionId,
-        joined_at: new Date().toISOString(),
-        last_ping: new Date().toISOString(),
-        scroll_events: 0,
-        visibility_changes: 0,
-        total_active_time_seconds: 0,
-        transcriptions_viewed: 0,
-      })
-
-      pingInterval = setInterval(async () => {
-        await createBrowserClient()
-          .from("viewer_sessions")
-          .update({
-            last_ping: new Date().toISOString(),
-            last_activity_at: new Date().toISOString(),
-            scroll_events: 0,
-            visibility_changes: 0,
-            total_active_time_seconds: 0,
-            transcriptions_viewed: 0,
-          })
-          .eq("event_id", eventData.id)
-          .eq("session_id", sessionId)
-      }, 15000)
+      const tracker = new ViewerMetricsTracker(eventData.id)
+      await tracker.initialize()
+      metricsTrackerRef.current = tracker
     }
 
     setupViewerTracking()
 
     return () => {
-      clearInterval(pingInterval)
-      const cleanup = async () => {
-        const { data: eventData } = await createBrowserClient()
-          .from("events")
-          .select("id")
-          .eq("slug", event.slug)
-          .single()
-        if (eventData) {
-          await createBrowserClient()
-            .from("viewer_sessions")
-            .update({
-              left_at: new Date().toISOString(),
-              scroll_events: 0,
-              visibility_changes: 0,
-              total_active_time_seconds: 0,
-              transcriptions_viewed: 0,
-            })
-            .eq("event_id", eventData.id)
-            .eq("session_id", sessionId)
-        }
+      if (metricsTrackerRef.current) {
+        metricsTrackerRef.current.cleanup()
       }
-      cleanup()
     }
-  }, [event.slug])
+  }, [eventSlug])
+
+  useEffect(() => {
+    if (transcriptions.length > 0 && metricsTrackerRef.current) {
+      metricsTrackerRef.current.incrementTranscriptionsViewed()
+    }
+  }, [transcriptions.length])
 
   useEffect(() => {
     if (!autoScroll || !scrollAreaRef.current) return
 
-    const scrollContainer = scrollAreaRef.current
-    scrollContainer.scrollTop = scrollContainer.scrollHeight
-  }, [transcriptions, autoScroll, newestTranscriptionId, isLive])
+    requestAnimationFrame(() => {
+      const scrollContainer = scrollAreaRef.current
+      if (scrollContainer) {
+        scrollContainer.scrollTop = scrollContainer.scrollHeight
+      }
+    })
+  }, [transcriptions, autoScroll, newestTranscriptionId, isLive, fontSize, fontFamily, currentInterim, widthMode])
+
+  useEffect(() => {
+    if (isLive) {
+      toast.success("Stream is now live", {
+        description: "The broadcaster has started streaming",
+        duration: 3000,
+      })
+    } else {
+      // Only show offline toast if we were previously live (not on initial load)
+      const hasBeenLive = transcriptions.length > 0 || currentInterim !== null
+      if (hasBeenLive) {
+        toast.info("Stream went offline", {
+          description: "The broadcaster has stopped streaming",
+          duration: 3000,
+        })
+      }
+    }
+  }, [isLive])
 
   const displayTranscriptions = useMemo(() => {
     return transcriptions
@@ -413,8 +429,8 @@ export function ViewerInterface({ event, slug }: ViewerInterfaceProps) {
         const shouldAnimate = isLastInGroup && isLastGroup && transcription?.id === newestTranscriptionId
 
         return (
-          <span key={`${index}-${textIndex}`}>
-            <TranscriptionText text={text} shouldAnimate={shouldAnimate} />
+          <span key={`${index}-${textIndex}`} className={cn(shouldAnimate && "animate-fade-in")}>
+            {text}
             {textIndex < group.texts.length - 1 && " "}
           </span>
         )
@@ -428,32 +444,10 @@ export function ViewerInterface({ event, slug }: ViewerInterfaceProps) {
     }
   }
 
-  const increaseFontSize = () => {
-    if (fontSize === "xs") setFontSize("small")
-    else if (fontSize === "small") setFontSize("medium")
-    else if (fontSize === "medium") setFontSize("large")
-    else if (fontSize === "large") setFontSize("xl")
-    else if (fontSize === "xl") setFontSize("xxl")
-    setTimeout(scrollToBottom, 100)
-  }
-
-  const decreaseFontSize = () => {
-    if (fontSize === "xxl") setFontSize("xl")
-    else if (fontSize === "xl") setFontSize("large")
-    else if (fontSize === "large") setFontSize("medium")
-    else if (fontSize === "medium") setFontSize("small")
-    else if (fontSize === "small") setFontSize("xs")
-    setTimeout(scrollToBottom, 100)
-  }
-
   const fontFamilyLabels = {
     sans: "System Sans",
     serif: "System Serif",
     mono: "Monospace",
-    inter: "Inter",
-    roboto: "Roboto",
-    merriweather: "Merriweather",
-    playfair: "Playfair Display",
   }
 
   const fontSizeClasses = {
@@ -469,10 +463,6 @@ export function ViewerInterface({ event, slug }: ViewerInterfaceProps) {
     sans: "font-sans",
     serif: "font-serif",
     mono: "font-mono",
-    inter: "font-sans",
-    roboto: "font-sans",
-    merriweather: "font-serif",
-    playfair: "font-serif",
   }
 
   const bgColorClass = theme === "dark" ? "bg-black" : "bg-white"
@@ -488,16 +478,16 @@ export function ViewerInterface({ event, slug }: ViewerInterfaceProps) {
         <div className="px-6 sm:px-8 lg:px-12 py-4 mx-auto w-full">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div className="flex items-center gap-4">
-              {event?.logo_url && (
-                <img
-                  src={event.logo_url || "/placeholder.svg"}
-                  alt="Event logo"
-                  className="h-12 w-12 rounded-lg object-contain"
-                />
-              )}
+              {/* Placeholder for event logo */}
+              <img
+                src={event.logo_url || "/placeholder.svg"}
+                alt="Event logo"
+                className="h-12 w-12 rounded-lg object-contain"
+              />
               <div>
                 <h1 className={`text-xl sm:text-2xl font-bold ${textColorClass}`}>Live Transcription</h1>
-                {event?.name && <p className={`text-sm ${mutedTextClass} mt-0.5`}>{event.name}</p>}
+                {/* Placeholder for event name */}
+                <p className={`text-sm ${mutedTextClass} mt-0.5`}>{event.name}</p>
               </div>
             </div>
 
@@ -662,6 +652,7 @@ export function ViewerInterface({ event, slug }: ViewerInterfaceProps) {
                           : "hover:bg-gray-100 focus:bg-gray-100 text-gray-900 hover:text-gray-900 focus:text-gray-900"
                       }`}
                       onClick={(e) => e.stopPropagation()}
+                      onSelect={(e) => e.preventDefault()}
                     >
                       System Sans
                     </DropdownMenuRadioItem>
@@ -673,6 +664,7 @@ export function ViewerInterface({ event, slug }: ViewerInterfaceProps) {
                           : "hover:bg-gray-100 focus:bg-gray-100 text-gray-900 hover:text-gray-900 focus:text-gray-900"
                       }`}
                       onClick={(e) => e.stopPropagation()}
+                      onSelect={(e) => e.preventDefault()}
                     >
                       System Serif
                     </DropdownMenuRadioItem>
@@ -684,54 +676,64 @@ export function ViewerInterface({ event, slug }: ViewerInterfaceProps) {
                           : "hover:bg-gray-100 focus:bg-gray-100 text-gray-900 hover:text-gray-900 focus:text-gray-900"
                       }`}
                       onClick={(e) => e.stopPropagation()}
+                      onSelect={(e) => e.preventDefault()}
                     >
                       Monospace
                     </DropdownMenuRadioItem>
-                    <DropdownMenuRadioItem
-                      value="inter"
-                      className={`cursor-pointer ${
-                        theme === "dark"
-                          ? "hover:bg-white/10 focus:bg-white/10 text-white hover:text-white focus:text-white"
-                          : "hover:bg-gray-100 focus:bg-gray-100 text-gray-900 hover:text-gray-900 focus:text-gray-900"
-                      }`}
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      Inter
-                    </DropdownMenuRadioItem>
-                    <DropdownMenuRadioItem
-                      value="roboto"
-                      className={`cursor-pointer ${
-                        theme === "dark"
-                          ? "hover:bg-white/10 focus:bg-white/10 text-white hover:text-white focus:text-white"
-                          : "hover:bg-gray-100 focus:bg-gray-100 text-gray-900 hover:text-gray-900 focus:text-gray-900"
-                      }`}
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      Roboto
-                    </DropdownMenuRadioItem>
-                    <DropdownMenuRadioItem
-                      value="merriweather"
-                      className={`cursor-pointer ${
-                        theme === "dark"
-                          ? "hover:bg-white/10 focus:bg-white/10 text-white hover:text-white focus:text-white"
-                          : "hover:bg-gray-100 focus:bg-gray-100 text-gray-900 hover:text-gray-900 focus:text-gray-900"
-                      }`}
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      Merriweather
-                    </DropdownMenuRadioItem>
-                    <DropdownMenuRadioItem
-                      value="playfair"
-                      className={`cursor-pointer ${
-                        theme === "dark"
-                          ? "hover:bg-white/10 focus:bg-white/10 text-white hover:text-white focus:text-white"
-                          : "hover:bg-gray-100 focus:bg-gray-100 text-gray-900 hover:text-gray-900 focus:text-gray-900"
-                      }`}
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      Playfair Display
-                    </DropdownMenuRadioItem>
                   </DropdownMenuRadioGroup>
+
+                  <DropdownMenuSeparator className={theme === "dark" ? "bg-gray-800" : "bg-gray-200"} />
+
+                  {/* Width Mode Toggle */}
+                  <DropdownMenuLabel className={theme === "dark" ? "text-gray-400" : "text-gray-600"}>
+                    Width
+                  </DropdownMenuLabel>
+                  <DropdownMenuItem
+                    className={cn(
+                      "cursor-pointer",
+                      theme === "dark"
+                        ? "hover:bg-white/10 hover:text-white focus:bg-white/10 focus:text-white"
+                        : "hover:bg-gray-100 hover:text-gray-900 focus:bg-gray-100 focus:text-gray-900",
+                    )}
+                    onSelect={(e) => e.preventDefault()}
+                  >
+                    <div
+                      className="flex items-center justify-between w-full"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        toggleWidthMode()
+                      }}
+                    >
+                      <span>{widthMode === "constrained" ? "Constrained" : "Full Width"}</span>
+                      <button
+                        className={cn(
+                          "relative inline-flex h-5 w-9 items-center rounded-full transition-colors",
+                          widthMode === "full"
+                            ? theme === "dark"
+                              ? "bg-white"
+                              : "bg-gray-900"
+                            : theme === "dark"
+                              ? "bg-gray-700"
+                              : "bg-gray-300",
+                        )}
+                      >
+                        <span
+                          className={cn(
+                            "inline-block h-4 w-4 transform rounded-full transition-transform",
+                            widthMode === "full"
+                              ? theme === "dark"
+                                ? "translate-x-5 bg-black"
+                                : "translate-x-5 bg-white"
+                              : theme === "dark"
+                                ? "translate-x-0.5 bg-white"
+                                : "translate-x-0.5 bg-gray-600",
+                          )}
+                        />
+                      </button>
+                    </div>
+                  </DropdownMenuItem>
+
+                  <DropdownMenuSeparator className={theme === "dark" ? "bg-gray-800" : "bg-gray-200"} />
                 </DropdownMenuContent>
               </DropdownMenu>
             </div>
@@ -751,9 +753,20 @@ export function ViewerInterface({ event, slug }: ViewerInterfaceProps) {
       </div>
 
       {/* Transcription Content */}
-      <div className="flex-1 overflow-y-auto" ref={scrollAreaRef}>
+      <div
+        className={`flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-400 scrollbar-track-transparent hover:scrollbar-thumb-gray-500 dark:scrollbar-thumb-gray-600 dark:hover:scrollbar-thumb-gray-500 ${
+          theme === "dark" ? "bg-black" : "bg-white"
+        }`}
+        ref={scrollAreaRef}
+      >
         <div className={cn("p-6", bgColorClass)}>
-          <div className={cn("space-y-6 max-w-4xl mx-auto", fontFamilyClasses[fontFamily])}>
+          <div
+            className={cn(
+              "space-y-6 mx-auto",
+              widthMode === "constrained" ? "max-w-4xl" : "w-full px-4",
+              fontFamilyClasses[fontFamily],
+            )}
+          >
             {transcriptions.length === 0 && !currentInterim && (
               <div className="text-center py-20 opacity-50">
                 {isLoading
@@ -805,8 +818,12 @@ export function ViewerInterface({ event, slug }: ViewerInterfaceProps) {
                   {new Date().toLocaleTimeString()}
                 </div>
                 <div
-                  className={cn("leading-relaxed italic", theme === "dark" ? "text-gray-400" : "text-gray-500")}
-                  style={{ fontSize: `${fontSize}px` }}
+                  className={cn(
+                    "italic",
+                    fontSizeClasses[fontSize],
+                    fontFamilyClasses[fontFamily],
+                    theme === "dark" ? "text-gray-400" : "text-gray-500",
+                  )}
                 >
                   {currentInterim.text}
                   <span className="inline-block w-2 h-5 ml-1 bg-current animate-pulse" />

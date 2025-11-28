@@ -10,6 +10,8 @@ import { Badge } from "@/components/ui/badge"
 import { createClient } from "@/lib/supabase/client"
 import { Search, Plus, Users, Clock, CreditCard, Trash2, ExternalLink } from "lucide-react"
 import Link from "next/link"
+import { formatMinutesToHoursAndMinutes } from "@/lib/format-time"
+import { toast } from "sonner"
 
 interface UserProfile {
   id: string
@@ -81,18 +83,18 @@ export function AdminDashboard({ users: initialUsers }: { users: UserProfile[] }
     const quantity = creditQuantity[userId] || 1
 
     if (!minutes || minutes <= 0 || !maxAttendees || maxAttendees <= 0) {
-      alert("Please enter valid minutes and max attendees")
+      toast.error("Please enter valid minutes and max attendees")
       return
     }
 
     if (quantity < 1 || quantity > 100) {
-      alert("Please enter a quantity between 1 and 100")
+      toast.error("Please enter a quantity between 1 and 100")
       return
     }
 
     setLoading(userId)
 
-    try {
+    const promise = (async () => {
       const creditsToInsert = Array.from({ length: quantity }, () => ({
         user_id: userId,
         credits_minutes: minutes,
@@ -110,14 +112,14 @@ export function AdminDashboard({ users: initialUsers }: { users: UserProfile[] }
       setMaxAttendeesToSet((prev) => ({ ...prev, [userId]: 0 }))
       setCreditNotes((prev) => ({ ...prev, [userId]: "" }))
       setCreditQuantity((prev) => ({ ...prev, [userId]: 1 }))
+    })()
 
-      alert(`${quantity} event credit${quantity > 1 ? "s" : ""} allocated successfully!`)
-    } catch (error) {
-      console.error("Error allocating credit:", error)
-      alert("Failed to allocate credit")
-    } finally {
-      setLoading(null)
-    }
+    toast.promise(promise, {
+      loading: `Allocating ${quantity} credit${quantity > 1 ? "s" : ""}...`,
+      success: `${quantity} event credit${quantity > 1 ? "s" : ""} allocated successfully!`,
+      error: "Failed to allocate credit",
+      finally: () => setLoading(null),
+    })
   }
 
   const handleDeleteCredit = async (creditId: string, userId: string) => {
@@ -127,20 +129,20 @@ export function AdminDashboard({ users: initialUsers }: { users: UserProfile[] }
 
     setLoading(creditId)
 
-    try {
+    const promise = (async () => {
       const { error } = await supabase.from("event_credits").delete().eq("id", creditId)
 
       if (error) throw error
 
       await fetchUserCredits(userId)
+    })()
 
-      alert("Event credit deleted successfully!")
-    } catch (error) {
-      console.error("Error deleting credit:", error)
-      alert("Failed to delete credit")
-    } finally {
-      setLoading(null)
-    }
+    toast.promise(promise, {
+      loading: "Deleting credit...",
+      success: "Event credit deleted successfully!",
+      error: "Failed to delete credit",
+      finally: () => setLoading(null),
+    })
   }
 
   const handleUnallocateCredit = async (creditId: string, userId: string) => {
@@ -150,7 +152,7 @@ export function AdminDashboard({ users: initialUsers }: { users: UserProfile[] }
 
     setLoading(creditId)
 
-    try {
+    const promise = (async () => {
       const { error } = await supabase
         .from("event_credits")
         .update({
@@ -162,14 +164,14 @@ export function AdminDashboard({ users: initialUsers }: { users: UserProfile[] }
       if (error) throw error
 
       await fetchUserCredits(userId)
+    })()
 
-      alert("Credit unallocated successfully!")
-    } catch (error) {
-      console.error("Error unallocating credit:", error)
-      alert("Failed to unallocate credit")
-    } finally {
-      setLoading(null)
-    }
+    toast.promise(promise, {
+      loading: "Unallocating credit...",
+      success: "Credit unallocated successfully!",
+      error: "Failed to unallocate credit",
+      finally: () => setLoading(null),
+    })
   }
 
   const handleEditUser = async (userId: string) => {
@@ -264,7 +266,7 @@ export function AdminDashboard({ users: initialUsers }: { users: UserProfile[] }
                                 <div className="flex items-center gap-4 text-sm text-slate-400">
                                   <span className="flex items-center gap-1">
                                     <Clock className="h-3 w-3" />
-                                    {credit.credits_minutes} min
+                                    {formatMinutesToHoursAndMinutes(credit.credits_minutes)}
                                   </span>
                                   <span className="flex items-center gap-1">
                                     <Users className="h-3 w-3" />

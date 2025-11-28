@@ -11,6 +11,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { createClient } from "@/lib/supabase/client"
 import { Loader2, Upload, X } from "lucide-react"
+import { toast } from "sonner"
 
 interface EditEventFormProps {
   event: {
@@ -30,7 +31,6 @@ export function EditEventForm({ event }: EditEventFormProps) {
   const [isActive, setIsActive] = useState(event.is_active)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
-  const [success, setSuccess] = useState("") // Added success state
   const [slugAvailable, setSlugAvailable] = useState<boolean | null>(null)
   const [checkingSlug, setCheckingSlug] = useState(false)
   const [logoFile, setLogoFile] = useState<File | null>(null)
@@ -48,11 +48,11 @@ export function EditEventForm({ event }: EditEventFormProps) {
     }
 
     setCheckingSlug(true)
-    console.log("[v0] Checking slug availability:", newSlug)
+    console.log("Checking slug availability:", newSlug)
 
     const { data, error } = await supabase.from("events").select("id").eq("slug", newSlug).maybeSingle()
 
-    console.log("[v0] Slug check result:", { data, error, available: !data })
+    console.log("Slug check result:", { data, error, available: !data })
 
     const available = !data
     setSlugAvailable(available)
@@ -102,54 +102,61 @@ export function EditEventForm({ event }: EditEventFormProps) {
     e.preventDefault()
     setLoading(true)
     setError("")
-    setSuccess("") // Reset success state before submission
 
-    try {
-      let logoUrl: string | null | undefined = event.logo_url
-      if (logoFile) {
-        setUploadingLogo(true)
-        const formData = new FormData()
-        formData.append("file", logoFile)
+    const updatePromise = (async () => {
+      try {
+        let logoUrl: string | null | undefined = event.logo_url
+        if (logoFile) {
+          setUploadingLogo(true)
+          const formData = new FormData()
+          formData.append("file", logoFile)
 
-        const uploadResponse = await fetch("/api/upload-logo", {
-          method: "POST",
-          body: formData,
-        })
+          const uploadResponse = await fetch("/api/upload-logo", {
+            method: "POST",
+            body: formData,
+          })
 
-        if (!uploadResponse.ok) {
-          throw new Error("Failed to upload logo")
+          if (!uploadResponse.ok) {
+            throw new Error("Failed to upload logo")
+          }
+
+          const uploadData = await uploadResponse.json()
+          logoUrl = uploadData.url
+          setUploadingLogo(false)
+        } else if (removingLogo) {
+          logoUrl = null
         }
 
-        const uploadData = await uploadResponse.json()
-        logoUrl = uploadData.url
+        const { error: updateError } = await supabase
+          .from("events")
+          .update({
+            name,
+            description,
+            slug,
+            is_active: isActive,
+            logo_url: logoUrl,
+          })
+          .eq("id", event.id)
+
+        if (updateError) throw updateError
+
+        console.log("Event updated successfully, redirecting to dashboard")
+        router.push("/dashboard")
+        router.refresh()
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Failed to update event")
+        throw err
+      } finally {
+        setLoading(false)
         setUploadingLogo(false)
-      } else if (removingLogo) {
-        logoUrl = null
       }
+    })()
 
-      const { error: updateError } = await supabase
-        .from("events")
-        .update({
-          name,
-          description,
-          slug,
-          is_active: isActive,
-          logo_url: logoUrl,
-        })
-        .eq("id", event.id)
-
-      if (updateError) throw updateError
-
-      console.log("[v0] Event updated successfully, redirecting to dashboard")
-      setSuccess("Event updated successfully") // Set success state
-      router.push("/dashboard")
-      router.refresh()
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to update event")
-    } finally {
-      setLoading(false)
-      setUploadingLogo(false)
-    }
+    toast.promise(updatePromise, {
+      loading: uploadingLogo ? "Uploading logo..." : "Updating event...",
+      success: "Event updated successfully!",
+      error: (err) => err.message || "Failed to update event",
+    })
   }
 
   return (
@@ -276,7 +283,6 @@ export function EditEventForm({ event }: EditEventFormProps) {
             <Label htmlFor="isActive">Event is active</Label>
           </div>
           {error && <p className="text-sm text-red-600">{error}</p>}
-          {success && <p className="text-sm text-green-600">{success}</p>} // Added success message
           <div className="flex gap-2">
             <Button
               type="submit"

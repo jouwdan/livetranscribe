@@ -3,12 +3,13 @@ import { redirect } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import Link from "next/link"
-import { PlusCircle, Clock, Archive, ArchiveRestore, BarChart3, List, Users } from "lucide-react"
+import { PlusCircle, Clock, Archive, BarChart3, List, Users } from "lucide-react"
 import { AppNav } from "@/components/app-nav"
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
-import { archiveEvent, unarchiveEvent } from "./actions"
+import { ArchiveEventButton, UnarchiveEventButton } from "@/components/archive-event-buttons"
 import { DeleteEventDialog } from "@/components/delete-event-dialog"
 import { DownloadTranscriptionsButton } from "@/components/download-transcriptions-button"
+import { formatMinutesToHoursAndMinutes } from "@/lib/format-time"
 
 export const dynamic = "force-dynamic"
 export const revalidate = 0
@@ -66,64 +67,6 @@ export default async function DashboardPage() {
     .eq("archived", true)
     .order("created_at", { ascending: false })
 
-  const allEventIds = [...(activeEvents || []), ...(archivedEvents || [])].map((e) => e.id)
-
-  let totalMinutes = 0
-  let totalTranscriptions = 0
-
-  // This ensures stats persist even after events are deleted
-
-  // First, get permanent usage logs
-  const { data: usageLogs } = await supabase.from("usage_logs").select("duration_minutes").eq("user_id", user.id)
-
-  const usageLogMinutes = usageLogs?.reduce((sum, log) => sum + (log.duration_minutes || 0), 0) || 0
-
-  // Then, calculate additional time from current active sessions (not yet in usage_logs)
-  if (allEventIds.length > 0) {
-    const { data: transcriptions } = await supabase
-      .from("transcriptions")
-      .select("event_id, created_at")
-      .in("event_id", allEventIds)
-      .order("created_at", { ascending: true })
-
-    if (transcriptions && transcriptions.length > 0) {
-      totalTranscriptions = transcriptions.length
-
-      // Group by event and calculate duration for each
-      const eventGroups = transcriptions.reduce(
-        (acc, t) => {
-          if (!acc[t.event_id]) {
-            acc[t.event_id] = { first: t.created_at, last: t.created_at }
-          } else {
-            acc[t.event_id].last = t.created_at
-          }
-          return acc
-        },
-        {} as Record<string, { first: string; last: string }>,
-      )
-
-      // Calculate total minutes across all events
-      const currentTranscriptionMinutes = Math.round(
-        Object.values(eventGroups).reduce((sum, group) => {
-          const first = new Date(group.first).getTime()
-          const last = new Date(group.last).getTime()
-          const minutes = (last - first) / (1000 * 60)
-          return sum + minutes
-        }, 0),
-      )
-
-      // Use the greater of usage logs or transcription calculation
-      // (Usage logs are the source of truth, but transcriptions may include recent sessions)
-      totalMinutes = Math.max(usageLogMinutes, currentTranscriptionMinutes)
-    } else {
-      // No transcriptions, use usage logs only
-      totalMinutes = usageLogMinutes
-    }
-  } else {
-    // No events, use usage logs only (for deleted events)
-    totalMinutes = usageLogMinutes
-  }
-
   return (
     <div className="min-h-screen bg-black">
       <AppNav />
@@ -133,18 +76,6 @@ export default async function DashboardPage() {
             <div>
               <h1 className="text-3xl font-bold text-white">Dashboard</h1>
               <p className="text-slate-400">{user.email}</p>
-            </div>
-            <div className="flex items-center gap-3 text-sm">
-              <div className="flex items-center gap-1.5 px-2.5 py-1 bg-muted/50 rounded-full">
-                <Clock className="h-3.5 w-3.5 text-muted-foreground" />
-                <span className="font-semibold text-foreground">{totalMinutes}</span>
-                <span className="text-muted-foreground text-xs">min</span>
-              </div>
-              <div className="flex items-center gap-1.5 px-2.5 py-1 bg-muted/50 rounded-full">
-                <BarChart3 className="h-3.5 w-3.5 text-muted-foreground" />
-                <span className="font-semibold text-foreground">{totalTranscriptions}</span>
-                <span className="text-muted-foreground text-xs">transcripts</span>
-              </div>
             </div>
           </div>
 
@@ -161,7 +92,7 @@ export default async function DashboardPage() {
                   <div className="flex items-center gap-2 text-xs text-slate-300">
                     <span className="flex items-center gap-1">
                       <Clock className="h-3 w-3" />
-                      {group.credits_minutes}m
+                      {formatMinutesToHoursAndMinutes(group.credits_minutes)}
                     </span>
                     <span className="text-slate-600">•</span>
                     <span className="flex items-center gap-1">
@@ -211,7 +142,9 @@ export default async function DashboardPage() {
                         <div className="flex items-center gap-4 mt-2">
                           <span className="text-sm text-muted-foreground">
                             Credits:{" "}
-                            <span className="text-purple-400 font-semibold">{event.credits_minutes || 0} min</span>
+                            <span className="text-purple-400 font-semibold">
+                              {formatMinutesToHoursAndMinutes(event.credits_minutes || 0)}
+                            </span>
                           </span>
                           <span className="text-sm text-muted-foreground">
                             Max attendees:{" "}
@@ -258,13 +191,7 @@ export default async function DashboardPage() {
                       <Link href={`/edit/${event.slug}`}>
                         <Button variant="outline">Edit</Button>
                       </Link>
-                      <form action={archiveEvent}>
-                        <input type="hidden" name="eventId" value={event.id} />
-                        <Button variant="ghost" size="sm" className="gap-2">
-                          <Archive className="h-4 w-4" />
-                          Archive
-                        </Button>
-                      </form>
+                      <ArchiveEventButton eventId={event.id} />
                     </div>
                   </CardContent>
                 </Card>
@@ -304,13 +231,7 @@ export default async function DashboardPage() {
                                 View
                               </Button>
                             </Link>
-                            <form action={unarchiveEvent}>
-                              <input type="hidden" name="eventId" value={event.id} />
-                              <Button variant="ghost" size="sm" className="gap-2">
-                                <ArchiveRestore className="h-4 w-4" />
-                                Unarchive
-                              </Button>
-                            </form>
+                            <UnarchiveEventButton eventId={event.id} />
                             <DeleteEventDialog eventId={event.id} eventSlug={event.slug} eventName={event.name} />
                           </div>
                         </CardContent>
