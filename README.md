@@ -184,7 +184,7 @@ pnpm dev
 
 ## Project Structure
 
-\`\`\`
+```
 ├── app/                          # Next.js App Router pages
 │   ├── admin/                   # Admin dashboard pages
 │   ├── api/                     # API routes and WebSocket handlers
@@ -225,7 +225,7 @@ pnpm dev
 ├── next.config.mjs              # Next.js configuration
 ├── tailwind.config.ts           # Tailwind CSS configuration
 └── tsconfig.json                # TypeScript configuration
-\`\`\`
+```
 
 ## Key Components
 
