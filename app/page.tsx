@@ -71,7 +71,7 @@ export default function Home() {
                   </div>
                   <h2 className="text-3xl md:text-4xl font-bold mb-4">Designed for everyone</h2>
                   <p className="text-muted-foreground max-w-2xl mx-auto leading-relaxed">
-                    LiveTranscribe ensures your events are accessible to deaf and hard-of-hearing attendees, plus
+                    LiveTranscribe ensures your events are accessible to deaf and hearing impaired attendees, plus
                     supports neurodiverse audiences who benefit from reading along with speakers.
                   </p>
                 </div>
@@ -79,7 +79,7 @@ export default function Home() {
                 <div className="grid md:grid-cols-3 gap-6">
                   <div className="p-6 rounded-lg border border-white/10 bg-black/40 backdrop-blur-sm hover:bg-white/5 transition-all">
                     <Ear className="h-10 w-10 mb-4 text-purple-400" />
-                    <h3 className="text-xl font-semibold mb-3">Deaf & Hard of Hearing</h3>
+                    <h3 className="text-xl font-semibold mb-3">Deaf & Hearing Impaired</h3>
                     <p className="text-muted-foreground text-sm leading-relaxed">
                       Provide real-time captions so every attendee can follow along, regardless of hearing ability. No
                       one should miss out on important content.
