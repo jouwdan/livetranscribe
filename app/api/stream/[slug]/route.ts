@@ -189,6 +189,19 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     }
 
     console.log("Final transcription saved successfully:", {
+      id: insertedTranscription.id,
+      slug,
+      sequenceNumber,
+      sessionId,
+      wordCount,
+    })
+
+    return Response.json({
+      success: true,
+      transcriptionId: insertedTranscription.id,
+      sequenceNumber,
+      wordCount,
+    })
   } catch (error) {
     console.error("Stream broadcast error:", error)
     console.error("Error stack:", error instanceof Error ? error.stack : "No stack trace")
@@ -200,9 +213,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       { status: 500 },
     )
   }
-}     sequenceNumber,
-      wordCount,
-    })
+}
   } catch (error) {
     console.error("Stream broadcast error:", error)
     return Response.json(
