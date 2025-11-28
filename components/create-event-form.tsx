@@ -12,6 +12,7 @@ import { createClient } from "@/lib/supabase/client"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Textarea } from "@/components/ui/textarea"
+import { formatMinutesToHoursAndMinutes } from "@/lib/format-time"
 
 interface EventCredit {
   id: string
@@ -268,7 +269,7 @@ export function CreateEventForm() {
                         <div className="flex items-center gap-4 text-sm text-slate-400">
                           <span className="flex items-center gap-1">
                             <Clock className="h-3 w-3" />
-                            {credit.credits_minutes} minutes
+                            {formatMinutesToHoursAndMinutes(credit.credits_minutes)}
                           </span>
                           <span className="flex items-center gap-1">
                             <Users className="h-3 w-3" />

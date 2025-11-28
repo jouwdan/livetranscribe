@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label"
 import { createClient } from "@/lib/supabase/client"
 import { Search, Clock, Users, Calendar, ExternalLink, Plus } from "lucide-react"
 import Link from "next/link"
+import { formatMinutesToHoursAndMinutes } from "@/lib/format-time"
 
 interface Event {
   id: string
@@ -178,7 +179,9 @@ export function EventCreditManager({ events: initialEvents }: { events: Event[] 
                   <Clock className="h-5 w-5 text-purple-400" />
                   <div>
                     <div className="text-sm text-slate-400">Total Credits</div>
-                    <div className="text-xl font-bold text-white">{event.credits_minutes} min</div>
+                    <div className="text-xl font-bold text-white">
+                      {formatMinutesToHoursAndMinutes(event.credits_minutes)}
+                    </div>
                   </div>
                 </div>
                 <div className="flex items-center gap-3 p-3 bg-black/30 rounded-lg border border-border/50">

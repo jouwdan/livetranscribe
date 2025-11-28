@@ -9,21 +9,10 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/
 import { archiveEvent, unarchiveEvent } from "./actions"
 import { DeleteEventDialog } from "@/components/delete-event-dialog"
 import { DownloadTranscriptionsButton } from "@/components/download-transcriptions-button"
+import { formatMinutesToHoursAndMinutes } from "@/lib/format-time"
 
 export const dynamic = "force-dynamic"
 export const revalidate = 0
-
-function formatMinutesToHoursAndMinutes(minutes: number): string {
-  if (minutes < 60) {
-    return `${minutes}m`
-  }
-  const hours = Math.floor(minutes / 60)
-  const remainingMinutes = minutes % 60
-  if (remainingMinutes === 0) {
-    return `${hours}h`
-  }
-  return `${hours}h ${remainingMinutes}m`
-}
 
 export default async function DashboardPage() {
   const supabase = await createServerClient()

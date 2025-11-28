@@ -13,6 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import Link from "next/link"
 import { validateTranscription } from "@/lib/validate-transcription"
 import { BroadcastMetricsTracker } from "@/lib/metrics"
+import { formatMinutesToHoursAndMinutes } from "@/lib/format-time"
 
 interface BroadcastInterfaceProps {
   slug: string
@@ -600,7 +601,7 @@ export function BroadcastInterface({ slug, eventName, eventId, userId }: Broadca
           <div className="flex items-center gap-3">
             {creditsRemaining !== null && (
               <Badge variant="outline" className="text-sm px-3 py-1">
-                {creditsRemaining} min remaining
+                {formatMinutesToHoursAndMinutes(creditsRemaining)} remaining
               </Badge>
             )}
             <Badge variant={isStreaming ? "default" : "secondary"} className="text-lg px-4 py-2">

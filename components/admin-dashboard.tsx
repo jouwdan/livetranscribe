@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge"
 import { createClient } from "@/lib/supabase/client"
 import { Search, Plus, Users, Clock, CreditCard, Trash2, ExternalLink } from "lucide-react"
 import Link from "next/link"
+import { formatMinutesToHoursAndMinutes } from "@/lib/format-time"
 
 interface UserProfile {
   id: string
@@ -264,7 +265,7 @@ export function AdminDashboard({ users: initialUsers }: { users: UserProfile[] }
                                 <div className="flex items-center gap-4 text-sm text-slate-400">
                                   <span className="flex items-center gap-1">
                                     <Clock className="h-3 w-3" />
-                                    {credit.credits_minutes} min
+                                    {formatMinutesToHoursAndMinutes(credit.credits_minutes)}
                                   </span>
                                   <span className="flex items-center gap-1">
                                     <Users className="h-3 w-3" />
