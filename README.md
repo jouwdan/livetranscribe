@@ -117,6 +117,8 @@ POSTGRES_HOST=your_postgres_host
 NEXT_PUBLIC_DEV_SUPABASE_REDIRECT_URL=http://localhost:3000
 \`\`\`
 
+> **Security note:** `OPENAI_API_KEY` is only used inside server-side routes (e.g., `app/api/transcribe-ws/route.ts`) to mint short-lived Realtime session tokens. The browser never receives the raw key—rotate it immediately if it has been exposed previously.
+
 **Where to find these:**
 
 - Supabase: Project Settings → API → Project URL and anon/public key
@@ -139,7 +141,6 @@ npm install
 or
 pnpm install
 \`\`\`
-
 3. Set up the database:
 
 Run the migration scripts in the `scripts/` folder in numerical order. Open the Supabase SQL Editor (Project → SQL Editor) and execute each file:

@@ -17,7 +17,7 @@ export class OpenAITranscriber {
   private lastDeltaTime: number = Date.now()
 
   constructor(
-    private apiKey: string,
+    private clientSecret: string,
     private eventId: string,
     private eventName: string,
     private eventDescription: string | null,
@@ -137,7 +137,7 @@ registerProcessor("pcm-processor", PCMProcessor)
     return new Promise<void>((resolve, reject) => {
       const url = "wss://api.openai.com/v1/realtime?model=gpt-realtime-mini"
 
-      this.ws = new WebSocket(url, ["realtime", `openai-insecure-api-key.${this.apiKey}`, "openai-beta.realtime-v1"])
+      this.ws = new WebSocket(url, ["realtime", `openai-ephemeral-token.${this.clientSecret}`, "openai-beta.realtime-v1"])
 
       this.ws.onopen = () => {
         console.log("WebSocket connected")
