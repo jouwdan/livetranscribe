@@ -35,97 +35,6 @@ interface EventCredit {
   } | null
 }
 
-type CreditSummary = {
-  totalMinutes: number
-  availableMinutes: number
-  inUseMinutes: number
-  availableCredits: number
-  inUseCredits: number
-  idleCredits: number
-}
-
-type CreditAlert = {
-  id: string
-  title: string
-  description: string
-  tone: "warning" | "danger" | "info"
-}
-
-const IDLE_THRESHOLD_MS = 1000 * 60 * 60 * 24 * 21 // ~3 weeks
-
-const summarizeCredits = (credits: EventCredit[]): CreditSummary => {
-  return credits.reduce<CreditSummary>(
-    (acc, credit) => {
-      const minutes = credit.credits_minutes || 0
-      acc.totalMinutes += minutes
-
-      if (credit.allocated_to_event_id) {
-        acc.inUseMinutes += minutes
-        acc.inUseCredits += 1
-      } else {
-        acc.availableMinutes += minutes
-        acc.availableCredits += 1
-
-        if (credit.created_at) {
-          const createdAtMs = new Date(credit.created_at).getTime()
-          if (!Number.isNaN(createdAtMs) && createdAtMs <= Date.now() - IDLE_THRESHOLD_MS) {
-            acc.idleCredits += 1
-          }
-        }
-      }
-
-      return acc
-    },
-    {
-      totalMinutes: 0,
-      availableMinutes: 0,
-      inUseMinutes: 0,
-      availableCredits: 0,
-      inUseCredits: 0,
-      idleCredits: 0,
-    },
-  )
-}
-
-const buildCreditAlerts = (summary: CreditSummary): CreditAlert[] => {
-  const alerts: CreditAlert[] = []
-
-  if (summary.availableMinutes > 0 && summary.availableMinutes <= 30) {
-    alerts.push({
-      id: "low-minutes",
-      title: "Credits running low",
-      description: "Less than 30 minutes are unassigned for this user.",
-      tone: "danger",
-    })
-  }
-
-  if (summary.inUseMinutes > summary.totalMinutes * 0.7 && summary.availableMinutes < summary.inUseMinutes * 0.5) {
-    alerts.push({
-      id: "heavy-usage",
-      title: "Broadcast spike detected",
-      description: "Most credits are currently in use — monitor consumption closely.",
-      tone: "warning",
-    })
-  }
-
-  if (summary.idleCredits > 0) {
-    alerts.push({
-      id: "idle-capacity",
-      title: `${summary.idleCredits} idle credit${summary.idleCredits > 1 ? "s" : ""}`,
-      description: "Credits have been untouched for 3+ weeks. Consider reallocating them.",
-      tone: "info",
-    })
-  }
-
-  return alerts
-}
-
-const alertToneClasses: Record<CreditAlert["tone"], string> = {
-  danger: "border-red-500/30 bg-red-500/10 text-red-100",
-  warning: "border-amber-500/30 bg-amber-500/10 text-amber-100",
-  info: "border-blue-500/30 bg-blue-500/10 text-blue-100",
-}
-
 export function AdminDashboard({ users: initialUsers }: { users: UserProfile[] }) {
   const [users, setUsers] = useState(initialUsers)
   const [searchQuery, setSearchQuery] = useState("")
@@ -297,16 +206,8 @@ export function AdminDashboard({ users: initialUsers }: { users: UserProfile[] }
 
       {/* User List */}
       <div className="grid gap-4">
-        {filteredUsers.map((user) => {
-          const credits = userCredits[user.id] || []
-          const creditSummary = summarizeCredits(credits)
-          const creditAlerts = credits.length > 0 ? buildCreditAlerts(creditSummary) : []
-          const utilization = creditSummary.totalMinutes
-            ? Math.round((creditSummary.inUseMinutes / creditSummary.totalMinutes) * 100)
-            : 0
-
-          return (
-            <Card key={user.id} className="bg-card/50 backdrop-blur-sm border-border/80">
+        {filteredUsers.map((user) => (
+          <Card key={user.id} className="bg-card/50 backdrop-blur-sm border-border/80">
             <CardHeader>
               <div className="flex items-start justify-between">
                 <div className="space-y-1">
@@ -342,45 +243,9 @@ export function AdminDashboard({ users: initialUsers }: { users: UserProfile[] }
                       <CreditCard className="h-4 w-4" />
                       Event Credits
                     </h4>
-                    {credits.length > 0 ? (
-                      <div className="space-y-4">
-                        <div className="grid gap-3 md:grid-cols-3">
-                          <div className="p-3 rounded-lg border border-border/60 bg-black/20">
-                            <p className="text-xs uppercase tracking-wide text-slate-400">Available</p>
-                            <p className="text-xl font-semibold text-white">
-                              {formatMinutesToHoursAndMinutes(creditSummary.availableMinutes)}
-                            </p>
-                            <p className="text-xs text-slate-500">{creditSummary.availableCredits} credits ready</p>
-                          </div>
-                          <div className="p-3 rounded-lg border border-border/60 bg-black/20">
-                            <p className="text-xs uppercase tracking-wide text-slate-400">In Broadcast</p>
-                            <p className="text-xl font-semibold text-white">
-                              {formatMinutesToHoursAndMinutes(creditSummary.inUseMinutes)}
-                            </p>
-                            <p className="text-xs text-slate-500">{creditSummary.inUseCredits} credits active</p>
-                          </div>
-                          <div className="p-3 rounded-lg border border-border/60 bg-black/20">
-                            <p className="text-xs uppercase tracking-wide text-slate-400">Utilization</p>
-                            <p className="text-xl font-semibold text-white">{utilization}%</p>
-                            <p className="text-xs text-slate-500">share of minutes in use</p>
-                          </div>
-                        </div>
-
-                        {creditAlerts.length > 0 && (
-                          <div className="grid gap-2">
-                            {creditAlerts.map((alert) => (
-                              <div
-                                key={alert.id}
-                                className={`p-3 rounded-lg border text-sm ${alertToneClasses[alert.tone]}`}
-                              >
-                                <p className="font-medium">{alert.title}</p>
-                                <p className="text-xs opacity-80">{alert.description}</p>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-
-                        {credits.map((credit) => (
+                    {userCredits[user.id] && userCredits[user.id].length > 0 ? (
+                      <div className="space-y-2">
+                        {userCredits[user.id].map((credit) => (
                           <div key={credit.id} className="p-3 bg-black/30 rounded-lg border border-border/50 space-y-2">
                             <div className="flex items-start justify-between gap-2">
                               <div className="flex-1 space-y-1">
@@ -550,9 +415,8 @@ export function AdminDashboard({ users: initialUsers }: { users: UserProfile[] }
                 </div>
               )}
             </CardContent>
-            </Card>
-          )
-        })}
+          </Card>
+        ))}
 
         {filteredUsers.length === 0 && (
           <Card className="bg-card/50 backdrop-blur-sm border-border/80">
