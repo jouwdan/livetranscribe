@@ -24,14 +24,31 @@ export default async function DashboardPage() {
     redirect("/auth/login")
   }
 
-  const { data: eventCredits } = await supabase
-    .from("event_credits")
-    .select("*")
-    .eq("user_id", user.id)
-    .order("created_at", { ascending: false })
+  const [eventCreditsResponse, activeEventsResponse, archivedEventsResponse] = await Promise.all([
+    supabase
+      .from("event_credits")
+      .select("*")
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: false }),
+    supabase
+      .from("events")
+      .select("*")
+      .eq("user_id", user.id)
+      .eq("archived", false)
+      .order("created_at", { ascending: false }),
+    supabase
+      .from("events")
+      .select("*")
+      .eq("user_id", user.id)
+      .eq("archived", true)
+      .order("created_at", { ascending: false }),
+  ])
 
-  const availableCredits = eventCredits?.filter((c) => !c.allocated_to_event_id) || []
-  const allocatedCredits = eventCredits?.filter((c) => c.allocated_to_event_id) || []
+  const eventCredits = eventCreditsResponse.data ?? []
+  const activeEvents = activeEventsResponse.data ?? []
+  const archivedEvents = archivedEventsResponse.data ?? []
+
+  const availableCredits = eventCredits.filter((c) => !c.allocated_to_event_id)
   const canCreateEvent = availableCredits.length > 0
 
   const groupedCredits = availableCredits.reduce(
@@ -52,20 +69,6 @@ export default async function DashboardPage() {
   )
 
   const creditGroups = Object.values(groupedCredits)
-
-  const { data: activeEvents } = await supabase
-    .from("events")
-    .select("*")
-    .eq("user_id", user.id)
-    .eq("archived", false)
-    .order("created_at", { ascending: false })
-
-  const { data: archivedEvents } = await supabase
-    .from("events")
-    .select("*")
-    .eq("user_id", user.id)
-    .eq("archived", true)
-    .order("created_at", { ascending: false })
 
   return (
     <div className="container mx-auto px-4 py-8">
