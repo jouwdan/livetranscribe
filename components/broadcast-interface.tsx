@@ -458,10 +458,14 @@ export function BroadcastInterface({ slug, eventName, eventId, userId }: Broadca
         throw new Error("Failed to initialize transcription session")
       }
 
-      const { apiKey } = await response.json()
+      const { clientSecret } = await response.json()
+
+      if (!clientSecret) {
+        throw new Error("Failed to obtain OpenAI client secret")
+      }
 
       const transcriber = new OpenAITranscriber(
-        apiKey,
+        clientSecret,
         eventId,
         eventName,
         event.description || null,
