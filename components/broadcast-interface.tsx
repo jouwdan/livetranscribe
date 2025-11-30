@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useCallback } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Mic, MicOff, Copy, Check, Radio, AlertCircle, Download, QrCode, List } from "lucide-react"
+import { Mic, MicOff, Copy, Check, Radio, AlertCircle, Download, QrCode, List, RotateCcw } from "lucide-react"
 import { OpenAITranscriber, OPENAI_TRANSCRIBER_DEFAULTS } from "@/lib/openai-transcriber"
 import { LiveTranscriptionDisplay } from "@/components/live-transcription-display"
 import { createClient as createBrowserClient } from "@/lib/supabase/client"
@@ -698,34 +698,6 @@ export function BroadcastInterface({ slug, eventName, eventId, userId }: Broadca
     audioTuning.vadPrefixPaddingMs === OPENAI_TRANSCRIBER_DEFAULTS.vad.prefixPaddingMs &&
     audioTuning.vadSilenceDurationMs === OPENAI_TRANSCRIBER_DEFAULTS.vad.silenceDurationMs
 
-  const advancedAudioFeatures = [
-    {
-      label: "Noise suppression",
-      value: "Auto-enabled",
-      description: "Browser capture enforces acoustic echo cancellation and noise filtering.",
-    },
-    {
-      label: "Gain control",
-      value: "Stabilized",
-      description: "Automatic gain keeps speech between -18 dBFS and -6 dBFS so quiet speakers stay audible.",
-    },
-    {
-      label: "Chunk buffering",
-      value: `${audioTuning.chunkDurationMs} ms`,
-      description: "Adjust to trade latency for stability before the audio hits OpenAI.",
-    },
-    {
-      label: "Silence gating",
-      value: `RMS > ${audioTuning.silenceRmsThreshold.toFixed(3)}`,
-      description: "Low-RMS frames are dropped so the model only receives voiced segments.",
-    },
-    {
-      label: "VAD threshold",
-      value: audioTuning.vadThreshold.toFixed(2),
-      description: "Server-side detector sensitivity for when to start/end speech turns.",
-    },
-  ]
-
   const advancedAudioTips = [
     "Place the microphone within 30 cm of the active speaker to reduce room noise.",
     "Use cardioid or headset mics in noisy rooms; avoid laptop mics sitting next to fans.",
@@ -890,28 +862,14 @@ export function BroadcastInterface({ slug, eventName, eventId, userId }: Broadca
         <Card className="bg-card border-border">
           <CardHeader>
             <CardTitle>Advanced Audio</CardTitle>
-            <CardDescription>Hide the nerdy stuff until you need deeper control</CardDescription>
+            <CardDescription>Fine-tune audio pipeline settings and review best practices</CardDescription>
           </CardHeader>
           <CardContent>
             <Accordion type="single" collapsible>
               <AccordionItem value="advanced-audio">
-                <AccordionTrigger>Guidance & tuning</AccordionTrigger>
+                <AccordionTrigger>Audio Settings</AccordionTrigger>
                 <AccordionContent>
                   <div className="space-y-8">
-                    <div className="grid gap-4 md:grid-cols-3">
-                      {advancedAudioFeatures.map((feature) => (
-                        <div key={feature.label} className="p-4 bg-background border border-border rounded-md h-full">
-                          <div className="flex items-center justify-between mb-2">
-                            <p className="font-semibold text-foreground text-sm">{feature.label}</p>
-                            <Badge variant="outline" className="text-xs px-2 py-0.5">
-                              {feature.value}
-                            </Badge>
-                          </div>
-                          <p className="text-xs text-foreground/70 leading-relaxed">{feature.description}</p>
-                        </div>
-                      ))}
-                    </div>
-
                     <div className="space-y-3">
                       <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
                         <div>
@@ -924,11 +882,12 @@ export function BroadcastInterface({ slug, eventName, eventId, userId }: Broadca
                           type="button"
                           variant="outline"
                           size="sm"
-                          className="self-start md:self-auto"
+                          className="self-start md:self-auto gap-2"
                           onClick={resetAudioTuning}
                           disabled={isStreaming || isAudioTuningAtDefaults}
                         >
-                          Reset defaults
+                          <RotateCcw className="h-4 w-4" />
+                          Reset to Defaults
                         </Button>
                       </div>
                       <div className="grid gap-4 md:grid-cols-2">
