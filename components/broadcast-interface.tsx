@@ -584,6 +584,32 @@ export function BroadcastInterface({ slug, eventName, eventId, userId }: Broadca
     }))
   const interimText = currentInterim.trim() !== "" ? currentInterim : undefined
 
+  const advancedAudioFeatures = [
+    {
+      label: "Noise suppression",
+      value: "Auto-enabled",
+      description: "Browser capture enforces acoustic echo cancellation and noise filtering.",
+    },
+    {
+      label: "Gain control",
+      value: "Stabilized",
+      description: "Automatic gain keeps speech between -18 dBFS and -6 dBFS so quiet speakers stay audible.",
+    },
+    {
+      label: "Silence gating",
+      value: "Adaptive",
+      description: "Low-RMS frames are dropped so the model only receives voiced segments.",
+    },
+  ]
+
+  const advancedAudioTips = [
+    "Place the microphone within 30 cm of the active speaker to reduce room noise.",
+    "Use cardioid or headset mics in noisy rooms; avoid laptop mics sitting next to fans.",
+    "Keep your OS input level so the loudest peaks sit below the red clip indicator.",
+    "Mute unused conferencing apps so they do not compete for the microphone.",
+    "Monitor the live captions; if you see repeated [unclear], pause and adjust mic placement.",
+  ]
+
   const formatDuration = (seconds: number) => {
     const hours = Math.floor(seconds / 3600)
     const minutes = Math.floor((seconds % 3600) / 60)
@@ -734,6 +760,36 @@ export function BroadcastInterface({ slug, eventName, eventId, userId }: Broadca
                 </div>
               </div>
             )}
+          </CardContent>
+        </Card>
+
+        <Card className="bg-card border-border">
+          <CardHeader>
+            <CardTitle>Advanced Audio Guidance</CardTitle>
+            <CardDescription>Built-in safeguards plus best practices to maximize transcription accuracy</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <div className="grid gap-4 md:grid-cols-3">
+              {advancedAudioFeatures.map((feature) => (
+                <div key={feature.label} className="p-4 bg-background border border-border rounded-md h-full">
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="font-semibold text-foreground text-sm">{feature.label}</p>
+                    <Badge variant="outline" className="text-xs px-2 py-0.5">
+                      {feature.value}
+                    </Badge>
+                  </div>
+                  <p className="text-xs text-foreground/70 leading-relaxed">{feature.description}</p>
+                </div>
+              ))}
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-foreground mb-2">Room & device checklist</p>
+              <ul className="list-disc space-y-1 pl-5 text-sm text-foreground/80">
+                {advancedAudioTips.map((tip) => (
+                  <li key={tip}>{tip}</li>
+                ))}
+              </ul>
+            </div>
           </CardContent>
         </Card>
 
