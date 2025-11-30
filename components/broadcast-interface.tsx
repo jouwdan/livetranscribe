@@ -54,7 +54,7 @@ type AudioTuningField = {
 
 const getDefaultAudioTuningState = (): AudioTuningState => ({
   chunkDurationMs: OPENAI_TRANSCRIBER_DEFAULTS.chunkDurationMs,
-  silenceRmsThreshold: Number(OPENAI_TRANSCRIBER_DEFAULTS.silenceRmsThreshold.toFixed(4)),
+  silenceRmsThreshold: Number(OPENAI_TRANSCRIBER_DEFAULTS.silenceRmsThreshold.toFixed(3)),
   vadThreshold: OPENAI_TRANSCRIBER_DEFAULTS.vad.threshold,
   vadSilenceDurationMs: OPENAI_TRANSCRIBER_DEFAULTS.vad.silenceDurationMs,
   vadPrefixPaddingMs: OPENAI_TRANSCRIBER_DEFAULTS.vad.prefixPaddingMs,
