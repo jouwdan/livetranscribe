@@ -698,14 +698,6 @@ export function BroadcastInterface({ slug, eventName, eventId, userId }: Broadca
     audioTuning.vadPrefixPaddingMs === OPENAI_TRANSCRIBER_DEFAULTS.vad.prefixPaddingMs &&
     audioTuning.vadSilenceDurationMs === OPENAI_TRANSCRIBER_DEFAULTS.vad.silenceDurationMs
 
-  const advancedAudioTips = [
-    "Place the microphone within 30 cm of the active speaker to reduce room noise.",
-    "Use cardioid or headset mics in noisy rooms; avoid laptop mics sitting next to fans.",
-    "Keep your OS input level so the loudest peaks sit below the red clip indicator.",
-    "Mute unused conferencing apps so they do not compete for the microphone.",
-    "Monitor the live captions; if you see repeated [unclear], pause and adjust mic placement.",
-  ]
-
   const formatDuration = (seconds: number) => {
     const hours = Math.floor(seconds / 3600)
     const minutes = Math.floor((seconds % 3600) / 60)
@@ -862,7 +854,7 @@ export function BroadcastInterface({ slug, eventName, eventId, userId }: Broadca
         <Card className="bg-card border-border">
           <CardHeader>
             <CardTitle>Advanced Audio</CardTitle>
-            <CardDescription>Fine-tune audio pipeline settings and review best practices</CardDescription>
+            <CardDescription>Adjust low-level pipeline controls only if you understand the impact</CardDescription>
           </CardHeader>
           <CardContent>
             <Accordion type="single" collapsible>
@@ -871,6 +863,11 @@ export function BroadcastInterface({ slug, eventName, eventId, userId }: Broadca
                 <AccordionContent>
                   <div className="space-y-8">
                     <div className="space-y-3">
+                      <div className="rounded-md border border-border/70 bg-muted/40 p-3 text-xs text-foreground/80">
+                        These controls affect buffering, VAD, and noise handling. Small changes can increase latency or
+                        cause missed speech—only adjust if you know what you are testing. Use Reset to Defaults to undo
+                        experiments.
+                      </div>
                       <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
                         <div>
                           <p className="text-sm font-semibold text-foreground">Fine-tune pipeline controls</p>
@@ -913,15 +910,6 @@ export function BroadcastInterface({ slug, eventName, eventId, userId }: Broadca
                           </div>
                         ))}
                       </div>
-                    </div>
-
-                    <div>
-                      <p className="text-sm font-semibold text-foreground mb-2">Room & device checklist</p>
-                      <ul className="list-disc space-y-1 pl-5 text-sm text-foreground/80">
-                        {advancedAudioTips.map((tip) => (
-                          <li key={tip}>{tip}</li>
-                        ))}
-                      </ul>
                     </div>
                   </div>
                 </AccordionContent>
