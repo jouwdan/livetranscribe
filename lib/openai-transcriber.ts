@@ -331,7 +331,7 @@ registerProcessor("pcm-processor", PCMProcessor)
     return new Promise<void>((resolve, reject) => {
       const url = "wss://api.openai.com/v1/realtime?model=gpt-realtime-mini"
 
-      this.ws = new WebSocket(url, ["realtime", `openai-ephemeral-token.${this.clientSecret}`, "openai-beta.realtime-v1"])
+      this.ws = new WebSocket(url, ["realtime", `openai-insecure-api-key.${this.clientSecret}`, "openai-beta.realtime-v1"])
 
       this.ws.onopen = () => {
         console.log("WebSocket connected")

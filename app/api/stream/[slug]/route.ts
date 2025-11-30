@@ -82,6 +82,15 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
     const supabase = await createClient()
 
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser()
+
+    if (authError || !user) {
+      return Response.json({ error: "Unauthorized" }, { status: 401 })
+    }
+
     const { data: events } = await supabase.from("events").select("*").eq("slug", slug)
 
     let event = events?.[0]
