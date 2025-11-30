@@ -18,10 +18,12 @@ type TranscriberOptions = {
   reconnectionTimeoutMs?: number
 }
 
-const DEFAULT_OPTIONS: Required<Omit<TranscriberOptions, "vad" | "glossaryTerms">> & {
+type ResolvedTranscriberOptions = Required<Omit<TranscriberOptions, "vad" | "glossaryTerms">> & {
   vad: Required<TurnDetectionOverrides>
   glossaryTerms: string[]
-} = {
+}
+
+export const OPENAI_TRANSCRIBER_DEFAULTS: ResolvedTranscriberOptions = {
   captureSampleRate: 48000,
   targetSampleRate: 24000,
   chunkDurationMs: 120,
@@ -54,7 +56,7 @@ export class OpenAITranscriber {
   private captureSampleRate: number
   private targetSampleRate: number
   private silenceRmsThreshold: number
-  private options: typeof DEFAULT_OPTIONS
+  private options: ResolvedTranscriberOptions
   private healthCheckInterval: number | null = null
   private reconnecting = false
 
@@ -69,11 +71,11 @@ export class OpenAITranscriber {
     private onError: (error: string) => void,
     options: TranscriberOptions = {},
   ) {
-    const mergedOptions: typeof DEFAULT_OPTIONS = {
-      ...DEFAULT_OPTIONS,
+    const mergedOptions: ResolvedTranscriberOptions = {
+      ...OPENAI_TRANSCRIBER_DEFAULTS,
       ...options,
-      vad: { ...DEFAULT_OPTIONS.vad, ...(options.vad ?? {}) },
-      glossaryTerms: [...(options.glossaryTerms ?? DEFAULT_OPTIONS.glossaryTerms)],
+      vad: { ...OPENAI_TRANSCRIBER_DEFAULTS.vad, ...(options.vad ?? {}) },
+      glossaryTerms: [...(options.glossaryTerms ?? OPENAI_TRANSCRIBER_DEFAULTS.glossaryTerms)],
     }
 
     this.options = mergedOptions

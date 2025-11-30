@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Mic, MicOff, Copy, Check, Radio, AlertCircle, Download, QrCode, List } from "lucide-react"
-import { OpenAITranscriber } from "@/lib/openai-transcriber"
+import { OpenAITranscriber, OPENAI_TRANSCRIBER_DEFAULTS } from "@/lib/openai-transcriber"
 import { LiveTranscriptionDisplay } from "@/components/live-transcription-display"
 import { createClient as createBrowserClient } from "@/lib/supabase/client"
 import QRCode from "qrcode"
@@ -13,6 +13,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import Link from "next/link"
 import { BroadcastMetricsTracker } from "@/lib/metrics"
 import { formatMinutesToHoursAndMinutes } from "@/lib/format-time"
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 
 interface BroadcastInterfaceProps {
   slug: string
@@ -27,6 +30,35 @@ interface Transcription {
   sequence: number
   timestamp: Date
 }
+
+type AudioTuningState = {
+  chunkDurationMs: number
+  silenceRmsThreshold: number
+  vadThreshold: number
+  vadSilenceDurationMs: number
+  vadPrefixPaddingMs: number
+}
+
+type AudioTuningKey = keyof AudioTuningState
+
+type AudioTuningField = {
+  key: AudioTuningKey
+  label: string
+  min: number
+  max: number
+  step: number
+  helper: string
+  unit?: string
+  precision?: number
+}
+
+const getDefaultAudioTuningState = (): AudioTuningState => ({
+  chunkDurationMs: OPENAI_TRANSCRIBER_DEFAULTS.chunkDurationMs,
+  silenceRmsThreshold: Number(OPENAI_TRANSCRIBER_DEFAULTS.silenceRmsThreshold.toFixed(4)),
+  vadThreshold: OPENAI_TRANSCRIBER_DEFAULTS.vad.threshold,
+  vadSilenceDurationMs: OPENAI_TRANSCRIBER_DEFAULTS.vad.silenceDurationMs,
+  vadPrefixPaddingMs: OPENAI_TRANSCRIBER_DEFAULTS.vad.prefixPaddingMs,
+})
 
 export function BroadcastInterface({ slug, eventName, eventId, userId }: BroadcastInterfaceProps) {
   const [isStreaming, setIsStreaming] = useState(false)
@@ -51,6 +83,7 @@ export function BroadcastInterface({ slug, eventName, eventId, userId }: Broadca
   const eventDescriptionRef = useRef<string | null>(null)
   const broadcastMetricsRef = useRef<BroadcastMetricsTracker | null>(null)
   const transcriptionsRef = useRef<Transcription[]>([])
+  const [audioTuning, setAudioTuning] = useState<AudioTuningState>(() => getDefaultAudioTuningState())
   
   // Keep ref in sync with state
   useEffect(() => {
@@ -464,6 +497,16 @@ export function BroadcastInterface({ slug, eventName, eventId, userId }: Broadca
         throw new Error("Failed to obtain OpenAI client secret")
       }
 
+      const transcriberOptions = {
+        chunkDurationMs: audioTuning.chunkDurationMs,
+        silenceRmsThreshold: audioTuning.silenceRmsThreshold,
+        vad: {
+          threshold: audioTuning.vadThreshold,
+          prefixPaddingMs: audioTuning.vadPrefixPaddingMs,
+          silenceDurationMs: audioTuning.vadSilenceDurationMs,
+        },
+      }
+
       const transcriber = new OpenAITranscriber(
         clientSecret,
         eventId,
@@ -476,6 +519,7 @@ export function BroadcastInterface({ slug, eventName, eventId, userId }: Broadca
           setError(error)
           setIsStreaming(false)
         },
+        transcriberOptions,
       )
 
       await transcriber.start()
@@ -584,6 +628,76 @@ export function BroadcastInterface({ slug, eventName, eventId, userId }: Broadca
     }))
   const interimText = currentInterim.trim() !== "" ? currentInterim : undefined
 
+  const audioTuningFields: AudioTuningField[] = [
+    {
+      key: "chunkDurationMs",
+      label: "Chunk duration (ms)",
+      min: 60,
+      max: 240,
+      step: 10,
+      helper: "Controls how much speech is buffered before we send it upstream.",
+      unit: "ms",
+    },
+    {
+      key: "silenceRmsThreshold",
+      label: "Silence gate RMS",
+      min: 0.001,
+      max: 0.02,
+      step: 0.001,
+      helper: "Raise to ignore more room noise, lower for very soft speakers.",
+      precision: 3,
+    },
+    {
+      key: "vadThreshold",
+      label: "VAD sensitivity",
+      min: 0.1,
+      max: 0.8,
+      step: 0.05,
+      helper: "Lower values trigger more easily; higher values wait for confident speech.",
+      precision: 2,
+    },
+    {
+      key: "vadPrefixPaddingMs",
+      label: "VAD prefix padding",
+      min: 40,
+      max: 250,
+      step: 10,
+      helper: "Pre-roll audio (ms) so words don't get clipped at the start of a turn.",
+      unit: "ms",
+    },
+    {
+      key: "vadSilenceDurationMs",
+      label: "VAD silence hold",
+      min: 120,
+      max: 600,
+      step: 20,
+      helper: "How long (ms) of silence we wait before finalizing a segment.",
+      unit: "ms",
+    },
+  ]
+
+  const applyAudioTuningValue = (field: AudioTuningField, rawValue: string) => {
+    const numericValue = Number(rawValue)
+    if (Number.isNaN(numericValue)) {
+      return
+    }
+    const clamped = Math.min(field.max, Math.max(field.min, numericValue))
+    const normalized = field.precision !== undefined ? Number(clamped.toFixed(field.precision)) : clamped
+    setAudioTuning((prev) => ({ ...prev, [field.key]: normalized }))
+  }
+
+  const resetAudioTuning = () => {
+    setAudioTuning(getDefaultAudioTuningState())
+  }
+
+  const isAudioTuningAtDefaults =
+    audioTuning.chunkDurationMs === OPENAI_TRANSCRIBER_DEFAULTS.chunkDurationMs &&
+    Number(audioTuning.silenceRmsThreshold.toFixed(3)) ===
+      Number(OPENAI_TRANSCRIBER_DEFAULTS.silenceRmsThreshold.toFixed(3)) &&
+    Number(audioTuning.vadThreshold.toFixed(2)) === Number(OPENAI_TRANSCRIBER_DEFAULTS.vad.threshold.toFixed(2)) &&
+    audioTuning.vadPrefixPaddingMs === OPENAI_TRANSCRIBER_DEFAULTS.vad.prefixPaddingMs &&
+    audioTuning.vadSilenceDurationMs === OPENAI_TRANSCRIBER_DEFAULTS.vad.silenceDurationMs
+
   const advancedAudioFeatures = [
     {
       label: "Noise suppression",
@@ -596,9 +710,19 @@ export function BroadcastInterface({ slug, eventName, eventId, userId }: Broadca
       description: "Automatic gain keeps speech between -18 dBFS and -6 dBFS so quiet speakers stay audible.",
     },
     {
+      label: "Chunk buffering",
+      value: `${audioTuning.chunkDurationMs} ms`,
+      description: "Adjust to trade latency for stability before the audio hits OpenAI.",
+    },
+    {
       label: "Silence gating",
-      value: "Adaptive",
+      value: `RMS > ${audioTuning.silenceRmsThreshold.toFixed(3)}`,
       description: "Low-RMS frames are dropped so the model only receives voiced segments.",
+    },
+    {
+      label: "VAD threshold",
+      value: audioTuning.vadThreshold.toFixed(2),
+      description: "Server-side detector sensitivity for when to start/end speech turns.",
     },
   ]
 
@@ -765,31 +889,85 @@ export function BroadcastInterface({ slug, eventName, eventId, userId }: Broadca
 
         <Card className="bg-card border-border">
           <CardHeader>
-            <CardTitle>Advanced Audio Guidance</CardTitle>
-            <CardDescription>Built-in safeguards plus best practices to maximize transcription accuracy</CardDescription>
+            <CardTitle>Advanced Audio</CardTitle>
+            <CardDescription>Hide the nerdy stuff until you need deeper control</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-6">
-            <div className="grid gap-4 md:grid-cols-3">
-              {advancedAudioFeatures.map((feature) => (
-                <div key={feature.label} className="p-4 bg-background border border-border rounded-md h-full">
-                  <div className="flex items-center justify-between mb-2">
-                    <p className="font-semibold text-foreground text-sm">{feature.label}</p>
-                    <Badge variant="outline" className="text-xs px-2 py-0.5">
-                      {feature.value}
-                    </Badge>
+          <CardContent>
+            <Accordion type="single" collapsible>
+              <AccordionItem value="advanced-audio">
+                <AccordionTrigger>Guidance & tuning</AccordionTrigger>
+                <AccordionContent>
+                  <div className="space-y-8">
+                    <div className="grid gap-4 md:grid-cols-3">
+                      {advancedAudioFeatures.map((feature) => (
+                        <div key={feature.label} className="p-4 bg-background border border-border rounded-md h-full">
+                          <div className="flex items-center justify-between mb-2">
+                            <p className="font-semibold text-foreground text-sm">{feature.label}</p>
+                            <Badge variant="outline" className="text-xs px-2 py-0.5">
+                              {feature.value}
+                            </Badge>
+                          </div>
+                          <p className="text-xs text-foreground/70 leading-relaxed">{feature.description}</p>
+                        </div>
+                      ))}
+                    </div>
+
+                    <div className="space-y-3">
+                      <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                        <div>
+                          <p className="text-sm font-semibold text-foreground">Fine-tune pipeline controls</p>
+                          <p className="text-xs text-foreground/70">
+                            Tweaks apply the next time you start streaming. Inputs are disabled while live.
+                          </p>
+                        </div>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="self-start md:self-auto"
+                          onClick={resetAudioTuning}
+                          disabled={isStreaming || isAudioTuningAtDefaults}
+                        >
+                          Reset defaults
+                        </Button>
+                      </div>
+                      <div className="grid gap-4 md:grid-cols-2">
+                        {audioTuningFields.map((field) => (
+                          <div key={field.key} className="space-y-2">
+                            <div className="flex items-center justify-between">
+                              <Label htmlFor={`audio-${field.key}`}>{field.label}</Label>
+                              {field.unit && (
+                                <span className="text-xs text-foreground/50">{field.unit}</span>
+                              )}
+                            </div>
+                            <Input
+                              id={`audio-${field.key}`}
+                              type="number"
+                              step={field.step}
+                              min={field.min}
+                              max={field.max}
+                              value={audioTuning[field.key]}
+                              onChange={(event) => applyAudioTuningValue(field, event.target.value)}
+                              disabled={isStreaming}
+                            />
+                            <p className="text-xs text-foreground/70">{field.helper}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div>
+                      <p className="text-sm font-semibold text-foreground mb-2">Room & device checklist</p>
+                      <ul className="list-disc space-y-1 pl-5 text-sm text-foreground/80">
+                        {advancedAudioTips.map((tip) => (
+                          <li key={tip}>{tip}</li>
+                        ))}
+                      </ul>
+                    </div>
                   </div>
-                  <p className="text-xs text-foreground/70 leading-relaxed">{feature.description}</p>
-                </div>
-              ))}
-            </div>
-            <div>
-              <p className="text-sm font-semibold text-foreground mb-2">Room & device checklist</p>
-              <ul className="list-disc space-y-1 pl-5 text-sm text-foreground/80">
-                {advancedAudioTips.map((tip) => (
-                  <li key={tip}>{tip}</li>
-                ))}
-              </ul>
-            </div>
+                </AccordionContent>
+              </AccordionItem>
+            </Accordion>
           </CardContent>
         </Card>
 
