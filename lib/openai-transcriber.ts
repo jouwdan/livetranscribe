@@ -59,6 +59,8 @@ export class OpenAITranscriber {
   private options: ResolvedTranscriberOptions
   private healthCheckInterval: number | null = null
   private reconnecting = false
+  private shouldReconnect = false
+  private pendingReconnectTimer: number | null = null
 
   constructor(
     private clientSecret: string,
@@ -94,6 +96,7 @@ export class OpenAITranscriber {
 
   async start() {
     try {
+      this.shouldReconnect = true
       this.mediaStream = await navigator.mediaDevices.getUserMedia({
         audio: {
           channelCount: 1,
@@ -282,6 +285,7 @@ registerProcessor("pcm-processor", PCMProcessor)
     const interval = Math.max(1000, Math.floor(this.options.reconnectionTimeoutMs / 3))
     this.healthCheckInterval = window.setInterval(() => {
       if (!this.isConnected) {
+        this.queueReconnect("WebSocket inactive")
         return
       }
       const now = Date.now()
@@ -299,8 +303,25 @@ registerProcessor("pcm-processor", PCMProcessor)
     }
   }
 
+  private clearPendingReconnect() {
+    if (this.pendingReconnectTimer !== null) {
+      window.clearTimeout(this.pendingReconnectTimer)
+      this.pendingReconnectTimer = null
+    }
+  }
+
+  private queueReconnect(reason: string) {
+    if (!this.shouldReconnect || this.reconnecting) return
+    if (this.pendingReconnectTimer !== null) return
+    this.pendingReconnectTimer = window.setTimeout(() => {
+      this.pendingReconnectTimer = null
+      this.reconnect(reason)
+    }, 500)
+  }
+
   private async reconnect(reason: string) {
-    if (this.reconnecting) return
+    if (this.reconnecting || !this.shouldReconnect) return
+    this.clearPendingReconnect()
     console.warn("Reconnecting websocket due to:", reason)
     this.reconnecting = true
     try {
@@ -347,6 +368,7 @@ registerProcessor("pcm-processor", PCMProcessor)
         console.error("WebSocket error:", event)
         this.isConnected = false
         this.onError("WebSocket error")
+        this.queueReconnect("WebSocket error")
         reject(event)
       }
 
@@ -363,6 +385,7 @@ registerProcessor("pcm-processor", PCMProcessor)
         console.log("WebSocket closed")
         this.isConnected = false
         this.resetAudioBuffer()
+        this.queueReconnect("WebSocket closed")
       }
     })
   }
@@ -502,6 +525,8 @@ Your output must be clean, literal, strictly English, and faithful to the spoken
   stop() {
     console.log("Stopping transcription")
     try {
+      this.shouldReconnect = false
+      this.clearPendingReconnect()
       this.stopHealthMonitor()
       this.resetAudioBuffer()
       if (this.sourceNode) {
