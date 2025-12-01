@@ -40,7 +40,9 @@ export function BroadcastInterface({ slug, eventName, eventId, userId }: Broadca
   const [sessionDuration, setSessionDuration] = useState(0)
   const [sessionStartTime, setSessionStartTime] = useState<Date | null>(null)
   const [creditsRemaining, setCreditsRemaining] = useState<number | null>(null)
-  const [sessions, setSessions] = useState<Array<{ id: string; name: string; session_number: number; description?: string | null }>>([])
+  const [sessions, setSessions] = useState<
+    Array<{ id: string; name: string; session_number: number; description?: string | null }>
+  >([])
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null)
   const [lastSequenceNumber, setLastSequenceNumber] = useState(0)
   const transcriberRef = useRef<OpenAITranscriber | null>(null)
@@ -51,7 +53,7 @@ export function BroadcastInterface({ slug, eventName, eventId, userId }: Broadca
   const eventDescriptionRef = useRef<string | null>(null)
   const broadcastMetricsRef = useRef<BroadcastMetricsTracker | null>(null)
   const transcriptionsRef = useRef<Transcription[]>([])
-  
+
   // Keep ref in sync with state
   useEffect(() => {
     transcriptionsRef.current = transcriptions
@@ -140,21 +142,30 @@ export function BroadcastInterface({ slug, eventName, eventId, userId }: Broadca
   }, [eventId, currentSessionId])
 
   useEffect(() => {
-    async function fetchLastSequence() {
-      const supabase = createBrowserClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      )
+    if (!currentSessionId) {
+      console.log("[v0] No session ID yet, skipping sequence number fetch")
+      return
+    }
 
-      const { data } = await supabase
+    async function fetchLastSequence() {
+      const supabase = createBrowserClient()
+
+      const { data, error } = await supabase
         .from("transcriptions")
         .select("sequence_number")
         .eq("session_id", currentSessionId)
         .order("sequence_number", { ascending: false })
         .limit(1)
-        .single()
+        .maybeSingle() // Use maybeSingle() instead of single() to handle no results
+
+      if (error) {
+        console.error("[v0] Error fetching last sequence:", error)
+        setLastSequenceNumber(0)
+        return
+      }
 
       const lastSeq = data?.sequence_number || 0
+      console.log("[v0] Last sequence number:", lastSeq)
       setLastSequenceNumber(lastSeq)
     }
 
@@ -279,10 +290,7 @@ export function BroadcastInterface({ slug, eventName, eventId, userId }: Broadca
       const adjustedSequence = lastSequenceNumber + sequence
 
       if (isFinal) {
-        setTranscriptions((prev) => [
-          ...prev,
-          { text, isFinal, sequence: adjustedSequence, timestamp: new Date() },
-        ])
+        setTranscriptions((prev) => [...prev, { text, isFinal, sequence: adjustedSequence, timestamp: new Date() }])
         setCurrentInterim("")
 
         pendingInterimRef.current = null
@@ -538,10 +546,7 @@ export function BroadcastInterface({ slug, eventName, eventId, userId }: Broadca
           })
           .eq("id", currentSessionId)
       } else {
-        await supabase
-          .from("event_sessions")
-          .update({ ended_at: endTime.toISOString() })
-          .eq("id", currentSessionId)
+        await supabase.from("event_sessions").update({ ended_at: endTime.toISOString() }).eq("id", currentSessionId)
       }
 
       if (durationMinutes > 0) {
