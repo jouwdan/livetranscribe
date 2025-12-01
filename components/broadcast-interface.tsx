@@ -143,7 +143,7 @@ export function BroadcastInterface({ slug, eventName, eventId, userId }: Broadca
 
   useEffect(() => {
     if (!currentSessionId) {
-      console.log("[v0] No session ID yet, skipping sequence number fetch")
+      console.log("No session ID yet, skipping sequence number fetch")
       return
     }
 
@@ -159,13 +159,13 @@ export function BroadcastInterface({ slug, eventName, eventId, userId }: Broadca
         .maybeSingle() // Use maybeSingle() instead of single() to handle no results
 
       if (error) {
-        console.error("[v0] Error fetching last sequence:", error)
+        console.error("Error fetching last sequence:", error)
         setLastSequenceNumber(0)
         return
       }
 
       const lastSeq = data?.sequence_number || 0
-      console.log("[v0] Last sequence number:", lastSeq)
+      console.log("Last sequence number:", lastSeq)
       setLastSequenceNumber(lastSeq)
     }
 
@@ -324,7 +324,7 @@ export function BroadcastInterface({ slug, eventName, eventId, userId }: Broadca
           let retries = 3
           let saved = false
 
-          console.log("[v0] Saving final transcription:", {
+          console.log("Saving final transcription:", {
             text: text.substring(0, 50) + "...",
             sequence: adjustedSequence,
             sessionId: currentSessionId,
@@ -344,7 +344,7 @@ export function BroadcastInterface({ slug, eventName, eventId, userId }: Broadca
                 }),
               })
 
-              console.log("[v0] POST response status:", response.status)
+              console.log("POST response status:", response.status)
 
               if (!response.ok) {
                 throw new Error(`API returned ${response.status}`)
@@ -352,7 +352,7 @@ export function BroadcastInterface({ slug, eventName, eventId, userId }: Broadca
 
               const result = await response.json()
 
-              console.log("[v0] POST response result:", {
+              console.log("POST response result:", {
                 success: result.success,
                 skipped: result.skipped,
                 insertedId: result.id,
@@ -362,16 +362,16 @@ export function BroadcastInterface({ slug, eventName, eventId, userId }: Broadca
                 setTranscriptionCount((prev) => prev + 1)
                 setLastSequenceNumber(adjustedSequence)
                 console.log(
-                  `[v0] ✅ Final transcription saved successfully (seq: ${adjustedSequence}, id: ${result.id})`,
+                  `✅ Final transcription saved successfully (seq: ${adjustedSequence}, id: ${result.id})`,
                 )
                 saved = true
               } else if (result.skipped) {
-                console.warn(`[v0] ⚠️ Transcription skipped by API (seq: ${adjustedSequence})`)
+                console.warn(`⚠️ Transcription skipped by API (seq: ${adjustedSequence})`)
                 saved = true
               }
             } catch (error) {
               retries--
-              console.error(`[v0] ❌ Failed to save transcription (retries left: ${retries}):`, error)
+              console.error(`❌ Failed to save transcription (retries left: ${retries}):`, error)
 
               if (retries > 0) {
                 await new Promise((resolve) => setTimeout(resolve, 1000 * (4 - retries)))

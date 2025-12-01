@@ -115,15 +115,21 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       event = newEvent
     }
 
-    const { data: existingTranscription } = await supabase
+    const duplicateQuery = supabase
       .from("transcriptions")
       .select("id")
       .eq("event_id", event.id)
       .eq("sequence_number", sequenceNumber)
-      .maybeSingle()
+
+    // If there's a session ID, check within that session
+    if (sessionId) {
+      duplicateQuery.eq("session_id", sessionId)
+    }
+
+    const { data: existingTranscription } = await duplicateQuery.maybeSingle()
 
     if (existingTranscription) {
-      console.log(`Transcription with sequence ${sequenceNumber} already exists, skipping`)
+      console.log(`Transcription with sequence ${sequenceNumber} already exists in session ${sessionId}, skipping`)
       return Response.json({ success: true, skipped: true, reason: "duplicate_sequence" })
     }
 
@@ -134,7 +140,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         text: text.trim(),
         is_final: isFinal,
         sequence_number: sequenceNumber,
-        session_id: sessionId || null, // Explicitly set null if no sessionId (instead of undefined)
+        session_id: sessionId || null,
       })
       .select()
       .single()
@@ -145,53 +151,49 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     }
 
     const wordCount = text.trim().split(/\s+/).length
-    
-    const incrementResult1 = await supabase
-      .rpc("increment", {
-        row_id: event.id,
-        table_name: "events",
-        column_name: "total_words",
-        increment_by: wordCount,
-      })
-    
+
+    const incrementResult1 = await supabase.rpc("increment", {
+      row_id: event.id,
+      table_name: "events",
+      column_name: "total_words",
+      increment_by: wordCount,
+    })
+
     if (incrementResult1.error) {
       console.error("Failed to increment event word count:", incrementResult1.error)
     }
 
-    const incrementResult2 = await supabase
-      .rpc("increment", {
-        row_id: event.id,
-        table_name: "events",
-        column_name: "total_transcriptions",
-        increment_by: 1,
-      })
-    
+    const incrementResult2 = await supabase.rpc("increment", {
+      row_id: event.id,
+      table_name: "events",
+      column_name: "total_transcriptions",
+      increment_by: 1,
+    })
+
     if (incrementResult2.error) {
       console.error("Failed to increment event transcription count:", incrementResult2.error)
     }
 
     // Update session metrics if session_id is provided
     if (sessionId) {
-      const incrementResult3 = await supabase
-        .rpc("increment", {
-          row_id: sessionId,
-          table_name: "event_sessions",
-          column_name: "total_words",
-          increment_by: wordCount,
-        })
-      
+      const incrementResult3 = await supabase.rpc("increment", {
+        row_id: sessionId,
+        table_name: "event_sessions",
+        column_name: "total_words",
+        increment_by: wordCount,
+      })
+
       if (incrementResult3.error) {
         console.error("Failed to increment session word count:", incrementResult3.error)
       }
 
-      const incrementResult4 = await supabase
-        .rpc("increment", {
-          row_id: sessionId,
-          table_name: "event_sessions",
-          column_name: "total_transcriptions",
-          increment_by: 1,
-        })
-      
+      const incrementResult4 = await supabase.rpc("increment", {
+        row_id: sessionId,
+        table_name: "event_sessions",
+        column_name: "total_transcriptions",
+        increment_by: 1,
+      })
+
       if (incrementResult4.error) {
         console.error("Failed to increment session transcription count:", incrementResult4.error)
       }
