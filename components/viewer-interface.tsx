@@ -187,8 +187,16 @@ export function ViewerInterface({ event, initialViewMode }: ViewerInterfaceProps
 
     const initializeViewer = async () => {
       try {
+        console.log("[v0] Initializing viewer for event:", eventSlug)
+
         const response = await fetch(`/api/stream/${eventSlug}`)
         const result = await response.json()
+
+        console.log("[v0] Initial fetch result:", {
+          hasError: !!result.error,
+          transcriptionCount: result.transcriptions?.length || 0,
+          eventId: result.eventId,
+        })
 
         if (result.error) {
           console.error("Error initializing viewer:", result.error)
@@ -210,6 +218,7 @@ export function ViewerInterface({ event, initialViewMode }: ViewerInterfaceProps
         }
 
         const channelName = `transcriptions-${eventSlug}`
+        console.log("[v0] Setting up Supabase channel:", channelName, "for eventId:", result.eventId)
 
         channel = createBrowserClient()
           .channel(channelName, {
@@ -227,7 +236,7 @@ export function ViewerInterface({ event, initialViewMode }: ViewerInterfaceProps
               filter: `event_id=eq.${result.eventId}`,
             },
             async (payload) => {
-              console.log("Realtime INSERT received:", {
+              console.log("[v0] ✅ Realtime INSERT received:", {
                 payload: payload.new,
                 isSubscribed,
                 text: (payload.new as any).text,
@@ -236,26 +245,26 @@ export function ViewerInterface({ event, initialViewMode }: ViewerInterfaceProps
               })
 
               if (!isSubscribed) {
-                console.log("Ignoring transcription - component not subscribed")
+                console.log("[v0] Ignoring transcription - component not subscribed")
                 return
               }
 
               const newTranscription = payload.new as any
 
               if (!newTranscription.text) {
-                console.log("Rejected: No text")
+                console.log("[v0] Rejected: No text")
                 return
               }
               if (newTranscription.text.trim() === "") {
-                console.log("Rejected: Empty text")
+                console.log("[v0] Rejected: Empty text")
                 return
               }
               if (!newTranscription.is_final) {
-                console.log("Rejected: Not final (is_final =", newTranscription.is_final, ")")
+                console.log("[v0] Rejected: Not final (is_final =", newTranscription.is_final, ")")
                 return
               }
 
-              console.log("Transcription passed filters, adding to state")
+              console.log("[v0] Transcription passed filters, adding to state")
 
               setCurrentInterim(null)
 
@@ -271,7 +280,7 @@ export function ViewerInterface({ event, initialViewMode }: ViewerInterfaceProps
 
               setTranscriptions((prev) => {
                 if (prev.some((t) => t.id === newTranscription.id)) {
-                  console.log("Duplicate transcription detected, skipping:", newTranscription.id)
+                  console.log("[v0] Duplicate transcription detected, skipping:", newTranscription.id)
                   return prev
                 }
 
@@ -285,7 +294,7 @@ export function ViewerInterface({ event, initialViewMode }: ViewerInterfaceProps
                   sessionInfo,
                 }
 
-                console.log("Adding transcription to state:", newItem)
+                console.log("[v0] Adding transcription to state:", newItem)
 
                 if (prev.length > 0) {
                   setNewestTranscriptionId(newTranscription.id)
@@ -301,6 +310,7 @@ export function ViewerInterface({ event, initialViewMode }: ViewerInterfaceProps
             },
           )
           .on("broadcast", { event: "interim_transcription" }, (payload: any) => {
+            console.log("[v0] Broadcast interim received:", payload.payload?.text?.substring(0, 50))
             if (!isSubscribed) return
             const { text, sequence, sessionId } = payload.payload
 
@@ -309,7 +319,7 @@ export function ViewerInterface({ event, initialViewMode }: ViewerInterfaceProps
             setIsLive(true)
           })
           .on("broadcast", { event: "streaming_status" }, (payload: any) => {
-            if (!isSubscribed) return
+            console.log("[v0] Broadcast status received:", payload.payload?.status)
             const { status, sessionId, timestamp } = payload.payload
 
             if (status === "started") {
@@ -320,6 +330,7 @@ export function ViewerInterface({ event, initialViewMode }: ViewerInterfaceProps
             }
           })
           .subscribe((status, err) => {
+            console.log("[v0] Subscription status:", status, err ? "Error:" + err : "")
             if (err) {
               console.error("Supabase subscription error:", err)
             }
