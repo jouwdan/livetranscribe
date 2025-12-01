@@ -1,6 +1,6 @@
 # LiveTranscribe
 
-An AI-powered real-time transcription platform designed for in-person events, conferences, workshops, and meetings. Built with Next.js 16, React 19, OpenAI's Realtime API, and Supabase.
+An AI-powered real-time transcription platform designed for in-person events, conferences, workshops, and meetings. Built with Next.js 16, React 19, OpenAI's Realtime Transcription API, and Supabase.
 
 ## Features
 
