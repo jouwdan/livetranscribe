@@ -1,13 +1,13 @@
 "use client"
 
-import { useState, useEffect, useRef, useCallback } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Mic, MicOff, Copy, Check, Radio, AlertCircle, Download, QrCode, List } from "lucide-react"
-import { OpenAITranscriber } from "@/lib/openai-transcriber"
+import { createBrowserClient } from "@/lib/supabase/client"
+import { DualModelTranscriber } from "@/lib/dual-model-transcriber"
 import { LiveTranscriptionDisplay } from "@/components/live-transcription-display"
-import { createClient as createBrowserClient } from "@/lib/supabase/client"
 import QRCode from "qrcode"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import Link from "next/link"
@@ -45,7 +45,7 @@ export function BroadcastInterface({ slug, eventName, eventId, userId }: Broadca
   >([])
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null)
   const [lastSequenceNumber, setLastSequenceNumber] = useState(0)
-  const transcriberRef = useRef<OpenAITranscriber | null>(null)
+  const transcriberRef = useRef<DualModelTranscriber | null>(null)
   const viewerUrl = `${typeof window !== "undefined" ? window.location.origin : ""}/view/${slug}`
   const broadcastChannelRef = useRef<any>(null)
   const lastInterimBroadcastRef = useRef<number>(0)
@@ -285,215 +285,135 @@ export function BroadcastInterface({ slug, eventName, eventId, userId }: Broadca
     }
   }
 
-  const handleTranscription = useCallback(
-    async (text: string, isFinal: boolean, sequence: number) => {
+  const handleInterimTranscription = useCallback(
+    (text: string, sequence: number) => {
       const adjustedSequence = lastSequenceNumber + sequence
 
-      if (isFinal) {
-        setTranscriptions((prev) => [...prev, { text, isFinal, sequence: adjustedSequence, timestamp: new Date() }])
-        setCurrentInterim("")
+      setCurrentInterim(text)
+      pendingInterimRef.current = { text, sequence: adjustedSequence }
 
-        pendingInterimRef.current = null
-      } else {
-        setCurrentInterim(text)
-
-        pendingInterimRef.current = { text, sequence: adjustedSequence }
-
-        const now = Date.now()
-        if (now - lastInterimBroadcastRef.current < 50) {
-          return
-        }
-        lastInterimBroadcastRef.current = now
+      const now = Date.now()
+      if (now - lastInterimBroadcastRef.current < 50) {
+        return
       }
+      lastInterimBroadcastRef.current = now
+    },
+    [lastSequenceNumber],
+  )
+
+  const handleFinalTranscription = useCallback(
+    async (text: string, sequence: number) => {
+      const adjustedSequence = lastSequenceNumber + sequence
+
+      console.log("Received validated final transcription:", {
+        text: text.substring(0, 50) + "...",
+        sequence: adjustedSequence,
+        sessionId: currentSessionId,
+      })
+
+      setTranscriptions((prev) => [...prev, { text, isFinal: true, sequence: adjustedSequence, timestamp: new Date() }])
+      setCurrentInterim("")
+      pendingInterimRef.current = null
 
       try {
-        if (!isFinal && broadcastChannelRef.current) {
-          await broadcastChannelRef.current.send({
-            type: "broadcast",
-            event: "interim_transcription",
-            payload: {
-              text,
-              sequence: adjustedSequence,
-              sessionId: currentSessionId,
-              timestamp: new Date().toISOString(),
-            },
-          })
-        }
+        let retries = 3
+        let saved = false
 
-        if (isFinal) {
-          let retries = 3
-          let saved = false
+        while (retries > 0 && !saved) {
+          try {
+            const response = await fetch(`/api/stream/${slug}`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                text,
+                isFinal: true,
+                sequenceNumber: adjustedSequence,
+                eventName,
+                sessionId: currentSessionId,
+              }),
+            })
 
-          console.log("Saving final transcription:", {
-            text: text.substring(0, 50) + "...",
-            sequence: adjustedSequence,
-            sessionId: currentSessionId,
-          })
+            if (!response.ok) {
+              throw new Error(`API returned ${response.status}`)
+            }
 
-          while (retries > 0 && !saved) {
-            try {
-              const response = await fetch(`/api/stream/${slug}`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                  text,
-                  isFinal,
-                  sequenceNumber: adjustedSequence,
-                  eventName,
-                  sessionId: currentSessionId,
-                }),
-              })
+            const result = await response.json()
 
-              console.log("POST response status:", response.status)
+            if (result.success && !result.skipped) {
+              setTranscriptionCount((prev) => prev + 1)
+              setLastSequenceNumber(adjustedSequence)
+              console.log(`✅ Final transcription saved (seq: ${adjustedSequence}, id: ${result.id})`)
+              saved = true
+            } else if (result.skipped) {
+              console.warn(`⚠️ Transcription skipped (seq: ${adjustedSequence})`)
+              saved = true
+            }
+          } catch (error) {
+            retries--
+            console.error(`❌ Failed to save (retries left: ${retries}):`, error)
 
-              if (!response.ok) {
-                throw new Error(`API returned ${response.status}`)
-              }
-
-              const result = await response.json()
-
-              console.log("POST response result:", {
-                success: result.success,
-                skipped: result.skipped,
-                insertedId: result.id,
-              })
-
-              if (result.success && !result.skipped) {
-                setTranscriptionCount((prev) => prev + 1)
-                setLastSequenceNumber(adjustedSequence)
-                console.log(`✅ Final transcription saved successfully (seq: ${adjustedSequence}, id: ${result.id})`)
-                saved = true
-              } else if (result.skipped) {
-                console.warn(`⚠️ Transcription skipped by API (seq: ${adjustedSequence})`)
-                saved = true
-              }
-            } catch (error) {
-              retries--
-              console.error(`❌ Failed to save transcription (retries left: ${retries}):`, error)
-
-              if (retries > 0) {
-                await new Promise((resolve) => setTimeout(resolve, 1000 * (4 - retries)))
-              } else {
-                setError(`Failed to save transcription: "${text.substring(0, 50)}..."`)
-              }
+            if (retries > 0) {
+              await new Promise((resolve) => setTimeout(resolve, 1000 * (4 - retries)))
+            } else {
+              setError(`Failed to save transcription: "${text.substring(0, 50)}..."`)
             }
           }
         }
-      } catch (error) {
-        console.error("Error broadcasting transcription:", error)
-        if (isFinal) {
-          setError(`Failed to save final transcription`)
-        }
-      }
 
-      if (isFinal && text.trim()) {
-        if (broadcastMetricsRef.current) {
+        if (text.trim() && broadcastMetricsRef.current) {
           broadcastMetricsRef.current.addTranscription(text)
         }
+      } catch (error) {
+        console.error("Error saving final transcription:", error)
+        setError(`Failed to save final transcription`)
       }
     },
-    [eventId, currentSessionId, lastSequenceNumber, eventName, sessions],
+    [eventId, currentSessionId, lastSequenceNumber, eventName, slug],
   )
 
   const handleStartStreaming = async () => {
+    if (!currentSessionId) {
+      setError("Please select a session first")
+      return
+    }
+
     try {
       setError(null)
+      setIsStreaming(true)
 
-      const supabase = createBrowserClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      )
-
-      // Check if we need to create a default session
-      if (sessions.length === 0) {
-        const { data: newSession, error: sessionError } = await supabase
-          .from("event_sessions")
-          .insert({
-            event_id: eventId,
-            name: "Session 1",
-            description: "Auto-created session",
-            session_number: 1,
-          })
-          .select("id, name, session_number")
-          .single()
-
-        if (sessionError || !newSession) {
-          setError("Failed to create session. Please try creating one manually from the Sessions tab.")
-          return
-        }
-
-        setSessions([newSession])
-        setCurrentSessionId(newSession.id)
-
-        // Give UI time to update before proceeding
-        await new Promise((resolve) => setTimeout(resolve, 100))
-      } else if (!currentSessionId) {
-        setError("Please select a session before starting the broadcast")
-        return
-      }
-
-      const { data: event } = await supabase
-        .from("events")
-        .select("credits_minutes, description")
-        .eq("id", eventId)
-        .single()
-
-      if (!event || event.credits_minutes <= 0) {
-        setError(
-          "This event has insufficient credits. Please purchase more time for this event to continue broadcasting.",
-        )
-        return
-      }
-
-      const { data: session } = await supabase
-        .from("event_sessions")
-        .select("name, description, started_at")
-        .eq("id", currentSessionId)
-        .single()
-
-      const startTime = new Date()
-      setSessionStartTime(startTime)
-
-      if (!session?.started_at) {
-        await supabase.from("event_sessions").update({ started_at: startTime.toISOString() }).eq("id", currentSessionId)
-      }
-
-      if (broadcastChannelRef.current) {
-        await broadcastChannelRef.current.send({
-          type: "broadcast",
-          event: "streaming_status",
-          payload: {
-            status: "started",
-            sessionId: currentSessionId,
-            timestamp: startTime.toISOString(),
-          },
-        })
-      }
-
-      const response = await fetch("/api/transcribe-ws", {
+      const tokenResponse = await fetch("/api/realtime-token", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ slug, eventName, sessionId: currentSessionId }),
+        body: JSON.stringify({ eventId }),
       })
 
-      if (!response.ok) {
-        throw new Error("Failed to initialize transcription session")
+      if (!tokenResponse.ok) {
+        throw new Error("Failed to obtain realtime token")
       }
 
-      const { clientSecret } = await response.json()
-
+      const { clientSecret } = await tokenResponse.json()
       if (!clientSecret) {
         throw new Error("Failed to obtain OpenAI client secret")
       }
 
-      const transcriber = new OpenAITranscriber(
+      const supabase = createBrowserClient()
+      const { data: session } = await supabase
+        .from("event_sessions")
+        .select("name, description")
+        .eq("id", currentSessionId)
+        .single()
+
+      const { data: event } = await supabase.from("events").select("description").eq("id", eventId).single()
+
+      const transcriber = new DualModelTranscriber(
         clientSecret,
         eventId,
         eventName,
-        event.description || null,
+        event?.description || null,
         session?.name || null,
         session?.description || null,
-        handleTranscription,
+        handleInterimTranscription,
+        handleFinalTranscription,
         (error) => {
           setError(error)
           setIsStreaming(false)
@@ -508,6 +428,7 @@ export function BroadcastInterface({ slug, eventName, eventId, userId }: Broadca
       broadcastMetricsRef.current = new BroadcastMetricsTracker(eventId, currentSessionId)
       await broadcastMetricsRef.current.markSessionStart()
     } catch (error) {
+      console.error("Failed to start streaming:", error)
       setError(error instanceof Error ? error.message : "Failed to start streaming")
       setIsStreaming(false)
       setSessionStartTime(null)
