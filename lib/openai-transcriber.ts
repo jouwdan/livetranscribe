@@ -32,9 +32,9 @@ export class OpenAITranscriber {
       this.mediaStream = await navigator.mediaDevices.getUserMedia({
         audio: {
           channelCount: 1,
-          sampleRate: 24000,
-          echoCancellation: true,
-          noiseSuppression: true,
+          echoCancellation: false,
+          noiseSuppression: false,
+          autoGainControl: false,
         },
       })
 
@@ -120,7 +120,6 @@ registerProcessor("pcm-processor", PCMProcessor)
     })
 
     source.connect(processor)
-    processor.connect(this.audioContext.destination)
     this.processor = processor
   }
 
@@ -137,7 +136,11 @@ registerProcessor("pcm-processor", PCMProcessor)
     return new Promise<void>((resolve, reject) => {
       const url = "wss://api.openai.com/v1/realtime?model=gpt-realtime-mini"
 
-      this.ws = new WebSocket(url, ["realtime", `openai-insecure-api-key.${this.clientSecret}`, "openai-beta.realtime-v1"])
+      this.ws = new WebSocket(url, [
+        "realtime",
+        `openai-insecure-api-key.${this.clientSecret}`,
+        "openai-beta.realtime-v1",
+      ])
 
       this.ws.onopen = () => {
         console.log("WebSocket connected")
@@ -163,34 +166,23 @@ You are an AI transcription agent providing live English subtitles for events.
 Your purpose is to support deaf, hard of hearing, and neurodiverse audiences who
 rely on precise and reliable captions.
 
-**CRITICAL: You MUST transcribe ONLY English speech. Do NOT output any non-English words.**
-
 Context for this transcription:
 ${contextInfo}
 
-Use this context ONLY to:
+Use this context to:
 - correctly spell names, topics, event titles, products, or specialized terms
 - improve recognition of domain-specific vocabulary
 
-Do NOT use contextInfo to:
-- guess or invent lines of dialogue
-- add words the speaker did not say
-- infer meaning or expand on speech
+Transcription Rules:
+1. Transcribe **verbatim** — exactly what is spoken.
+2. Preserve natural sentence boundaries with accurate punctuation and capitalization.
+3. If audio is clearly unintelligible, use [inaudible].
+4. For unclear pronunciations, provide your best English transcription rather than marking as [unclear].
+5. Do not hallucinate or add words the speaker did not say.
+6. Do not include timestamps, speaker labels, or symbols unless spoken.
+7. Only transcribe speech — ignore background noise or music.
 
-Transcription Rules (STRICT):
-1. **ENGLISH ONLY** — Output only English words that are clearly spoken in English..
-2. Transcribe **verbatim** — exactly what is spoken in English.
-3. If audio is unintelligible, use:
-      [inaudible] — cannot be heard
-      [unclear] — heard but not confidently understood
-   Never guess or substitute.
-4. **No hallucinations**, no invented fillers, no paraphrasing, no interpretation.
-5. Preserve natural sentence boundaries with accurate punctuation and capitalization.
-6. Do not include timestamps, speaker labels, emojis, or symbols unless spoken.
-7. Only transcribe speech — ignore background noise, non-speech sounds, or music.
-8. If you are unsure whether a word was spoken, mark it as [unclear] instead of inventing.
-
-Your output must be clean, literal, strictly English, and faithful to the spoken audio.
+Your output must be clean, literal, and faithful to the spoken audio.
           `,
               modalities: ["text"],
               input_audio_format: "pcm16",
@@ -200,9 +192,9 @@ Your output must be clean, literal, strictly English, and faithful to the spoken
               },
               turn_detection: {
                 type: "server_vad",
-                threshold: 0.3, // Slightly less sensitive to reduce false positives
-                prefix_padding_ms: 100, // Capture a bit more of the start
-                silence_duration_ms: 200, // Wait 200ms of silence before committing
+                threshold: 0.3,
+                prefix_padding_ms: 250,
+                silence_duration_ms: 250,
                 create_response: false,
               },
             },

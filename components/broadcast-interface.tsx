@@ -361,9 +361,7 @@ export function BroadcastInterface({ slug, eventName, eventId, userId }: Broadca
               if (result.success && !result.skipped) {
                 setTranscriptionCount((prev) => prev + 1)
                 setLastSequenceNumber(adjustedSequence)
-                console.log(
-                  `✅ Final transcription saved successfully (seq: ${adjustedSequence}, id: ${result.id})`,
-                )
+                console.log(`✅ Final transcription saved successfully (seq: ${adjustedSequence}, id: ${result.id})`)
                 saved = true
               } else if (result.skipped) {
                 console.warn(`⚠️ Transcription skipped by API (seq: ${adjustedSequence})`)
