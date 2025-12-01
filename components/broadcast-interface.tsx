@@ -143,7 +143,7 @@ export function BroadcastInterface({ slug, eventName, eventId, userId }: Broadca
 
   useEffect(() => {
     if (!currentSessionId) {
-      console.log("[v0] No session ID yet, skipping sequence number fetch")
+      console.log("No session ID yet, skipping sequence number fetch")
       return
     }
 
@@ -159,13 +159,13 @@ export function BroadcastInterface({ slug, eventName, eventId, userId }: Broadca
         .maybeSingle() // Use maybeSingle() instead of single() to handle no results
 
       if (error) {
-        console.error("[v0] Error fetching last sequence:", error)
+        console.error("Error fetching last sequence:", error)
         setLastSequenceNumber(0)
         return
       }
 
       const lastSeq = data?.sequence_number || 0
-      console.log("[v0] Last sequence number:", lastSeq)
+      console.log("Last sequence number:", lastSeq)
       setLastSequenceNumber(lastSeq)
     }
 

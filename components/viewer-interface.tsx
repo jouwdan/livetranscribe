@@ -227,13 +227,35 @@ export function ViewerInterface({ event, initialViewMode }: ViewerInterfaceProps
               filter: `event_id=eq.${result.eventId}`,
             },
             async (payload) => {
-              if (!isSubscribed) return
+              console.log("Realtime INSERT received:", {
+                payload: payload.new,
+                isSubscribed,
+                text: (payload.new as any).text,
+                is_final: (payload.new as any).is_final,
+                sequence_number: (payload.new as any).sequence_number,
+              })
+
+              if (!isSubscribed) {
+                console.log("Ignoring transcription - component not subscribed")
+                return
+              }
 
               const newTranscription = payload.new as any
 
-              if (!newTranscription.text || newTranscription.text.trim() === "" || !newTranscription.is_final) {
+              if (!newTranscription.text) {
+                console.log("Rejected: No text")
                 return
               }
+              if (newTranscription.text.trim() === "") {
+                console.log("Rejected: Empty text")
+                return
+              }
+              if (!newTranscription.is_final) {
+                console.log("Rejected: Not final (is_final =", newTranscription.is_final, ")")
+                return
+              }
+
+              console.log("Transcription passed filters, adding to state")
 
               setCurrentInterim(null)
 
@@ -262,6 +284,8 @@ export function ViewerInterface({ event, initialViewMode }: ViewerInterfaceProps
                   sessionId: newTranscription.session_id,
                   sessionInfo,
                 }
+
+                console.log("Adding transcription to state:", newItem)
 
                 if (prev.length > 0) {
                   setNewestTranscriptionId(newTranscription.id)
