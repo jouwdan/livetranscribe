@@ -124,8 +124,7 @@ export default function Home() {
             {
               icon: Zap,
               title: "Real-Time AI Processing",
-              description:
-                "Advanced AI models transcribe speech in real-time, cross-examined by AI agents to ensure accuracy for in-person events.",
+              description: "Advanced AI models transcribe speech in real-time with high accuracy for in-person events.",
             },
             {
               icon: Users,
@@ -142,14 +141,12 @@ export default function Home() {
             {
               icon: BarChart3,
               title: "Usage Analytics",
-              description:
-                "Track viewer counts, session duration, and usage metrics in your comprehensive dashboard.",
+              description: "Track viewer counts, session duration, and usage metrics in your comprehensive dashboard.",
             },
             {
               icon: Clock,
               title: "Timestamped Transcripts",
-              description:
-                "Automatic timestamps keep transcriptions organized and easy to follow during long events.",
+              description: "Automatic timestamps keep transcriptions organized and easy to follow during long events.",
             },
           ].map((feature) => (
             <div key={feature.title} className="glass-card p-6 hover:bg-white/10 transition-all group">
