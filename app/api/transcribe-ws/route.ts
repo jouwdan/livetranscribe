@@ -10,9 +10,18 @@ export async function POST(request: Request) {
     return Response.json({ error: "Server misconfiguration" }, { status: 500 })
   }
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  let user = null
+  try {
+    const { data, error } = await supabase.auth.getUser()
+    if (error) {
+      console.error("Auth error:", error.message)
+      return Response.json({ error: "Session expired. Please log in again." }, { status: 401 })
+    }
+    user = data.user
+  } catch (authError) {
+    console.error("Auth exception:", authError)
+    return Response.json({ error: "Session expired. Please log in again." }, { status: 401 })
+  }
 
   if (!user) {
     return Response.json({ error: "Unauthorized" }, { status: 401 })

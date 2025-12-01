@@ -363,6 +363,20 @@ export function BroadcastInterface({ slug, eventName, eventId, userId }: Broadca
                 }),
               })
 
+              if (response.status === 401) {
+                // Session expired - stop streaming and redirect to login
+                setError("Session expired. Please log in again to continue broadcasting.")
+                if (transcriberRef.current) {
+                  transcriberRef.current.stop()
+                  transcriberRef.current = null
+                }
+                setIsStreaming(false)
+                setTimeout(() => {
+                  window.location.href = "/auth/login"
+                }, 2000)
+                return
+              }
+
               if (!response.ok) {
                 throw new Error(`API returned ${response.status}`)
               }
@@ -488,7 +502,13 @@ export function BroadcastInterface({ slug, eventName, eventId, userId }: Broadca
       })
 
       if (!response.ok) {
-        throw new Error("Failed to initialize transcription session")
+        const errorData = await response.json().catch(() => ({}))
+        if (response.status === 401) {
+          // Session expired - redirect to login
+          window.location.href = "/auth/login"
+          return
+        }
+        throw new Error(errorData.error || "Failed to initialize transcription session")
       }
 
       const { clientSecret } = await response.json()
