@@ -20,7 +20,8 @@ export async function POST(request: Request) {
     user = data.user
   } catch (authError) {
     console.error("Auth exception:", authError)
-    return Response.json({ error: "Session expired. Please log in again." }, { status: 401 })
+    // Unexpected error during authentication - could be network or server issue
+    return Response.json({ error: "Authentication failed. Please try again." }, { status: 401 })
   }
 
   if (!user) {
