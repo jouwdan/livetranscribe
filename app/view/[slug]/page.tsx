@@ -16,7 +16,7 @@ export default async function ViewerPage({ params, searchParams }: ViewerPagePro
   const supabase = await createServerClient()
   const { data: event, error } = await supabase
     .from("events")
-    .select("name, description, logo_url")
+    .select("id, name, description, logo_url")
     .eq("slug", slug)
     .maybeSingle()
 
@@ -49,6 +49,7 @@ export default async function ViewerPage({ params, searchParams }: ViewerPagePro
   return (
     <ViewerInterface
       event={{
+        id: event.id,
         slug,
         name: event.name,
         description: event.description || "",
