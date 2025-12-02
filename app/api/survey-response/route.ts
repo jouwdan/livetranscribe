@@ -6,7 +6,10 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const { email, eventId } = body
 
+    console.log("API received:", { email, eventId, fullBody: body })
+
     if (!email || !eventId) {
+      console.log("Validation failed - missing fields:", { hasEmail: !!email, hasEventId: !!eventId })
       return NextResponse.json({ error: "Email and eventId are required" }, { status: 400 })
     }
 

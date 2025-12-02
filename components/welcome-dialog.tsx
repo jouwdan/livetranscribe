@@ -48,7 +48,15 @@ export function WelcomeDialog({ eventId, eventSlug }: WelcomeDialogProps) {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError("")
+
+    if (!email || !email.trim()) {
+      setError("Please enter your email address")
+      return
+    }
+
     setIsSubmitting(true)
+
+    console.log("Submitting survey response:", { email, eventId })
 
     try {
       const response = await fetch("/api/survey-response", {
@@ -63,6 +71,8 @@ export function WelcomeDialog({ eventId, eventSlug }: WelcomeDialogProps) {
       })
 
       const data = await response.json()
+
+      console.log("API response:", { status: response.status, data })
 
       if (!response.ok) {
         setError(data.error || "Failed to submit. Please try again.")
