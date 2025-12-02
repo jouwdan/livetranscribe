@@ -14,7 +14,7 @@ export default async function SurveyResponsesPage() {
     redirect("/auth/login")
   }
 
-  const { data: userData } = await supabase.from("users").select("is_admin").eq("id", user.id).single()
+  const { data: userData } = await supabase.from("user_profiles").select("is_admin").eq("id", user.id).single()
 
   if (!userData?.is_admin) {
     redirect("/dashboard")
