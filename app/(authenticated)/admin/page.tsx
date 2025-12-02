@@ -5,7 +5,7 @@ import { AdminDashboard } from "@/components/admin-dashboard"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
-import { Calendar, Key, UserCog } from "lucide-react"
+import { Calendar, Key, UserCog, Mail } from "lucide-react"
 
 export default async function AdminPage() {
   const isAdmin = await checkIsAdmin()
@@ -70,6 +70,21 @@ export default async function AdminPage() {
           <CardContent>
             <Link href="/admin/beta-keys">
               <Button className="w-full bg-orange-600 hover:bg-orange-700">Manage Keys</Button>
+            </Link>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-gradient-to-br from-purple-500/10 to-pink-500/10 border-purple-500/20 hover:border-purple-500/40 transition-colors">
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center gap-2 text-white text-lg">
+              <Mail className="h-5 w-5 text-purple-400" />
+              Survey Responses
+            </CardTitle>
+            <CardDescription className="text-sm">View viewer feedback emails</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Link href="/admin/survey-responses">
+              <Button className="w-full bg-purple-600 hover:bg-purple-700">View Responses</Button>
             </Link>
           </CardContent>
         </Card>
