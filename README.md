@@ -4,7 +4,7 @@ An AI-powered real-time transcription platform for in-person events, conferences
 
 ## Features
 
-- **Real-time transcription** using OpenAI's Realtime API with AI validation
+- **Real-time transcription** using OpenAI's Transcribe API
 - **Multi-viewer support** with live synchronization
 - **Customizable viewer experience** with themes, font controls, and auto-scroll
 - **Event management** with credit-based system and analytics
@@ -14,7 +14,7 @@ An AI-powered real-time transcription platform for in-person events, conferences
 
 - **Next.js 15** with App Router and React 19
 - **Supabase** for auth, database, and real-time subscriptions
-- **OpenAI Realtime API** for live speech-to-text
+- **OpenAI Transcribe API** for live speech-to-text
 - **Tailwind CSS** with shadcn/ui components
 - **Vercel** for deployment
 
