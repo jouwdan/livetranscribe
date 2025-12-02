@@ -12,7 +12,7 @@ An AI-powered real-time transcription platform for in-person events, conferences
 
 ## Tech Stack
 
-- **Next.js 15** with App Router and React 19
+- **Next.js 16** with App Router and React 19
 - **Supabase** for auth, database, and real-time subscriptions
 - **OpenAI Transcribe API** for live speech-to-text
 - **Tailwind CSS** with shadcn/ui components
