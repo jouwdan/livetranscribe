@@ -35,11 +35,30 @@ export function PublicNav() {
   return (
     <header className="sticky top-0 z-50 backdrop-blur-xl bg-black/50 border-b border-white/10">
       <div className="container mx-auto px-4 py-4">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between md:grid md:grid-cols-3">
           <Link href="/" className="text-xl font-semibold flex items-center gap-2 hover:opacity-80 transition-opacity">
             <AudioLines className="h-5 w-5 text-purple-400" />
             LiveTranscribe
           </Link>
+
+          <nav className="hidden md:flex items-center justify-center gap-6">
+            <Link
+              href="/"
+              className={`text-sm transition-colors ${
+                isActive("/") ? "text-purple-400 font-medium" : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              Home
+            </Link>
+            <Link
+              href="/beta"
+              className={`text-sm transition-colors ${
+                isActive("/beta") ? "text-purple-400 font-medium" : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              Beta Access
+            </Link>
+          </nav>
 
           <nav className="hidden md:flex items-center justify-end gap-4">
             {isLoggedIn ? (
@@ -77,6 +96,24 @@ export function PublicNav() {
         {mobileMenuOpen && (
           <div className="md:hidden border-t border-white/10 mt-4 pt-4">
             <nav className="flex flex-col gap-3">
+              <Link
+                href="/"
+                onClick={() => setMobileMenuOpen(false)}
+                className={`text-sm transition-colors py-2 text-left ${
+                  isActive("/") ? "text-purple-400 font-medium" : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                Home
+              </Link>
+              <Link
+                href="/beta"
+                onClick={() => setMobileMenuOpen(false)}
+                className={`text-sm transition-colors py-2 text-left ${
+                  isActive("/beta") ? "text-purple-400 font-medium" : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                Beta Access
+              </Link>
               {isLoggedIn ? (
                 <Link href="/dashboard" onClick={() => setMobileMenuOpen(false)}>
                   <Button size="sm" className="w-full bg-purple-600 hover:bg-purple-700 transition-all">

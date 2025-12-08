@@ -1,15 +1,37 @@
 "use client"
 import { usePathname } from "next/navigation"
-import { Home, Radio, AudioLines, Menu, X } from "lucide-react"
+import { Home, Radio, AudioLines, Shield, Menu, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
-import { useState } from "react"
+import { useEffect, useState } from "react"
+import { createClient } from "@/lib/supabase/client"
 import { UserMenu } from "@/components/user-menu"
 import Link from "next/link"
 
 export function AppNav() {
   const pathname = usePathname()
+  const [isAdmin, setIsAdmin] = useState(false)
+  const [isLoggedIn, setIsLoggedIn] = useState(false)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+
+  useEffect(() => {
+    const checkAdmin = async () => {
+      const supabase = createClient()
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+
+      if (!user) return
+
+      setIsLoggedIn(true)
+
+      const { data: profile } = await supabase.from("user_profiles").select("is_admin").eq("id", user.id).maybeSingle()
+
+      setIsAdmin(profile?.is_admin || false)
+    }
+
+    checkAdmin()
+  }, [])
 
   const isActive = (path: string) => {
     if (path === "/dashboard") {
@@ -24,7 +46,7 @@ export function AppNav() {
         <div className="flex items-center justify-between h-16">
           <div className="flex items-center gap-6">
             <Link
-              href="/dashboard"
+              href={isLoggedIn ? "/dashboard" : "/"}
               className="text-xl font-bold text-white flex items-center gap-2 hover:opacity-80 transition-opacity"
             >
               <AudioLines className="h-5 w-5 text-purple-400" />
@@ -62,6 +84,21 @@ export function AppNav() {
             </div>
           </div>
           <div className="hidden md:flex items-center gap-2">
+            {isAdmin && (
+              <Link href="/admin">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className={cn(
+                    "gap-2 text-slate-400 hover:text-white hover:bg-white/5 transition-all",
+                    isActive("/admin") && "text-white bg-white/10",
+                  )}
+                >
+                  <Shield className="h-4 w-4" />
+                  Admin
+                </Button>
+              </Link>
+            )}
             <UserMenu />
           </div>
           <div className="flex md:hidden items-center gap-2">
@@ -103,6 +140,21 @@ export function AppNav() {
                   >
                     <Radio className="h-4 w-4" />
                     Broadcasting
+                  </Button>
+                </Link>
+              )}
+              {isAdmin && (
+                <Link href="/admin" onClick={() => setMobileMenuOpen(false)}>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className={cn(
+                      "w-full justify-start gap-2 text-slate-400 hover:text-white hover:bg-white/5 transition-all",
+                      isActive("/admin") && "text-white bg-white/10",
+                    )}
+                  >
+                    <Shield className="h-4 w-4" />
+                    Admin
                   </Button>
                 </Link>
               )}

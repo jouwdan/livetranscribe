@@ -1,5 +1,5 @@
 import Link from "next/link"
-import { AudioLines, Github } from "lucide-react"
+import { AudioLines } from "lucide-react"
 
 export function PublicFooter() {
   return (
@@ -11,15 +11,9 @@ export function PublicFooter() {
             <span className="font-semibold">LiveTranscribe</span>
           </div>
           <div className="flex gap-8 text-sm text-muted-foreground">
-            <a
-              href="https://github.com/yourusername/livetranscribe"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="hover:text-foreground transition-colors flex items-center gap-1"
-            >
-              <Github className="h-4 w-4" />
-              GitHub
-            </a>
+            <Link href="/beta" className="hover:text-foreground transition-colors">
+              Beta Access
+            </Link>
             <Link href="/dashboard" className="hover:text-foreground transition-colors">
               Dashboard
             </Link>
@@ -30,7 +24,17 @@ export function PublicFooter() {
               Sign Up
             </Link>
           </div>
-          <p className="text-sm text-muted-foreground">Open Source • Self-Hostable</p>
+          <p className="text-sm text-muted-foreground">
+            AI Powered by{" "}
+            <a
+              href="https://livetranscribe.net"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-purple-500 hover:text-purple-700 transition-colors"
+            >
+              LiveTranscribe.net
+            </a>
+          </p>
         </div>
       </div>
     </footer>
