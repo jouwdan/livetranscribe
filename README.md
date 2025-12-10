@@ -2,6 +2,8 @@
 
 An AI-powered real-time transcription platform designed for in-person events, conferences, workshops, and meetings. **Built to make events more accessible for hard of hearing, deaf, and neurodiverse audiences** by providing live, accurate transcriptions that viewers can customize to their needs.
 
+It was built as a pilot to run at DevFest Ireland, due to the severe lack of Sign Language interpreters, and a third party service costing roughly $1000 for the day. Using this, the total cost was $1 in OpenAI API costs.
+
 > **Built entirely with [v0 by Vercel](https://v0.link/lt)**
 
 ## ⚠️ Current Status
