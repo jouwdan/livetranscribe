@@ -4,14 +4,24 @@ An AI-powered real-time transcription platform designed for in-person events, co
 
 > **Built entirely with [v0 by Vercel](https://v0.link/lt)**
 
+## ⚠️ Current Status
+
+**This application is functional for real-time transcription but has known issues:**
+
+- **Transcription ordering**: Transcriptions appear out of sequence, or are not all being stored
+- **Metrics system**: Analytics and engagement tracking need significant improvements and reports inaccurate data
+- **Active development**: Features are being refined and bugs are being actively addressed
+
+The core transcription functionality works well for live events, but expect occasional hiccups with ordering and metrics accuracy.
+
 ## Features
 
 ### Real-Time Transcription
 
-- **Live audio processing** with OpenAI's Realtime API (gpt-4o-realtime-preview model)
+- **Live audio processing** with OpenAI's Realtime API (`gpt-realtime-mini` with `gpt-4o-mini-transcribe` for input audio transcription)
 - **Streaming transcription** with word-by-word updates as speech occurs
 - **Server-side Voice Activity Detection (VAD)** for natural speech segmentation
-- **Multi-viewer support** with real-time synchronization via WebSockets and Supabase
+- **Multi-viewer support** with real-time synchronization via Supabase Realtime and Server-Sent Events (SSE)
 
 ### Viewer Experience
 
@@ -75,8 +85,9 @@ LiveTranscribe provides real-time speech-to-text transcription to ensure everyon
 
 ### AI & Audio Processing
 
-- **OpenAI Realtime API** for live speech-to-text transcription using **gpt-4o-transcribe**
-- **Web Audio API** for browser-based audio capture
+- **OpenAI Realtime API** for live speech-to-text transcription using **gpt-realtime-mini** with **gpt-4o-mini-transcribe**
+- **Web Audio API** for browser-based audio capture with PCM16 format
+- **AudioWorklet** processing with legacy ScriptProcessor fallback
 
 ### Storage & Hosting
 
@@ -88,10 +99,10 @@ LiveTranscribe provides real-time speech-to-text transcription to ensure everyon
 
 ### Prerequisites
 
-- Node.js 18+ and npm/yarn/pnpm
+- Node.js 18+ and pnpm/npm/yarn
 - A Supabase account and project
-- An OpenAI API key
-- A Vercel account (for deployment)
+- An OpenAI API key with Realtime API access
+- A Vercel account (for Blob storage and deployment)
 
 ### Environment Variables
 
@@ -294,18 +305,19 @@ All tables implement Row Level Security policies to ensure:
 ### Broadcasting Flow
 
 1. Broadcaster captures audio via Web Audio API
-2. Audio streamed to OpenAI Realtime API as PCM16
-3. Delta events provide word-by-word transcription
-4. Completed transcriptions sent to database and broadcast via SSE
-5. All connected viewers receive updates via SSE stream
+2. Audio streamed to OpenAI Realtime API as PCM16 at 24kHz
+3. Server-side VAD segments speech naturally with configurable thresholds
+4. Delta events provide word-by-word transcription in real-time
+5. Completed transcriptions saved to database
+6. All connected viewers receive interim updates via SSE and final updates via Supabase Realtime
 
 ### Viewer Flow
 
-1. Viewer connects to event via slug
+1. Viewer connects to event via slug (no authentication required for public events)
 2. Loads historical transcriptions from database
-3. Subscribes to SSE endpoint for real-time interim updates
-4. Subscribes to Supabase Realtime for database changes
-5. Tracks engagement metrics locally
+3. Subscribes to SSE endpoint (`/api/stream/[slug]`) for real-time interim updates
+4. Subscribes to Supabase Realtime for final transcription database changes
+5. Tracks engagement metrics locally (scroll events, visibility, active time)
 6. Syncs metrics to database every 30 seconds
 
 ## Credit System
@@ -422,9 +434,10 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## Acknowledgments
 
-- Built with [Next.js](https://nextjs.org/)
+- Built entirely with [v0 by Vercel](https://v0.link/lt)
+- Powered by [Next.js](https://nextjs.org/) and [React](https://react.dev/)
 - UI components from [shadcn/ui](https://ui.shadcn.com/)
-- Powered by [OpenAI Realtime API](https://platform.openai.com/docs/api-reference/realtime)
+- Transcription by [OpenAI Realtime API](https://platform.openai.com/docs/guides/realtime)
 - Database and auth by [Supabase](https://supabase.com/)
 - Deployed on [Vercel](https://vercel.com/)
 
