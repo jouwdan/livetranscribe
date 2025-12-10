@@ -15,6 +15,8 @@ export class OpenAITranscriber {
   private lastTranscriptionTime: number = Date.now()
   private lastAudioActivityTime: number = Date.now()
   private lastDeltaTime: number = Date.now()
+  private sessionStartTime = 0
+  private reconnectTimer: NodeJS.Timeout | null = null
 
   constructor(
     private clientSecret: string,
@@ -45,9 +47,12 @@ export class OpenAITranscriber {
       const source = this.audioContext.createMediaStreamSource(this.mediaStream)
       this.sourceNode = source
 
+      this.sessionStartTime = Date.now()
+
       await this.connectWebSocket()
 
       await this.initializeAudioProcessing(source)
+      this.scheduleReconnect()
       console.log("Continuous audio streaming started")
     } catch (error) {
       console.error("Failed to start transcription:", error)
@@ -273,8 +278,47 @@ Your output must be clean, literal, and faithful to the spoken audio.
     }
   }
 
+  private scheduleReconnect() {
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer)
+    }
+
+    const RECONNECT_TIME = 58 * 60 * 1000
+
+    this.reconnectTimer = setTimeout(async () => {
+      console.log("Approaching 60-minute session limit, reconnecting WebSocket...")
+      try {
+        await this.reconnectWebSocket()
+        console.log("WebSocket reconnected successfully")
+      } catch (error) {
+        console.error("Failed to reconnect WebSocket:", error)
+        this.onError("Failed to reconnect after 60-minute limit")
+      }
+    }, RECONNECT_TIME)
+  }
+
+  private async reconnectWebSocket() {
+    if (this.ws) {
+      this.ws.close()
+      this.ws = null
+      this.isConnected = false
+    }
+
+    await this.connectWebSocket()
+
+    this.sessionStartTime = Date.now()
+
+    this.scheduleReconnect()
+  }
+
   stop() {
     console.log("Stopping transcription")
+
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer)
+      this.reconnectTimer = null
+    }
+
     try {
       if (this.sourceNode) {
         try {

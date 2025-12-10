@@ -108,9 +108,9 @@ LiveTranscribe provides real-time speech-to-text transcription to ensure everyon
 
 Copy the `.env.example` file to `.env.local` and fill in your values:
 
-```bash
+\`\`\`bash
 cp .env.example .env.local
-```
+\`\`\`
 
 See `.env.example` for detailed instructions on where to obtain each value.
 
@@ -126,26 +126,26 @@ See `.env.example` for detailed instructions on where to obtain each value.
 
 1. Clone the repository:
 
-```bash
+\`\`\`bash
 git clone https://github.com/jouwdan/livetranscribe.git
 cd livetranscribe
-```
+\`\`\`
 
 2. Install dependencies:
 
-```bash
+\`\`\`bash
 npm install
 or
 pnpm install
-```
+\`\`\`
 3. Set up the database:
 
 Run the consolidated database schema script in the Supabase SQL Editor:
 
-```bash
+\`\`\`bash
 # Execute the complete schema:
 scripts/000_complete_database_schema.sql
-```
+\`\`\`
 
 This single script creates all tables, functions, policies, and indexes needed for the application.
 
@@ -163,15 +163,15 @@ Alternatively, run the individual migration scripts in the `scripts/` folder in 
 
 4. Start the development server:
 
-```bash
+\`\`\`bash
 pnpm dev
-```
+\`\`\`
 
 5. Open [http://localhost:3000](http://localhost:3000) in your browser.
 
 ## Project Structure
 
-```
+\`\`\`
 ├── app/                          # Next.js App Router pages
 │   ├── admin/                   # Admin dashboard pages
 │   ├── api/                     # API routes and WebSocket handlers
@@ -211,7 +211,7 @@ pnpm dev
 ├── next.config.mjs              # Next.js configuration
 ├── tailwind.config.ts           # Tailwind CSS configuration
 └── tsconfig.json                # TypeScript configuration
-```
+\`\`\`
 
 ## Key Components
 
@@ -348,13 +348,13 @@ Vercel automatically:
 
 ### Manual Deployment
 
-```bash
+\`\`\`bash
 npm run build
 npm start
 or
 pnpm build
 pnpm start
-```
+\`\`\`
 
 Ensure all environment variables are set in your hosting environment.
 
@@ -375,7 +375,7 @@ Ensure all environment variables are set in your hosting environment.
 
 Create new migration files in `scripts/` with sequential numbering:
 
-```sql
+\`\`\`sql
 -- scripts/019_your_feature.sql
 -- Description of what this migration does
 
@@ -383,7 +383,7 @@ ALTER TABLE your_table ADD COLUMN new_field text;
 
 -- Update RLS policies if needed
 CREATE POLICY "policy_name" ON your_table ...
-```
+\`\`\`
 
 ### Styling Guidelines
 
