@@ -1,6 +1,8 @@
 # LiveTranscribe
 
-An AI-powered real-time transcription platform designed for in-person events, conferences, workshops, and meetings. Built with Next.js 16, React 19, OpenAI's Realtime Transcription API, and Supabase.
+An AI-powered real-time transcription platform designed for in-person events, conferences, workshops, and meetings. **Built to make events more accessible for hard of hearing, deaf, and neurodiverse audiences** by providing live, accurate transcriptions that viewers can customize to their needs.
+
+> **Built entirely with [v0 by Vercel](https://v0.link/lt)**
 
 ## Features
 
@@ -8,9 +10,8 @@ An AI-powered real-time transcription platform designed for in-person events, co
 
 - **Live audio processing** with OpenAI's Realtime API (gpt-4o-realtime-preview model)
 - **Streaming transcription** with word-by-word updates as speech occurs
-- **AI validation layer** using gpt-5-mini to cross-examine transcriptions for accuracy
 - **Server-side Voice Activity Detection (VAD)** for natural speech segmentation
-- **Multi-viewer support** with real-time synchronization via WebSockets and Supabase Realtime
+- **Multi-viewer support** with real-time synchronization via WebSockets and Supabase
 
 ### Viewer Experience
 
@@ -43,6 +44,16 @@ An AI-powered real-time transcription platform designed for in-person events, co
 - **Credit allocation** and management for events
 - **System-wide analytics** and oversight
 
+## Accessibility First
+
+LiveTranscribe provides real-time speech-to-text transcription to ensure everyone can participate fully in events, regardless of hearing ability or neurodiversity. Features include:
+
+- **Live transcription** with minimal latency for real-time comprehension
+- **Customizable display** with adjustable font sizes, font families, and layout options
+- **High contrast modes** supporting both light and dark themes
+- **Clean, distraction-free interface** optimized for reading comprehension
+- **Public event access** with no account required for viewers
+
 ## Tech Stack
 
 ### Frontend
@@ -64,9 +75,7 @@ An AI-powered real-time transcription platform designed for in-person events, co
 
 ### AI & Audio Processing
 
-- **OpenAI Realtime API** for live speech-to-text transcription
-- **GPT-4o-mini-transcribe** for initial transcription
-- **GPT-5-mini** for AI validation and error correction
+- **OpenAI Realtime API** for live speech-to-text transcription using **gpt-4o-transcribe**
 - **Web Audio API** for browser-based audio capture
 
 ### Storage & Hosting
@@ -86,38 +95,15 @@ An AI-powered real-time transcription platform designed for in-person events, co
 
 ### Environment Variables
 
-Create a `.env.local` file in the root directory:
+Copy the `.env.example` file to `.env.local` and fill in your values:
 
-\`\`\`env
-# OpenAI
-OPENAI_API_KEY=your_openai_api_key
-
-# Vercel Blob (for logo uploads)
-BLOB_READ_WRITE_TOKEN=your_vercel_blob_token
-
-# Supabase
-NEXT_PUBLIC_SUPABASE_URL=your_supabase_project_url
-NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
-
-SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key
-SUPABASE_URL=your_supabase_url
-SUPABASE_ANON_KEY=your_supabase_anon_key
-SUPABASE_JWT_SECRET=your_jwt_secret
-
-# Postgres (provided by Supabase)
-POSTGRES_URL=your_postgres_url
-POSTGRES_PRISMA_URL=your_postgres_prisma_url
-POSTGRES_URL_NON_POOLING=your_postgres_url_non_pooling
-POSTGRES_USER=your_postgres_user
-POSTGRES_PASSWORD=your_postgres_password
-POSTGRES_DATABASE=your_postgres_database
-POSTGRES_HOST=your_postgres_host
-
-# Optional: Development redirect URL for Supabase auth
-NEXT_PUBLIC_DEV_SUPABASE_REDIRECT_URL=http://localhost:3000
+\`\`\`bash
+cp .env.example .env.local
 \`\`\`
 
-> **Security note:** `OPENAI_API_KEY` is only used inside server-side routes (e.g., `app/api/transcribe-ws/route.ts`) to mint short-lived Realtime session tokens. The browser never receives the raw key—rotate it immediately if it has been exposed previously.
+See `.env.example` for detailed instructions on where to obtain each value.
+
+> **Security note:** `OPENAI_API_KEY` is only used inside server-side routes (e.g., `app/api/realtime-token/route.ts`) to mint short-lived Realtime session tokens. The browser never receives the raw key—rotate it immediately if it has been exposed previously.
 
 **Where to find these:**
 
@@ -143,27 +129,16 @@ pnpm install
 \`\`\`
 3. Set up the database:
 
-Run the migration scripts in the `scripts/` folder in numerical order. Open the Supabase SQL Editor (Project → SQL Editor) and execute each file:
+Run the consolidated database schema script in the Supabase SQL Editor:
 
 \`\`\`bash
-# Execute in order:
-scripts/002_add_users_and_usage.sql
-scripts/003_add_viewer_tracking.sql
-scripts/004_enable_realtime.sql
-# ... continue with remaining numbered scripts
+# Execute the complete schema:
+scripts/000_complete_database_schema.sql
 \`\`\`
 
-Alternatively, use the Supabase CLI:
+This single script creates all tables, functions, policies, and indexes needed for the application.
 
-\`\`\`bash
-# Install Supabase CLI (macOS)
-brew install supabase/tap/supabase
-
-# Link to your project
-supabase link --project-ref your-project-ref
-
-# Apply migrations manually or set up proper migration folder structure
-\`\`\`
+Alternatively, run the individual migration scripts in the `scripts/` folder in numerical order (002-026) if you need to understand the evolution of the schema.
 
 **Key tables created:**
 
@@ -213,7 +188,6 @@ pnpm dev
 ├── lib/                         # Utility functions and libraries
 │   ├── supabase/                # Supabase client setup
 │   ├── openai-transcriber.ts    # OpenAI Realtime API integration
-│   ├── validate-transcription.ts # AI validation layer
 │   ├── metrics.ts               # Metrics tracking system
 │   ├── format-time.ts           # Time formatting utilities
 │   └── utils.ts                 # General utilities
@@ -241,10 +215,6 @@ Displays real-time transcriptions with customization options. Tracks viewer enga
 ### Transcription Processing (`lib/openai-transcriber.ts`)
 
 Manages WebSocket connection to OpenAI's Realtime API, handles audio streaming with PCM16 format, processes delta and completion events, and implements server-side Voice Activity Detection.
-
-### AI Validation (`lib/validate-transcription.ts`)
-
-Cross-examines completed transcriptions using gpt-5-mini with context from the past minute of transcripts and event details to correct errors while preserving meaning.
 
 ### Metrics System (`lib/metrics.ts`)
 
@@ -326,9 +296,8 @@ All tables implement Row Level Security policies to ensure:
 1. Broadcaster captures audio via Web Audio API
 2. Audio streamed to OpenAI Realtime API as PCM16
 3. Delta events provide word-by-word transcription
-4. Completed transcriptions sent to AI validation
-5. Validated text saved to database and broadcast via SSE
-6. All connected viewers receive updates via SSE stream
+4. Completed transcriptions sent to database and broadcast via SSE
+5. All connected viewers receive updates via SSE stream
 
 ### Viewer Flow
 
@@ -449,7 +418,7 @@ CREATE POLICY "policy_name" ON your_table ...
 
 ## License
 
-This project is private and proprietary. All rights reserved.
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
 ## Acknowledgments
 
