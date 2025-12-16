@@ -192,7 +192,7 @@ Your output must be clean, literal, and faithful to the spoken audio.
               modalities: ["text"],
               input_audio_format: "pcm16",
               input_audio_transcription: {
-                model: "gpt-4o-mini-transcribe",
+                model: "gpt-4o-mini-transcribe-2025-12-15",
                 language: "en",
               },
               turn_detection: {
