@@ -38,7 +38,7 @@
     "@radix-ui/react-toggle-group": "latest",
     "@radix-ui/react-tooltip": "latest",
     "@supabase/ssr": "latest",
-    "@supabase/supabase-js": "latest",
+    "@supabase/supabase-js": "2.89.0",
     "@vercel/analytics": "latest",
     "@vercel/blob": "latest",
     "ai": "latest",
