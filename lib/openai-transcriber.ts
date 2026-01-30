@@ -250,10 +250,23 @@ Your output must be clean, literal, and faithful to the spoken audio.
       }
       case "conversation.item.input_audio_transcription.completed": {
         if (typeof message.transcript === "string") {
+          const transcript = message.transcript.trim()
+          
+          // Skip empty transcriptions
+          if (!transcript) {
+            console.log("[Transcriber] Skipping empty completed transcription")
+            this.accumulatedText = ""
+            this.currentItemId = null
+            break
+          }
+          
           this.lastTranscriptionTime = Date.now()
           this.lastDeltaTime = Date.now()
 
-          this.onTranscription(message.transcript, true, this.sequenceNumber++)
+          const seq = this.sequenceNumber++
+          console.log(`[Transcriber] Final transcription (seq: ${seq}): "${transcript.substring(0, 50)}..."`)
+          
+          this.onTranscription(transcript, true, seq)
           this.accumulatedText = ""
           this.currentItemId = null
         }
@@ -268,7 +281,7 @@ Your output must be clean, literal, and faithful to the spoken audio.
       }
 
       case "error": {
-        console.error("OpenAI error:", message.error)
+        console.error("[Transcriber] OpenAI error:", message.error)
         this.onError(message?.error?.message || "OpenAI error")
         break
       }

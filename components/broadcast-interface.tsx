@@ -285,18 +285,108 @@ export function BroadcastInterface({ slug, eventName, eventId, userId }: Broadca
     }
   }
 
+  // Use refs to avoid stale closures in the callback
+  const lastSequenceNumberRef = useRef(lastSequenceNumber)
+  const currentSessionIdRef = useRef(currentSessionId)
+  
+  useEffect(() => {
+    lastSequenceNumberRef.current = lastSequenceNumber
+  }, [lastSequenceNumber])
+  
+  useEffect(() => {
+    currentSessionIdRef.current = currentSessionId
+  }, [currentSessionId])
+
+  // Queue for pending saves to prevent race conditions
+  const saveQueueRef = useRef<Array<{ text: string; sequence: number; sessionId: string | null }>>([])
+  const isSavingRef = useRef(false)
+
+  const processSaveQueue = useCallback(async () => {
+    if (isSavingRef.current || saveQueueRef.current.length === 0) return
+    
+    isSavingRef.current = true
+    
+    while (saveQueueRef.current.length > 0) {
+      const item = saveQueueRef.current.shift()
+      if (!item) break
+      
+      const { text, sequence, sessionId } = item
+      let retries = 3
+      let saved = false
+
+      console.log("[v0] Processing save queue item:", {
+        text: text.substring(0, 50) + "...",
+        sequence,
+        sessionId,
+        queueLength: saveQueueRef.current.length,
+      })
+
+      while (retries > 0 && !saved) {
+        try {
+          const response = await fetch(`/api/stream/${slug}`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              text,
+              isFinal: true,
+              sequenceNumber: sequence,
+              eventName,
+              sessionId,
+            }),
+          })
+
+          if (!response.ok) {
+            const errorText = await response.text()
+            throw new Error(`API returned ${response.status}: ${errorText}`)
+          }
+
+          const result = await response.json()
+
+          if (result.success && !result.skipped) {
+            setTranscriptionCount((prev) => prev + 1)
+            setLastSequenceNumber(sequence)
+            console.log(`[v0] Transcription saved (seq: ${sequence}, id: ${result.transcriptionId})`)
+            saved = true
+          } else if (result.skipped) {
+            console.warn(`[v0] Transcription skipped: ${result.reason} (seq: ${sequence})`)
+            saved = true // Don't retry skipped items
+          }
+        } catch (error) {
+          retries--
+          console.error(`[v0] Failed to save transcription (retries left: ${retries}):`, error)
+
+          if (retries > 0) {
+            await new Promise((resolve) => setTimeout(resolve, 1000 * (4 - retries)))
+          } else {
+            console.error(`[v0] Transcription lost after all retries: "${text.substring(0, 100)}..."`)
+            setError(`Failed to save transcription after 3 retries`)
+          }
+        }
+      }
+    }
+    
+    isSavingRef.current = false
+  }, [slug, eventName])
+
   const handleTranscription = useCallback(
     async (text: string, isFinal: boolean, sequence: number) => {
-      const adjustedSequence = lastSequenceNumber + sequence
+      // Use refs to get current values without causing re-renders
+      const baseSequence = lastSequenceNumberRef.current
+      const sessionId = currentSessionIdRef.current
+      const adjustedSequence = baseSequence + sequence
 
       if (isFinal) {
         setTranscriptions((prev) => [...prev, { text, isFinal, sequence: adjustedSequence, timestamp: new Date() }])
         setCurrentInterim("")
-
         pendingInterimRef.current = null
+
+        // Add to save queue instead of saving directly
+        if (text.trim()) {
+          saveQueueRef.current.push({ text, sequence: adjustedSequence, sessionId })
+          processSaveQueue()
+        }
       } else {
         setCurrentInterim(text)
-
         pendingInterimRef.current = { text, sequence: adjustedSequence }
 
         const now = Date.now()
@@ -306,93 +396,29 @@ export function BroadcastInterface({ slug, eventName, eventId, userId }: Broadca
         lastInterimBroadcastRef.current = now
       }
 
-      try {
-        if (!isFinal && broadcastChannelRef.current) {
+      // Broadcast interim transcriptions
+      if (!isFinal && broadcastChannelRef.current) {
+        try {
           await broadcastChannelRef.current.send({
             type: "broadcast",
             event: "interim_transcription",
             payload: {
               text,
               sequence: adjustedSequence,
-              sessionId: currentSessionId,
+              sessionId,
               timestamp: new Date().toISOString(),
             },
           })
-        }
-
-        if (isFinal) {
-          let retries = 3
-          let saved = false
-
-          console.log("Saving final transcription:", {
-            text: text.substring(0, 50) + "...",
-            sequence: adjustedSequence,
-            sessionId: currentSessionId,
-          })
-
-          while (retries > 0 && !saved) {
-            try {
-              const response = await fetch(`/api/stream/${slug}`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                  text,
-                  isFinal,
-                  sequenceNumber: adjustedSequence,
-                  eventName,
-                  sessionId: currentSessionId,
-                }),
-              })
-
-              console.log("POST response status:", response.status)
-
-              if (!response.ok) {
-                throw new Error(`API returned ${response.status}`)
-              }
-
-              const result = await response.json()
-
-              console.log("POST response result:", {
-                success: result.success,
-                skipped: result.skipped,
-                insertedId: result.id,
-              })
-
-              if (result.success && !result.skipped) {
-                setTranscriptionCount((prev) => prev + 1)
-                setLastSequenceNumber(adjustedSequence)
-                console.log(`✅ Final transcription saved successfully (seq: ${adjustedSequence}, id: ${result.id})`)
-                saved = true
-              } else if (result.skipped) {
-                console.warn(`⚠️ Transcription skipped by API (seq: ${adjustedSequence})`)
-                saved = true
-              }
-            } catch (error) {
-              retries--
-              console.error(`❌ Failed to save transcription (retries left: ${retries}):`, error)
-
-              if (retries > 0) {
-                await new Promise((resolve) => setTimeout(resolve, 1000 * (4 - retries)))
-              } else {
-                setError(`Failed to save transcription: "${text.substring(0, 50)}..."`)
-              }
-            }
-          }
-        }
-      } catch (error) {
-        console.error("Error broadcasting transcription:", error)
-        if (isFinal) {
-          setError(`Failed to save final transcription`)
+        } catch (error) {
+          console.error("[v0] Error broadcasting interim:", error)
         }
       }
 
-      if (isFinal && text.trim()) {
-        if (broadcastMetricsRef.current) {
-          broadcastMetricsRef.current.addTranscription(text)
-        }
+      if (isFinal && text.trim() && broadcastMetricsRef.current) {
+        broadcastMetricsRef.current.addTranscription(text)
       }
     },
-    [eventId, currentSessionId, lastSequenceNumber, eventName, sessions],
+    [processSaveQueue],
   )
 
   const handleStartStreaming = async () => {
