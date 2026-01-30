@@ -43,9 +43,7 @@ CREATE TABLE IF NOT EXISTS events (
   -- Credit columns
   credits_minutes INTEGER DEFAULT 0,
   max_attendees INTEGER DEFAULT 0,
-  credits_allocated_at TIMESTAMPTZ,
-  -- Transcription model (gpt-4o-mini-transcribe, gpt-4o-transcribe, gpt-4o-transcribe-diarize)
-  transcription_model TEXT DEFAULT 'gpt-4o-mini-transcribe'
+  credits_allocated_at TIMESTAMPTZ
 );
 
 -- Transcriptions table

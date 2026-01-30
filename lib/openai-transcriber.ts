@@ -2,43 +2,6 @@
 
 type AnyEvent = { type: string; [k: string]: any }
 
-// Transcription model types
-export type TranscriptionModel = 
-  | "gpt-4o-mini-transcribe" 
-  | "gpt-4o-transcribe" 
-  | "gpt-4o-transcribe-diarize"
-
-// Model configuration for display and credit multipliers
-export const TRANSCRIPTION_MODELS: Record<TranscriptionModel, {
-  label: string
-  description: string
-  creditMultiplier: number
-  realtimeModel: string
-  transcribeModel: string
-}> = {
-  "gpt-4o-mini-transcribe": {
-    label: "GPT-4o Mini Transcribe",
-    description: "Fast and cost-effective transcription. Uses 50% less credits.",
-    creditMultiplier: 0.5,
-    realtimeModel: "gpt-realtime-mini",
-    transcribeModel: "gpt-4o-mini-transcribe-2025-12-15",
-  },
-  "gpt-4o-transcribe": {
-    label: "GPT-4o Transcribe",
-    description: "High-quality transcription with improved accuracy.",
-    creditMultiplier: 1.0,
-    realtimeModel: "gpt-4o-realtime-preview",
-    transcribeModel: "gpt-4o-transcribe-2025-05-13",
-  },
-  "gpt-4o-transcribe-diarize": {
-    label: "GPT-4o Transcribe with Diarization",
-    description: "Premium transcription with speaker identification.",
-    creditMultiplier: 1.0,
-    realtimeModel: "gpt-4o-realtime-preview",
-    transcribeModel: "gpt-4o-transcribe-2025-05-13",
-  },
-}
-
 export class OpenAITranscriber {
   private ws: WebSocket | null = null
   private audioContext: AudioContext | null = null
@@ -54,7 +17,6 @@ export class OpenAITranscriber {
   private lastDeltaTime: number = Date.now()
   private sessionStartTime = 0
   private reconnectTimer: NodeJS.Timeout | null = null
-  private modelConfig: typeof TRANSCRIPTION_MODELS[TranscriptionModel]
 
   constructor(
     private clientSecret: string,
@@ -63,12 +25,9 @@ export class OpenAITranscriber {
     private eventDescription: string | null,
     private sessionName: string | null,
     private sessionDescription: string | null,
-    private transcriptionModel: TranscriptionModel,
-    private onTranscription: (text: string, isFinal: boolean, sequence: number, speakerId?: string) => void,
+    private onTranscription: (text: string, isFinal: boolean, sequence: number) => void,
     private onError: (error: string) => void,
-  ) {
-    this.modelConfig = TRANSCRIPTION_MODELS[transcriptionModel] || TRANSCRIPTION_MODELS["gpt-4o-mini-transcribe"]
-  }
+  ) {}
 
   async start() {
     try {
@@ -180,7 +139,7 @@ registerProcessor("pcm-processor", PCMProcessor)
 
   private async connectWebSocket() {
     return new Promise<void>((resolve, reject) => {
-      const url = `wss://api.openai.com/v1/realtime?model=${this.modelConfig.realtimeModel}`
+      const url = "wss://api.openai.com/v1/realtime?model=gpt-realtime-mini"
 
       this.ws = new WebSocket(url, [
         "realtime",
@@ -203,9 +162,11 @@ registerProcessor("pcm-processor", PCMProcessor)
           contextInfo += `\nSession Description: ${this.sessionDescription}`
         }
 
-        // Build session configuration based on model type
-        const sessionConfig: any = {
-          instructions: `
+        this.ws!.send(
+          JSON.stringify({
+            type: "session.update",
+            session: {
+              instructions: `
 You are an AI transcription agent providing live English subtitles for events.
 Your purpose is to support deaf, hard of hearing, and neurodiverse audiences who
 rely on precise and reliable captions.
@@ -228,30 +189,20 @@ Transcription Rules:
 
 Your output must be clean, literal, and faithful to the spoken audio.
           `,
-          modalities: ["text"],
-          input_audio_format: "pcm16",
-          input_audio_transcription: {
-            model: this.modelConfig.transcribeModel,
-            language: "en",
-          },
-          turn_detection: {
-            type: "server_vad",
-            threshold: 0.3,
-            prefix_padding_ms: 250,
-            silence_duration_ms: 250,
-            create_response: false,
-          },
-        }
-
-        // Enable diarization for the diarize model
-        if (this.transcriptionModel === "gpt-4o-transcribe-diarize") {
-          sessionConfig.input_audio_transcription.include = ["logprobs"]
-        }
-
-        this.ws!.send(
-          JSON.stringify({
-            type: "session.update",
-            session: sessionConfig,
+              modalities: ["text"],
+              input_audio_format: "pcm16",
+              input_audio_transcription: {
+                model: "gpt-4o-mini-transcribe-2025-12-15",
+                language: "en",
+              },
+              turn_detection: {
+                type: "server_vad",
+                threshold: 0.3,
+                prefix_padding_ms: 250,
+                silence_duration_ms: 250,
+                create_response: false,
+              },
+            },
           }),
         )
 
