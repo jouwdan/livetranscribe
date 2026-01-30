@@ -254,7 +254,7 @@ Your output must be clean, literal, and faithful to the spoken audio.
           
           // Skip empty transcriptions
           if (!transcript) {
-            console.log("[Transcriber] Skipping empty completed transcription")
+            console.log(" Skipping empty completed transcription")
             this.accumulatedText = ""
             this.currentItemId = null
             break
@@ -264,7 +264,7 @@ Your output must be clean, literal, and faithful to the spoken audio.
           this.lastDeltaTime = Date.now()
 
           const seq = this.sequenceNumber++
-          console.log(`[Transcriber] Final transcription (seq: ${seq}): "${transcript.substring(0, 50)}..."`)
+          console.log(` Final transcription (seq: ${seq}): "${transcript.substring(0, 50)}..."`)
           
           this.onTranscription(transcript, true, seq)
           this.accumulatedText = ""
@@ -281,7 +281,7 @@ Your output must be clean, literal, and faithful to the spoken audio.
       }
 
       case "error": {
-        console.error("[Transcriber] OpenAI error:", message.error)
+        console.error(" OpenAI error:", message.error)
         this.onError(message?.error?.message || "OpenAI error")
         break
       }

@@ -62,21 +62,21 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const data = await request.json()
     const { text, isFinal, sequenceNumber, sessionId } = data
 
-    console.log(`[API] POST /api/stream/${slug} - seq: ${sequenceNumber}, isFinal: ${isFinal}, sessionId: ${sessionId}`)
+    console.log(` POST /api/stream/${slug} - seq: ${sequenceNumber}, isFinal: ${isFinal}, sessionId: ${sessionId}`)
 
     if (!text || typeof text !== "string" || text.trim().length === 0) {
-      console.warn("[API] Skipping empty transcription")
+      console.warn(" Skipping empty transcription")
       return Response.json({ success: true, skipped: true, reason: "empty_text" })
     }
 
     if (!isFinal) {
-      console.log("[API] Skipping interim transcription save (not final)")
+      console.log(" Skipping interim transcription save (not final)")
       return Response.json({ success: true, skipped: true, reason: "interim" })
     }
 
     if (!sessionId) {
       console.warn(
-        "[API] Warning: Transcription saved without session_id. This may make it harder to organize and export transcriptions by session.",
+        " Warning: Transcription saved without session_id. This may make it harder to organize and export transcriptions by session.",
       )
     }
 
@@ -129,11 +129,11 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const { data: existingTranscription } = await duplicateQuery.maybeSingle()
 
     if (existingTranscription) {
-      console.log(`[API] Transcription with sequence ${sequenceNumber} already exists in session ${sessionId}, skipping`)
+      console.log(` Transcription with sequence ${sequenceNumber} already exists in session ${sessionId}, skipping`)
       return Response.json({ success: true, skipped: true, reason: "duplicate_sequence" })
     }
     
-    console.log("[API] Inserting transcription:", {
+    console.log(" Inserting transcription:", {
       eventId: event.id,
       sessionId,
       sequenceNumber,
@@ -206,7 +206,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       }
     }
 
-    console.log("[API] Final transcription saved successfully:", {
+    console.log(" Final transcription saved successfully:", {
       id: insertedTranscription.id,
       slug,
       sequenceNumber,

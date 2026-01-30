@@ -314,7 +314,7 @@ export function BroadcastInterface({ slug, eventName, eventId, userId }: Broadca
       let retries = 3
       let saved = false
 
-      console.log("[v0] Processing save queue item:", {
+      console.log("Processing save queue item:", {
         text: text.substring(0, 50) + "...",
         sequence,
         sessionId,
@@ -345,20 +345,20 @@ export function BroadcastInterface({ slug, eventName, eventId, userId }: Broadca
           if (result.success && !result.skipped) {
             setTranscriptionCount((prev) => prev + 1)
             setLastSequenceNumber(sequence)
-            console.log(`[v0] Transcription saved (seq: ${sequence}, id: ${result.transcriptionId})`)
+            console.log(`Transcription saved (seq: ${sequence}, id: ${result.transcriptionId})`)
             saved = true
           } else if (result.skipped) {
-            console.warn(`[v0] Transcription skipped: ${result.reason} (seq: ${sequence})`)
+            console.warn(`Transcription skipped: ${result.reason} (seq: ${sequence})`)
             saved = true // Don't retry skipped items
           }
         } catch (error) {
           retries--
-          console.error(`[v0] Failed to save transcription (retries left: ${retries}):`, error)
+          console.error(`Failed to save transcription (retries left: ${retries}):`, error)
 
           if (retries > 0) {
             await new Promise((resolve) => setTimeout(resolve, 1000 * (4 - retries)))
           } else {
-            console.error(`[v0] Transcription lost after all retries: "${text.substring(0, 100)}..."`)
+            console.error(`Transcription lost after all retries: "${text.substring(0, 100)}..."`)
             setError(`Failed to save transcription after 3 retries`)
           }
         }
@@ -410,7 +410,7 @@ export function BroadcastInterface({ slug, eventName, eventId, userId }: Broadca
             },
           })
         } catch (error) {
-          console.error("[v0] Error broadcasting interim:", error)
+          console.error("Error broadcasting interim:", error)
         }
       }
 
