@@ -580,7 +580,7 @@ export function ViewerInterface({ event, initialViewMode }: ViewerInterfaceProps
   const timestampColorClass = theme === "dark" ? "text-gray-400" : "text-gray-600"
 
   return (
-    <div className={cn("flex min-h-screen flex-col", theme === "dark" ? "dark bg-gray-950" : "bg-gray-50")}>
+    <div className={cn("flex h-screen flex-col overflow-hidden", theme === "dark" ? "dark bg-gray-950" : "bg-gray-50")}>
       <WelcomeDialog eventId={event.id} eventSlug={event.slug} />
 
       {/* Header - sticky on mobile with safe area insets */}
