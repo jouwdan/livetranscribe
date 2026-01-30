@@ -380,16 +380,37 @@ export function ViewerInterface({ event, initialViewMode }: ViewerInterfaceProps
     }
   }, [transcriptions.length])
 
-  useEffect(() => {
-    if (!autoScroll || !scrollAreaRef.current) return
+  // Ref to track the bottom of the content for scrolling
+  const bottomRef = useRef<HTMLDivElement>(null)
 
-    requestAnimationFrame(() => {
-      const scrollContainer = scrollAreaRef.current
-      if (scrollContainer) {
-        scrollContainer.scrollTop = scrollContainer.scrollHeight
+  // Auto-scroll effect - triggers when transcriptions or interim text changes
+  useEffect(() => {
+    if (!autoScroll) return
+
+    // Use a small delay to ensure the DOM has updated
+    const scrollTimeout = setTimeout(() => {
+      if (bottomRef.current) {
+        bottomRef.current.scrollIntoView({ behavior: "smooth", block: "end" })
+      } else if (scrollAreaRef.current) {
+        scrollAreaRef.current.scrollTop = scrollAreaRef.current.scrollHeight
       }
-    })
-  }, [transcriptions, autoScroll, newestTranscriptionId, isLive, fontSize, fontFamily, currentInterim, widthMode])
+    }, 50)
+
+    return () => clearTimeout(scrollTimeout)
+  }, [transcriptions, autoScroll])
+
+  // Additional scroll trigger for interim text updates (more frequent)
+  useEffect(() => {
+    if (!autoScroll || !currentInterim) return
+
+    const scrollTimeout = setTimeout(() => {
+      if (bottomRef.current) {
+        bottomRef.current.scrollIntoView({ behavior: "smooth", block: "end" })
+      }
+    }, 100)
+
+    return () => clearTimeout(scrollTimeout)
+  }, [autoScroll, currentInterim])
 
   useEffect(() => {
     if (isLive) {
@@ -859,6 +880,9 @@ export function ViewerInterface({ event, initialViewMode }: ViewerInterfaceProps
                 </div>
               </div>
             )}
+
+            {/* Scroll anchor - always at the bottom of content */}
+            <div ref={bottomRef} className="h-1" />
           </div>
         </div>
       </div>
