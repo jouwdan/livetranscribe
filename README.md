@@ -10,11 +10,11 @@ It was built as a pilot to run at DevFest Ireland, due to the severe lack of Sig
 
 **This application is functional for real-time transcription but has known issues:**
 
-- **Transcription ordering**: Transcriptions appear out of sequence, or are not all being stored
+- **Transcription ordering**: Transcriptions may occasionally appear out of sequence due to the asynchronous nature of real-time streaming
 - **Metrics system**: Analytics and engagement tracking need significant improvements and reports inaccurate data
 - **Active development**: Features are being refined and bugs are being actively addressed
 
-The core transcription functionality works well for live events, but expect occasional hiccups with ordering and metrics accuracy.
+The core transcription functionality works well for live events. Recent improvements include a queued save system with retry logic to prevent lost transcriptions during network issues.
 
 ## Features
 

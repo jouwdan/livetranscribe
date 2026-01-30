@@ -62,21 +62,21 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const data = await request.json()
     const { text, isFinal, sequenceNumber, sessionId } = data
 
-    console.log(`[API] POST /api/stream/${slug} - seq: ${sequenceNumber}, isFinal: ${isFinal}, sessionId: ${sessionId}`)
+    console.log(` POST /api/stream/${slug} - seq: ${sequenceNumber}, isFinal: ${isFinal}, sessionId: ${sessionId}`)
 
     if (!text || typeof text !== "string" || text.trim().length === 0) {
-      console.warn("Skipping empty transcription")
+      console.warn(" Skipping empty transcription")
       return Response.json({ success: true, skipped: true, reason: "empty_text" })
     }
 
     if (!isFinal) {
-      console.log("Skipping interim transcription save (not final)")
+      console.log(" Skipping interim transcription save (not final)")
       return Response.json({ success: true, skipped: true, reason: "interim" })
     }
 
     if (!sessionId) {
       console.warn(
-        "Warning: Transcription saved without session_id. This may make it harder to organize and export transcriptions by session.",
+        " Warning: Transcription saved without session_id. This may make it harder to organize and export transcriptions by session.",
       )
     }
 
@@ -115,23 +115,26 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       event = newEvent
     }
 
-    const duplicateQuery = supabase
+    // Check for duplicate sequence number at the EVENT level (not session level)
+    // This ensures global ordering across all sessions for an event
+    const { data: existingTranscription } = await supabase
       .from("transcriptions")
-      .select("id")
+      .select("id, session_id")
       .eq("event_id", event.id)
       .eq("sequence_number", sequenceNumber)
-
-    // If there's a session ID, check within that session
-    if (sessionId) {
-      duplicateQuery.eq("session_id", sessionId)
-    }
-
-    const { data: existingTranscription } = await duplicateQuery.maybeSingle()
+      .maybeSingle()
 
     if (existingTranscription) {
-      console.log(`Transcription with sequence ${sequenceNumber} already exists in session ${sessionId}, skipping`)
+      console.log(`Transcription with sequence ${sequenceNumber} already exists for event (in session ${existingTranscription.session_id}), skipping`)
       return Response.json({ success: true, skipped: true, reason: "duplicate_sequence" })
     }
+    
+    console.log(" Inserting transcription:", {
+      eventId: event.id,
+      sessionId,
+      sequenceNumber,
+      textLength: text.trim().length,
+    })
 
     const { error: insertError, data: insertedTranscription } = await supabase
       .from("transcriptions")
@@ -199,7 +202,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       }
     }
 
-    console.log("Final transcription saved successfully:", {
+    console.log(" Final transcription saved successfully:", {
       id: insertedTranscription.id,
       slug,
       sequenceNumber,
@@ -209,6 +212,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
     return Response.json({
       success: true,
+      id: insertedTranscription.id,
       transcriptionId: insertedTranscription.id,
       sequenceNumber,
       wordCount,
