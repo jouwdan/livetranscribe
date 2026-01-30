@@ -422,7 +422,33 @@ export function ViewerInterface({ event, initialViewMode }: ViewerInterfaceProps
     requestAnimationFrame(animateScroll)
   }
 
-  // Auto-scroll effect - triggers when transcriptions or interim text changes
+  // Initial scroll on mount - important for mobile Safari
+  // This runs once when the component mounts to ensure we start at the bottom
+  useEffect(() => {
+    if (!autoScroll || !scrollAreaRef.current) return
+
+    // Immediate scroll attempt
+    const immediateScroll = () => {
+      if (scrollAreaRef.current) {
+        scrollAreaRef.current.scrollTop = scrollAreaRef.current.scrollHeight
+      }
+    }
+
+    // Multiple scroll attempts to handle mobile Safari layout delays
+    immediateScroll()
+    const timer1 = setTimeout(immediateScroll, 100)
+    const timer2 = setTimeout(immediateScroll, 300)
+    const timer3 = setTimeout(scrollToBottomSmooth, 500)
+
+    return () => {
+      clearTimeout(timer1)
+      clearTimeout(timer2)
+      clearTimeout(timer3)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []) // Only run on mount
+
+  // Auto-scroll effect - triggers when transcriptions change
   useEffect(() => {
     if (!autoScroll) return
 
