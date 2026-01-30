@@ -382,18 +382,79 @@ export function ViewerInterface({ event, initialViewMode }: ViewerInterfaceProps
 
   // Ref to track the bottom of the content for scrolling
   const bottomRef = useRef<HTMLDivElement>(null)
+  const isScrollingRef = useRef(false)
 
-  // Auto-scroll effect - triggers when transcriptions or interim text changes
+  // Safari-compatible smooth scroll function
+  const scrollToBottomSmooth = () => {
+    if (!scrollAreaRef.current || isScrollingRef.current) return
+    
+    const scrollArea = scrollAreaRef.current
+    const targetScrollTop = scrollArea.scrollHeight - scrollArea.clientHeight
+    
+    // Check if already at bottom (with small tolerance for rounding)
+    if (Math.abs(scrollArea.scrollTop - targetScrollTop) < 5) return
+    
+    isScrollingRef.current = true
+    
+    // Use requestAnimationFrame for smooth scrolling (Safari compatible)
+    const startScrollTop = scrollArea.scrollTop
+    const distance = targetScrollTop - startScrollTop
+    const duration = 300 // ms
+    let startTime: number | null = null
+    
+    const animateScroll = (currentTime: number) => {
+      if (!startTime) startTime = currentTime
+      const elapsed = currentTime - startTime
+      const progress = Math.min(elapsed / duration, 1)
+      
+      // Easing function for smooth deceleration
+      const easeOutCubic = 1 - Math.pow(1 - progress, 3)
+      
+      scrollArea.scrollTop = startScrollTop + (distance * easeOutCubic)
+      
+      if (progress < 1) {
+        requestAnimationFrame(animateScroll)
+      } else {
+        isScrollingRef.current = false
+      }
+    }
+    
+    requestAnimationFrame(animateScroll)
+  }
+
+  // Initial scroll on mount - important for mobile Safari
+  // This runs once when the component mounts to ensure we start at the bottom
+  useEffect(() => {
+    if (!autoScroll || !scrollAreaRef.current) return
+
+    // Immediate scroll attempt
+    const immediateScroll = () => {
+      if (scrollAreaRef.current) {
+        scrollAreaRef.current.scrollTop = scrollAreaRef.current.scrollHeight
+      }
+    }
+
+    // Multiple scroll attempts to handle mobile Safari layout delays
+    immediateScroll()
+    const timer1 = setTimeout(immediateScroll, 100)
+    const timer2 = setTimeout(immediateScroll, 300)
+    const timer3 = setTimeout(scrollToBottomSmooth, 500)
+
+    return () => {
+      clearTimeout(timer1)
+      clearTimeout(timer2)
+      clearTimeout(timer3)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []) // Only run on mount
+
+  // Auto-scroll effect - triggers when transcriptions change
   useEffect(() => {
     if (!autoScroll) return
 
     // Use a small delay to ensure the DOM has updated
     const scrollTimeout = setTimeout(() => {
-      if (bottomRef.current) {
-        bottomRef.current.scrollIntoView({ behavior: "smooth", block: "end" })
-      } else if (scrollAreaRef.current) {
-        scrollAreaRef.current.scrollTop = scrollAreaRef.current.scrollHeight
-      }
+      scrollToBottomSmooth()
     }, 50)
 
     return () => clearTimeout(scrollTimeout)
@@ -404,9 +465,7 @@ export function ViewerInterface({ event, initialViewMode }: ViewerInterfaceProps
     if (!autoScroll || !currentInterim) return
 
     const scrollTimeout = setTimeout(() => {
-      if (bottomRef.current) {
-        bottomRef.current.scrollIntoView({ behavior: "smooth", block: "end" })
-      }
+      scrollToBottomSmooth()
     }, 100)
 
     return () => clearTimeout(scrollTimeout)
@@ -498,13 +557,14 @@ export function ViewerInterface({ event, initialViewMode }: ViewerInterfaceProps
     mono: "Monospace",
   }
 
+  // Mobile-first responsive font sizes
   const fontSizeClasses = {
-    xs: "text-sm leading-relaxed",
-    small: "text-base leading-relaxed",
-    medium: "text-xl leading-relaxed",
-    large: "text-3xl md:text-4xl leading-tight",
-    xl: "text-4xl md:text-5xl leading-tight",
-    xxl: "text-5xl md:text-6xl lg:text-7xl leading-tight",
+    xs: "text-xs sm:text-sm leading-relaxed",
+    small: "text-sm sm:text-base leading-relaxed",
+    medium: "text-base sm:text-lg md:text-xl leading-relaxed",
+    large: "text-xl sm:text-2xl md:text-3xl lg:text-4xl leading-snug",
+    xl: "text-2xl sm:text-3xl md:text-4xl lg:text-5xl leading-snug",
+    xxl: "text-3xl sm:text-4xl md:text-5xl lg:text-6xl xl:text-7xl leading-tight",
   }
 
   const fontFamilyClasses = {
@@ -520,74 +580,76 @@ export function ViewerInterface({ event, initialViewMode }: ViewerInterfaceProps
   const timestampColorClass = theme === "dark" ? "text-gray-400" : "text-gray-600"
 
   return (
-    <div className={cn("flex min-h-screen flex-col", theme === "dark" ? "dark bg-gray-950" : "bg-gray-50")}>
+    <div className={cn("flex h-screen flex-col overflow-hidden", theme === "dark" ? "dark bg-gray-950" : "bg-gray-50")}>
       <WelcomeDialog eventId={event.id} eventSlug={event.slug} />
 
-      {/* Header */}
-      <div className={`${bgColorClass} border-b ${borderClass} flex-shrink-0`}>
-        <div className="px-6 sm:px-8 lg:px-12 py-4 mx-auto w-full">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-            <div className="flex items-center gap-4">
-              {/* Placeholder for event logo */}
+      {/* Header - sticky on mobile with safe area insets */}
+      <div className={`${bgColorClass} border-b ${borderClass} flex-shrink-0 safe-area-top sticky top-0 z-50`}>
+        <div className="px-3 sm:px-6 lg:px-12 py-3 sm:py-4 mx-auto w-full">
+          <div className="flex items-center justify-between gap-2 sm:gap-4">
+            {/* Event info - compact on mobile */}
+            <div className="flex items-center gap-2 sm:gap-4 min-w-0 flex-1">
               <img
                 src={event.logo_url || "/placeholder.svg"}
                 alt="Event logo"
-                className="h-12 w-12 rounded-lg object-contain"
+                className="h-8 w-8 sm:h-12 sm:w-12 rounded-lg object-contain flex-shrink-0"
               />
-              <div>
-                <h1 className={`text-xl sm:text-2xl font-bold ${textColorClass}`}>Live Transcription</h1>
-                {/* Placeholder for event name */}
-                <p className={`text-sm ${mutedTextClass} mt-0.5`}>{event.name}</p>
+              <div className="min-w-0">
+                <h1 className={`text-base sm:text-xl lg:text-2xl font-bold ${textColorClass} truncate`}>
+                  Live Transcription
+                </h1>
+                <p className={`text-xs sm:text-sm ${mutedTextClass} mt-0.5 truncate`}>{event.name}</p>
               </div>
             </div>
 
-            {/* Controls */}
-            <div className="flex gap-2 items-center flex-shrink-0">
+            {/* Controls - touch-friendly sizing */}
+            <div className="flex gap-1.5 sm:gap-2 items-center flex-shrink-0">
               <Badge
                 variant={isLive ? "default" : "secondary"}
-                className={`px-3 py-1 ${isLive ? "bg-green-600 hover:bg-green-700" : "bg-muted"}`}
+                className={`px-2 sm:px-3 py-1 text-xs ${isLive ? "bg-green-600 hover:bg-green-700" : "bg-muted"}`}
               >
                 {isLive ? "Live" : "Offline"}
               </Badge>
 
-              {/* Auto-scroll toggle */}
+              {/* Auto-scroll toggle - icon only on mobile */}
               <Button
                 variant="ghost"
                 size="sm"
                 onClick={() => setAutoScroll(!autoScroll)}
-                className={`h-8 px-3 gap-1.5 text-xs ${
+                className={`h-10 w-10 sm:h-8 sm:w-auto sm:px-3 p-0 sm:gap-1.5 text-xs touch-manipulation ${
                   theme === "dark"
-                    ? "text-white hover:bg-white/10"
-                    : "text-gray-900 hover:bg-gray-200 hover:text-gray-900"
+                    ? "text-white hover:bg-white/10 active:bg-white/20"
+                    : "text-gray-900 hover:bg-gray-200 active:bg-gray-300 hover:text-gray-900"
                 }`}
+                title={autoScroll ? "Auto-scroll enabled" : "Auto-scroll paused"}
               >
                 {autoScroll ? (
                   <>
-                    <ArrowDownToLine className="h-3 w-3" />
-                    Auto-scroll
+                    <ArrowDownToLine className="h-4 w-4 sm:h-3 sm:w-3" />
+                    <span className="hidden sm:inline">Auto-scroll</span>
                   </>
                 ) : (
                   <>
-                    <ArrowUpFromLine className="h-3 w-3" />
-                    Paused
+                    <ArrowUpFromLine className="h-4 w-4 sm:h-3 sm:w-3" />
+                    <span className="hidden sm:inline">Paused</span>
                   </>
                 )}
               </Button>
 
-              {/* Settings dropdown menu */}
+              {/* Settings dropdown menu - larger touch target on mobile */}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button
                     variant="ghost"
                     size="sm"
-                    className={`h-8 w-8 p-0 ${
+                    className={`h-10 w-10 sm:h-8 sm:w-8 p-0 touch-manipulation ${
                       theme === "dark"
-                        ? "text-white hover:bg-white/10"
-                        : "text-gray-900 hover:bg-gray-200 hover:text-gray-900"
+                        ? "text-white hover:bg-white/10 active:bg-white/20"
+                        : "text-gray-900 hover:bg-gray-200 active:bg-gray-300 hover:text-gray-900"
                     }`}
                     title="Display settings"
                   >
-                    <Settings className="h-4 w-4" />
+                    <Settings className="h-5 w-5 sm:h-4 sm:w-4" />
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent
@@ -802,18 +864,22 @@ export function ViewerInterface({ event, initialViewMode }: ViewerInterfaceProps
         </div>
       </div>
 
-      {/* Transcription Content */}
+      {/* Transcription Content - Safari-optimized scrolling */}
       <div
-        className={`flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-400 scrollbar-track-transparent hover:scrollbar-thumb-gray-500 dark:scrollbar-thumb-gray-600 dark:hover:scrollbar-thumb-gray-500 ${
+        className={`flex-1 overflow-y-auto overflow-x-hidden overscroll-contain scrollbar-thin scrollbar-thumb-gray-400 scrollbar-track-transparent hover:scrollbar-thumb-gray-500 dark:scrollbar-thumb-gray-600 dark:hover:scrollbar-thumb-gray-500 ${
           theme === "dark" ? "bg-black" : "bg-white"
         }`}
         ref={scrollAreaRef}
+        style={{
+          WebkitOverflowScrolling: "touch",
+          scrollBehavior: "auto", // Use manual smooth scroll for Safari compatibility
+        }}
       >
-        <div className={cn("p-6", bgColorClass)}>
+        <div className={cn("p-4 sm:p-6", bgColorClass)}>
           <div
             className={cn(
-              "space-y-6 mx-auto",
-              widthMode === "constrained" ? "max-w-4xl" : "w-full px-4",
+              "space-y-4 sm:space-y-6 mx-auto",
+              widthMode === "constrained" ? "max-w-4xl" : "w-full px-2 sm:px-4",
               fontFamilyClasses[fontFamily],
             )}
           >
@@ -887,16 +953,16 @@ export function ViewerInterface({ event, initialViewMode }: ViewerInterfaceProps
         </div>
       </div>
 
-      {/* Footer */}
-      <div className={`${bgColorClass} border-t ${borderClass} flex-shrink-0`}>
-        <div className="px-6 sm:px-8 lg:px-12 py-3 mx-auto w-full">
+      {/* Footer - with safe area for notched phones */}
+      <div className={`${bgColorClass} border-t ${borderClass} flex-shrink-0 safe-area-bottom`}>
+        <div className="px-3 sm:px-6 lg:px-12 py-2 sm:py-3 mx-auto w-full">
           <p className={`text-xs ${mutedTextClass} text-center`}>
             AI Powered by{" "}
             <a
               href="https://livetranscribe.net"
               target="_blank"
               rel="noopener noreferrer"
-              className="text-purple-500 hover:text-purple-700 transition-colors"
+              className="text-purple-500 hover:text-purple-700 active:text-purple-800 transition-colors touch-manipulation"
             >
               LiveTranscribe.net
             </a>
