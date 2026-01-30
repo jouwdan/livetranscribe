@@ -583,8 +583,8 @@ export function ViewerInterface({ event, initialViewMode }: ViewerInterfaceProps
     <div className={cn("flex min-h-screen flex-col", theme === "dark" ? "dark bg-gray-950" : "bg-gray-50")}>
       <WelcomeDialog eventId={event.id} eventSlug={event.slug} />
 
-      {/* Header - optimized for mobile with safe area insets */}
-      <div className={`${bgColorClass} border-b ${borderClass} flex-shrink-0 safe-area-top`}>
+      {/* Header - sticky on mobile with safe area insets */}
+      <div className={`${bgColorClass} border-b ${borderClass} flex-shrink-0 safe-area-top sticky top-0 z-50`}>
         <div className="px-3 sm:px-6 lg:px-12 py-3 sm:py-4 mx-auto w-full">
           <div className="flex items-center justify-between gap-2 sm:gap-4">
             {/* Event info - compact on mobile */}
