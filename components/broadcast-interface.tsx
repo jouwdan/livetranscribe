@@ -141,36 +141,37 @@ export function BroadcastInterface({ slug, eventName, eventId, userId }: Broadca
     fetchSessions()
   }, [eventId, currentSessionId])
 
+  // Fetch the last sequence number for the ENTIRE EVENT (across all sessions)
+  // This ensures chronological ordering even when switching sessions or restarting
+  const fetchLastSequenceForEvent = useCallback(async () => {
+    const supabase = createBrowserClient()
+
+    const { data, error } = await supabase
+      .from("transcriptions")
+      .select("sequence_number")
+      .eq("event_id", eventId)
+      .order("sequence_number", { ascending: false })
+      .limit(1)
+      .maybeSingle()
+
+    if (error) {
+      console.error("Error fetching last sequence:", error)
+      return 0
+    }
+
+    const lastSeq = data?.sequence_number || 0
+    console.log("Last sequence number for event:", lastSeq)
+    return lastSeq
+  }, [eventId])
+
+  // Fetch sequence number on mount and when session changes
   useEffect(() => {
-    if (!currentSessionId) {
-      console.log("No session ID yet, skipping sequence number fetch")
-      return
-    }
+    if (!eventId) return
 
-    async function fetchLastSequence() {
-      const supabase = createBrowserClient()
-
-      const { data, error } = await supabase
-        .from("transcriptions")
-        .select("sequence_number")
-        .eq("session_id", currentSessionId)
-        .order("sequence_number", { ascending: false })
-        .limit(1)
-        .maybeSingle() // Use maybeSingle() instead of single() to handle no results
-
-      if (error) {
-        console.error("Error fetching last sequence:", error)
-        setLastSequenceNumber(0)
-        return
-      }
-
-      const lastSeq = data?.sequence_number || 0
-      console.log("Last sequence number:", lastSeq)
-      setLastSequenceNumber(lastSeq)
-    }
-
-    fetchLastSequence()
-  }, [currentSessionId])
+    fetchLastSequenceForEvent().then((seq) => {
+      setLastSequenceNumber(seq)
+    })
+  }, [eventId, fetchLastSequenceForEvent])
 
   useEffect(() => {
     const initBroadcastChannel = async () => {
@@ -429,6 +430,13 @@ export function BroadcastInterface({ slug, eventName, eventId, userId }: Broadca
         process.env.NEXT_PUBLIC_SUPABASE_URL!,
         process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
       )
+
+      // IMPORTANT: Fetch the latest sequence number before starting
+      // This ensures we continue from where we left off if restarting
+      const latestSeq = await fetchLastSequenceForEvent()
+      setLastSequenceNumber(latestSeq)
+      lastSequenceNumberRef.current = latestSeq
+      console.log("Starting broadcast with sequence base:", latestSeq)
 
       // Check if we need to create a default session
       if (sessions.length === 0) {

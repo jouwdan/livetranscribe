@@ -115,21 +115,17 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       event = newEvent
     }
 
-    const duplicateQuery = supabase
+    // Check for duplicate sequence number at the EVENT level (not session level)
+    // This ensures global ordering across all sessions for an event
+    const { data: existingTranscription } = await supabase
       .from("transcriptions")
-      .select("id")
+      .select("id, session_id")
       .eq("event_id", event.id)
       .eq("sequence_number", sequenceNumber)
-
-    // If there's a session ID, check within that session
-    if (sessionId) {
-      duplicateQuery.eq("session_id", sessionId)
-    }
-
-    const { data: existingTranscription } = await duplicateQuery.maybeSingle()
+      .maybeSingle()
 
     if (existingTranscription) {
-      console.log(` Transcription with sequence ${sequenceNumber} already exists in session ${sessionId}, skipping`)
+      console.log(`Transcription with sequence ${sequenceNumber} already exists for event (in session ${existingTranscription.session_id}), skipping`)
       return Response.json({ success: true, skipped: true, reason: "duplicate_sequence" })
     }
     
