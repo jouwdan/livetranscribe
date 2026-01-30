@@ -1,8 +1,11 @@
 -- ============================================================================
--- LiveTranscribe Complete Database Schema
+-- LiveTranscribe Database Schema
 -- ============================================================================
--- This script creates the entire database schema from scratch
--- Run this on a fresh Supabase project to set up all tables, functions, and policies
+-- This script creates the entire database schema from scratch.
+-- Run this on a fresh Supabase project to set up all tables, functions, 
+-- triggers, indexes, and RLS policies.
+--
+-- Usage: Execute this script in your Supabase SQL Editor
 -- ============================================================================
 
 -- ============================================================================
