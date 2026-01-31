@@ -31,11 +31,16 @@ export default async function SessionsPage({ params }: { params: Promise<{ slug:
 
   // Calculate real stats from transcriptions for each session
   const sessionIds = (sessions || []).map((s) => s.id)
-  const { data: allTranscriptions } = await supabase
-    .from("transcriptions")
-    .select("session_id, text")
-    .in("session_id", sessionIds)
-    .eq("is_final", true)
+  let allTranscriptions: { session_id: string; text: string | null }[] | null = []
+
+  if (sessionIds.length > 0) {
+    const { data } = await supabase
+      .from("transcriptions")
+      .select("session_id, text")
+      .in("session_id", sessionIds)
+      .eq("is_final", true)
+    allTranscriptions = data
+  }
 
   const transcriptionsBySession = (allTranscriptions || []).reduce(
     (acc, t) => {
