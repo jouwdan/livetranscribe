@@ -66,8 +66,8 @@ export default async function SessionsPage({ params }: { params: Promise<{ slug:
       // Calculate real stats for display.
       // Note: We calculate these on the fly to ensure accuracy without relying
       // on the potentially stale 'event_sessions' columns.
-      // Updates to the DB columns should be handled by the 'updateSessionStats' action
-      // or similar logic when transcriptions change, not during render.
+      // Updates to the DB columns are handled by the ingestion process (e.g. stream API)
+      // or periodic maintenance jobs, not during render.
 
       return {
         ...session,
