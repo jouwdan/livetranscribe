@@ -55,29 +55,27 @@ export default async function SessionsPage({ params }: { params: Promise<{ slug:
       }
       return acc
     },
-    {} as Record<string, typeof allTranscriptions>,
+    {} as Record<string, NonNullable<typeof allTranscriptions>>,
   )
 
-  const sessionsWithStats = await Promise.all(
-    (sessions || []).map(async (session) => {
-      const sessionTranscriptions = transcriptionsBySession[session.id] || []
+  const sessionsWithStats = (sessions || []).map((session) => {
+    const sessionTranscriptions = transcriptionsBySession[session.id] || []
 
-      const totalTranscriptions = sessionTranscriptions.length
-      const totalWords = sessionTranscriptions.reduce((sum, t) => sum + countWords(t.text), 0)
+    const totalTranscriptions = sessionTranscriptions.length
+    const totalWords = sessionTranscriptions.reduce((sum, t) => sum + countWords(t.text), 0)
 
-      // Calculate real stats for display.
-      // Note: We calculate these on the fly to ensure accuracy without relying
-      // on the potentially stale 'event_sessions' columns.
-      // Updates to the DB columns are handled by the ingestion process (e.g. stream API)
-      // or periodic maintenance jobs, not during render.
+    // Calculate real stats for display.
+    // Note: We calculate these on the fly to ensure accuracy without relying
+    // on the potentially stale 'event_sessions' columns.
+    // Updates to the DB columns are handled by the ingestion process (e.g. stream API)
+    // or periodic maintenance jobs, not during render.
 
-      return {
-        ...session,
-        total_transcriptions: totalTranscriptions,
-        total_words: totalWords,
-      }
-    }),
-  )
+    return {
+      ...session,
+      total_transcriptions: totalTranscriptions,
+      total_words: totalWords,
+    }
+  })
 
   return (
     <div className="container mx-auto px-4 py-8">
