@@ -646,7 +646,8 @@ export function BroadcastInterface({ slug, eventName, eventId, userId }: Broadca
 
   return (
     <div className="container mx-auto px-4 py-8">
-      <div className="max-w-4xl mx-auto space-y-6">
+      <div className="max-w-7xl mx-auto space-y-6">
+        {/* Header */}
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-bold text-white mb-2">{eventName}</h1>
@@ -671,64 +672,6 @@ export function BroadcastInterface({ slug, eventName, eventId, userId }: Broadca
           </div>
         </div>
 
-        <Card className="bg-card border-border">
-          <CardHeader>
-            <CardTitle>Viewer URL</CardTitle>
-            <CardDescription>Share this URL with attendees so they can view the live transcription</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="flex gap-2">
-              <input
-                type="text"
-                value={viewerUrl}
-                readOnly
-                className="flex-1 px-3 py-2 bg-background border border-border rounded-md text-sm text-foreground"
-              />
-              <Button onClick={copyToClipboard} variant="outline">
-                {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
-              </Button>
-              <Button onClick={generateQRCode} variant="outline" className="gap-2 bg-transparent">
-                <QrCode className="h-4 w-4" />
-                QR Code
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-card border-border">
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <div>
-                <CardTitle>Session Selection</CardTitle>
-                <CardDescription>Choose which session to broadcast</CardDescription>
-              </div>
-              <Link href={`/sessions/${slug}`}>
-                <Button variant="outline" size="sm" className="gap-2 bg-transparent">
-                  <List className="h-4 w-4" />
-                  Manage Sessions
-                </Button>
-              </Link>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <Select value={currentSessionId || undefined} onValueChange={setCurrentSessionId} disabled={isStreaming}>
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder="Select a session" />
-              </SelectTrigger>
-              <SelectContent>
-                {sessions.map((session) => (
-                  <SelectItem key={session.id} value={session.id}>
-                    Session {session.session_number}: {session.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {sessions.length === 0 && (
-              <p className="text-sm text-muted-foreground mt-2">No sessions found. Create a session first.</p>
-            )}
-          </CardContent>
-        </Card>
-
         {error && (
           <Card className="border-red-200 bg-red-50">
             <CardContent className="pt-6">
@@ -743,94 +686,163 @@ export function BroadcastInterface({ slug, eventName, eventId, userId }: Broadca
           </Card>
         )}
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Audio Stream</CardTitle>
-            <CardDescription>Control your live audio broadcast and transcription</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex gap-4">
-              {!isStreaming ? (
-                <Button onClick={handleStartStreaming} size="lg" className="flex-1 gap-2">
-                  <Mic className="h-5 w-5" />
-                  Start Streaming
-                </Button>
-              ) : (
-                <Button onClick={handleStopStreaming} size="lg" variant="destructive" className="flex-1 gap-2">
-                  <MicOff className="h-5 w-5" />
-                  Stop Streaming
-                </Button>
-              )}
-            </div>
-
-            {isStreaming && (
-              <div className="space-y-3">
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="p-4 bg-background border border-border rounded-md">
-                    <div className="text-sm text-foreground/60 mb-1">Live Viewers</div>
-                    <div className="text-2xl font-bold text-foreground">{liveViewers}</div>
-                  </div>
-                  <div className="p-4 bg-background border border-border rounded-md">
-                    <div className="text-sm text-foreground/60 mb-1">Total Viewers</div>
-                    <div className="text-2xl font-bold text-foreground">{totalViewers}</div>
-                  </div>
+        {/* Two column layout on desktop */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Left column - Settings and info */}
+          <div className="space-y-6">
+            <Card className="bg-card border-border">
+              <CardHeader>
+                <CardTitle>Viewer URL</CardTitle>
+                <CardDescription>Share this URL with attendees so they can view the live transcription</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={viewerUrl}
+                    readOnly
+                    className="flex-1 px-3 py-2 bg-background border border-border rounded-md text-sm text-foreground"
+                  />
+                  <Button onClick={copyToClipboard} variant="outline">
+                    {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                  </Button>
+                  <Button onClick={generateQRCode} variant="outline" className="gap-2 bg-transparent">
+                    <QrCode className="h-4 w-4" />
+                    QR Code
+                  </Button>
                 </div>
-                <div className="p-4 bg-background border border-border rounded-md">
-                  <div className="flex items-center justify-between text-sm mb-2">
-                    <span className="text-foreground/60">Session Time:</span>
-                    <span className="font-semibold text-foreground font-mono">{formatDuration(sessionDuration)}</span>
-                  </div>
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-foreground/60">Transcriptions sent:</span>
-                    <span className="font-semibold text-foreground">{transcriptionCount}</span>
-                  </div>
-                </div>
-              </div>
-            )}
-          </CardContent>
-        </Card>
+              </CardContent>
+            </Card>
 
-        {transcriptions.length > 0 && (
-          <Card>
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <div>
-                  <CardTitle>Transcription History</CardTitle>
-                  <CardDescription>Live transcription of your audio stream</CardDescription>
+            <Card className="bg-card border-border">
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle>Session Selection</CardTitle>
+                    <CardDescription>Choose which session to broadcast</CardDescription>
+                  </div>
+                  <Link href={`/sessions/${slug}`}>
+                    <Button variant="outline" size="sm" className="gap-2 bg-transparent">
+                      <List className="h-4 w-4" />
+                      Manage Sessions
+                    </Button>
+                  </Link>
                 </div>
-                <Button onClick={downloadTranscript} variant="outline" size="sm" className="gap-2 bg-transparent">
-                  <Download className="h-4 w-4" />
-                  Download
-                </Button>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="h-[60vh] overflow-y-auto p-6 bg-background rounded-md border border-border">
-                <LiveTranscriptionDisplay transcriptions={displayTranscriptions} interimText={interimText} />
-              </div>
-            </CardContent>
-          </Card>
-        )}
+              </CardHeader>
+              <CardContent>
+                <Select value={currentSessionId || undefined} onValueChange={setCurrentSessionId} disabled={isStreaming}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Select a session" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {sessions.map((session) => (
+                      <SelectItem key={session.id} value={session.id}>
+                        Session {session.session_number}: {session.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {sessions.length === 0 && (
+                  <p className="text-sm text-muted-foreground mt-2">No sessions found. Create a session first.</p>
+                )}
+              </CardContent>
+            </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Event Information</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2 text-sm">
-            <div className="flex justify-between">
-              <span className="text-slate-600">Event Slug:</span>
-              <span className="font-mono">{slug}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-slate-600">Status:</span>
-              <span>{isStreaming ? "Streaming" : "Offline"}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-slate-600">Total Transcriptions:</span>
-              <span>{transcriptions.length}</span>
-            </div>
-          </CardContent>
-        </Card>
+            <Card>
+              <CardHeader>
+                <CardTitle>Event Information</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-slate-600">Event Slug:</span>
+                  <span className="font-mono">{slug}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-600">Status:</span>
+                  <span>{isStreaming ? "Streaming" : "Offline"}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-600">Total Transcriptions:</span>
+                  <span>{transcriptions.length}</span>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Right column - Stream controls and transcription */}
+          <div className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>Audio Stream</CardTitle>
+                <CardDescription>Control your live audio broadcast and transcription</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex gap-4">
+                  {!isStreaming ? (
+                    <Button onClick={handleStartStreaming} size="lg" className="flex-1 gap-2">
+                      <Mic className="h-5 w-5" />
+                      Start Streaming
+                    </Button>
+                  ) : (
+                    <Button onClick={handleStopStreaming} size="lg" variant="destructive" className="flex-1 gap-2">
+                      <MicOff className="h-5 w-5" />
+                      Stop Streaming
+                    </Button>
+                  )}
+                </div>
+
+                {isStreaming && (
+                  <div className="space-y-3">
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="p-4 bg-background border border-border rounded-md">
+                        <div className="text-sm text-foreground/60 mb-1">Live Viewers</div>
+                        <div className="text-2xl font-bold text-foreground">{liveViewers}</div>
+                      </div>
+                      <div className="p-4 bg-background border border-border rounded-md">
+                        <div className="text-sm text-foreground/60 mb-1">Total Viewers</div>
+                        <div className="text-2xl font-bold text-foreground">{totalViewers}</div>
+                      </div>
+                    </div>
+                    <div className="p-4 bg-background border border-border rounded-md">
+                      <div className="flex items-center justify-between text-sm mb-2">
+                        <span className="text-foreground/60">Session Time:</span>
+                        <span className="font-semibold text-foreground font-mono">{formatDuration(sessionDuration)}</span>
+                      </div>
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="text-foreground/60">Transcriptions sent:</span>
+                        <span className="font-semibold text-foreground">{transcriptionCount}</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            <Card className="flex flex-col">
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle>Transcription History</CardTitle>
+                    <CardDescription>Live transcription of your audio stream</CardDescription>
+                  </div>
+                  {transcriptions.length > 0 && (
+                    <Button onClick={downloadTranscript} variant="outline" size="sm" className="gap-2 bg-transparent">
+                      <Download className="h-4 w-4" />
+                      Download
+                    </Button>
+                  )}
+                </div>
+              </CardHeader>
+              <CardContent className="flex-1">
+                <LiveTranscriptionDisplay
+                  transcriptions={displayTranscriptions}
+                  interimText={interimText}
+                  className="h-[50vh] p-6 bg-background rounded-md border border-border"
+                />
+              </CardContent>
+            </Card>
+          </div>
+        </div>
       </div>
     </div>
   )
