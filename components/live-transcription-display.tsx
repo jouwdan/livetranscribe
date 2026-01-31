@@ -1,6 +1,6 @@
 "use client"
 
-import { useRef, useEffect } from "react"
+import { useRef, useEffect, useMemo } from "react"
 
 interface Transcription {
   text: string
@@ -25,37 +25,39 @@ export function LiveTranscriptionDisplay({
     endRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" })
   }, [transcriptions, interimText])
 
-  const sortedTranscriptions = [...transcriptions].sort((a, b) => {
-    return new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
-  })
+  const groupedTranscriptions = useMemo(() => {
+    const sortedTranscriptions = [...transcriptions].sort((a, b) => {
+      return new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+    })
 
-  const groupedTranscriptions = sortedTranscriptions.reduce(
-    (acc, curr, index) => {
-      if (index === 0) {
-        acc.push({
-          timestamp: curr.timestamp,
-          texts: [curr.text],
-        })
-      } else {
-        const prevTimestamp = new Date(sortedTranscriptions[index - 1].timestamp).getTime()
-        const currTimestamp = new Date(curr.timestamp).getTime()
-        const timeDiff = (currTimestamp - prevTimestamp) / 1000 // in seconds
-
-        if (timeDiff > 10) {
-          // More than 10 seconds gap, start new group with timestamp
+    return sortedTranscriptions.reduce(
+      (acc, curr, index) => {
+        if (index === 0) {
           acc.push({
             timestamp: curr.timestamp,
             texts: [curr.text],
           })
         } else {
-          // Continue in current group
-          acc[acc.length - 1].texts.push(curr.text)
+          const prevTimestamp = new Date(sortedTranscriptions[index - 1].timestamp).getTime()
+          const currTimestamp = new Date(curr.timestamp).getTime()
+          const timeDiff = (currTimestamp - prevTimestamp) / 1000 // in seconds
+
+          if (timeDiff > 10) {
+            // More than 10 seconds gap, start new group with timestamp
+            acc.push({
+              timestamp: curr.timestamp,
+              texts: [curr.text],
+            })
+          } else {
+            // Continue in current group
+            acc[acc.length - 1].texts.push(curr.text)
+          }
         }
-      }
-      return acc
-    },
-    [] as Array<{ timestamp: string; texts: string[] }>,
-  )
+        return acc
+      },
+      [] as Array<{ timestamp: string; texts: string[] }>,
+    )
+  }, [transcriptions])
 
   const formatTimestamp = (timestamp: string) => {
     const date = new Date(timestamp)
