@@ -62,16 +62,11 @@ export default async function SessionsPage({ params }: { params: Promise<{ slug:
       const totalTranscriptions = sessionTranscriptions.length
       const totalWords = sessionTranscriptions.reduce((sum, t) => sum + (t.text?.split(/\s+/).length || 0), 0)
 
-      // Update the session record with real stats only if changed
-      if (session.total_transcriptions !== totalTranscriptions || session.total_words !== totalWords) {
-        await supabase
-          .from("event_sessions")
-          .update({
-            total_transcriptions: totalTranscriptions,
-            total_words: totalWords,
-          })
-          .eq("id", session.id)
-      }
+      // Calculate real stats for display.
+      // Note: We calculate these on the fly to ensure accuracy without relying
+      // on the potentially stale 'event_sessions' columns.
+      // Updates to the DB columns should be handled by the 'updateSessionStats' action
+      // or similar logic when transcriptions change, not during render.
 
       return {
         ...session,
