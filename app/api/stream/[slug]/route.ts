@@ -203,7 +203,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     }
 
     // Update session metrics if session_id is provided
-    if (sessionId && results.length >= 4) {
+    if (sessionId) {
       const sessionWordsResult = results[2]
       const sessionTranscriptionsResult = results[3]
 
