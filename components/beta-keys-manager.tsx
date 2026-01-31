@@ -59,20 +59,35 @@ export function BetaKeysManager({ betaKeys: initialKeys }: { betaKeys: BetaKey[]
       .order("created_at", { ascending: false })
 
     if (keysData) {
-      const keysWithUsers = await Promise.all(
-        keysData.map(async (key) => {
-          const { data: usageData } = await supabase
-            .from("beta_key_usage")
-            .select("email, created_at")
-            .eq("beta_key_id", key.id)
-            .order("created_at", { ascending: false })
+      if (keysData.length === 0) {
+        setBetaKeys([])
+        return
+      }
 
-          return {
-            ...key,
-            users: usageData || [],
+      const keyIds = keysData.map((key) => key.id)
+
+      const { data: allUsageData } = await supabase
+        .from("beta_key_usage")
+        .select("email, created_at, beta_key_id")
+        .in("beta_key_id", keyIds)
+        .order("created_at", { ascending: false })
+
+      const usageMap = new Map<string, Array<{ email: string; created_at: string }>>()
+
+      if (allUsageData) {
+        allUsageData.forEach((usage) => {
+          const { beta_key_id, ...userData } = usage
+          if (!usageMap.has(beta_key_id)) {
+            usageMap.set(beta_key_id, [])
           }
-        }),
-      )
+          usageMap.get(beta_key_id)?.push(userData)
+        })
+      }
+
+      const keysWithUsers = keysData.map((key) => ({
+        ...key,
+        users: usageMap.get(key.id) || [],
+      }))
 
       setBetaKeys(keysWithUsers)
     }
