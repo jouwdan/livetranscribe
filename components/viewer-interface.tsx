@@ -69,6 +69,8 @@ const StreamingText = ({
     if (text.startsWith(prevTextRef.current) && prevTextRef.current.length > 0) {
       const newPart = text.slice(prevTextRef.current.length)
       if (newPart.length > 0) {
+        // Reset completion state for new animation
+        setIsComplete(false)
         // Animate only the new characters
         let currentIndex = 0
         const interval = setInterval(() => {

@@ -30,7 +30,6 @@ export class OpenAITranscriber {
 
   // Connection health monitoring
   private heartbeatTimer: NodeJS.Timeout | null = null
-  private lastHeartbeat: number = Date.now()
   private connectionRetryCount = 0
   private maxRetries = 3
 
@@ -179,8 +178,6 @@ export class OpenAITranscriber {
         // We're sending audio but not getting transcriptions - potential issue
         console.warn("Sending audio but no transcription deltas received in 60s")
       }
-
-      this.lastHeartbeat = now
     }, 10000)
   }
 
