@@ -40,6 +40,8 @@ export function BroadcastInterface({ slug, eventName, eventId, userId }: Broadca
   const [sessionDuration, setSessionDuration] = useState(0)
   const [sessionStartTime, setSessionStartTime] = useState<Date | null>(null)
   const [creditsRemaining, setCreditsRemaining] = useState<number | null>(null)
+  const [connectionStatus, setConnectionStatus] = useState<'connecting' | 'connected' | 'reconnecting' | 'error' | null>(null)
+  const [audioLevel, setAudioLevel] = useState(0)
   const [sessions, setSessions] = useState<
     Array<{ id: string; name: string; session_number: number; description?: string | null }>
   >([])
@@ -209,8 +211,15 @@ export function BroadcastInterface({ slug, eventName, eventId, userId }: Broadca
   useEffect(() => {
     if (!isStreaming) return
 
-    const interval = setInterval(() => {
-      if (pendingInterimRef.current && broadcastChannelRef.current) {
+    // Use requestAnimationFrame for smoother interim updates synced to display refresh
+    let animationFrameId: number
+    let lastBroadcast = 0
+    const MIN_BROADCAST_INTERVAL = 33 // ~30fps for smooth updates
+
+    const broadcastLoop = () => {
+      const now = Date.now()
+      
+      if (pendingInterimRef.current && broadcastChannelRef.current && (now - lastBroadcast) >= MIN_BROADCAST_INTERVAL) {
         const { text, sequence } = pendingInterimRef.current
 
         broadcastChannelRef.current.send({
@@ -224,12 +233,17 @@ export function BroadcastInterface({ slug, eventName, eventId, userId }: Broadca
           },
         })
 
-        lastInterimBroadcastRef.current = Date.now()
+        lastBroadcast = now
+        lastInterimBroadcastRef.current = now
         pendingInterimRef.current = null
       }
-    }, 50) // Reduced throttle from 150ms to 50ms for more responsive interim updates
+      
+      animationFrameId = requestAnimationFrame(broadcastLoop)
+    }
 
-    return () => clearInterval(interval)
+    animationFrameId = requestAnimationFrame(broadcastLoop)
+
+    return () => cancelAnimationFrame(animationFrameId)
   }, [isStreaming, currentSessionId])
 
   const copyToClipboard = async () => {
@@ -531,6 +545,22 @@ export function BroadcastInterface({ slug, eventName, eventId, userId }: Broadca
         (error) => {
           setError(error)
           setIsStreaming(false)
+          setConnectionStatus('error')
+        },
+        // Status change callback
+        (status) => {
+          setConnectionStatus(status)
+          if (status === 'error') {
+            setError("Connection lost. Attempting to reconnect...")
+          } else if (status === 'reconnecting') {
+            setError("Reconnecting to transcription service...")
+          } else if (status === 'connected') {
+            setError(null)
+          }
+        },
+        // Audio level callback
+        (level) => {
+          setAudioLevel(level)
         },
       )
 
@@ -793,6 +823,34 @@ export function BroadcastInterface({ slug, eventName, eventId, userId }: Broadca
 
                 {isStreaming && (
                   <div className="space-y-3">
+                    {/* Audio Level Indicator */}
+                    <div className="p-4 bg-background border border-border rounded-md">
+                      <div className="flex items-center justify-between text-sm mb-2">
+                        <span className="text-foreground/60 flex items-center gap-2">
+                          <Mic className="h-4 w-4" />
+                          Audio Level
+                        </span>
+                        <span className="text-xs text-foreground/40">
+                          {connectionStatus === 'reconnecting' ? 'Reconnecting...' : 
+                           connectionStatus === 'connected' ? 'Connected' : ''}
+                        </span>
+                      </div>
+                      <div className="h-2 bg-muted rounded-full overflow-hidden">
+                        <div 
+                          className={`h-full transition-all duration-75 rounded-full ${
+                            audioLevel > 0.1 ? 'bg-green-500' : 
+                            audioLevel > 0.01 ? 'bg-yellow-500' : 'bg-muted-foreground/30'
+                          }`}
+                          style={{ width: `${Math.min(100, audioLevel * 500)}%` }}
+                        />
+                      </div>
+                      {audioLevel < 0.005 && (
+                        <p className="text-xs text-yellow-500 mt-2">
+                          Low audio detected. Check if your microphone is working.
+                        </p>
+                      )}
+                    </div>
+
                     <div className="grid grid-cols-2 gap-3">
                       <div className="p-4 bg-background border border-border rounded-md">
                         <div className="text-sm text-foreground/60 mb-1">Live Viewers</div>
