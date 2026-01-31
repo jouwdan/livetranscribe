@@ -1,4 +1,5 @@
 import { createBrowserClient } from "@/lib/supabase/client"
+import { countWords } from "@/lib/utils/word-count"
 
 export interface ViewerSessionMetrics {
   eventId: string
@@ -167,7 +168,7 @@ export class BroadcastMetricsTracker {
 
   addTranscription(text: string) {
     this.totalTranscriptions++
-    this.totalWords += text.split(" ").length
+    this.totalWords += countWords(text)
   }
 
   async endSession() {
