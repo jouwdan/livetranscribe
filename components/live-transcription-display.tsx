@@ -19,10 +19,15 @@ export function LiveTranscriptionDisplay({
   interimText,
   className = "",
 }: LiveTranscriptionDisplayProps) {
+  const containerRef = useRef<HTMLDivElement>(null)
   const endRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    endRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" })
+    // Scroll within the container only, not affecting page scroll
+    if (containerRef.current && endRef.current) {
+      const container = containerRef.current
+      container.scrollTop = container.scrollHeight
+    }
   }, [transcriptions, interimText])
 
   const groupedTranscriptions = useMemo(() => {
@@ -79,7 +84,7 @@ export function LiveTranscriptionDisplay({
   }
 
   return (
-    <div className={className}>
+    <div ref={containerRef} className={`overflow-y-auto ${className}`}>
       <div className="space-y-6">
         {groupedTranscriptions.map((group, index) => (
           <div key={index} className="space-y-2">
