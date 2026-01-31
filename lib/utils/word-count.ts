@@ -1,4 +1,3 @@
-
 /**
  * Counts the number of words in a given text string.
  * Uses a consistent logic across the application:
