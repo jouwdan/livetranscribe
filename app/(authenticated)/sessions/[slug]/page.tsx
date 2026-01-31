@@ -55,7 +55,7 @@ export default async function SessionsPage({ params }: { params: Promise<{ slug:
       }
       return acc
     },
-    {} as Record<string, NonNullable<typeof allTranscriptions>>,
+    {} as Record<string, typeof allTranscriptions>,
   )
 
   const sessionsWithStats = await Promise.all(
