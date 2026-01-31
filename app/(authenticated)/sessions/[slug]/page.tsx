@@ -1,6 +1,7 @@
 import { createServerClient } from "@/lib/supabase/server"
 import { redirect } from "next/navigation"
 import { SessionManager } from "@/components/session-manager"
+import { countWords } from "@/lib/utils/word-count"
 
 export default async function SessionsPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params
@@ -60,7 +61,7 @@ export default async function SessionsPage({ params }: { params: Promise<{ slug:
       const sessionTranscriptions = transcriptionsBySession[session.id] || []
 
       const totalTranscriptions = sessionTranscriptions.length
-      const totalWords = sessionTranscriptions.reduce((sum, t) => sum + (t.text?.split(/\s+/).length || 0), 0)
+      const totalWords = sessionTranscriptions.reduce((sum, t) => sum + countWords(t.text), 0)
 
       // Calculate real stats for display.
       // Note: We calculate these on the fly to ensure accuracy without relying

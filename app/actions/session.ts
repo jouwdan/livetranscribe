@@ -2,6 +2,7 @@
 
 import { createServerClient } from "@/lib/supabase/server"
 import { revalidatePath } from "next/cache"
+import { countWords } from "@/lib/utils/word-count"
 
 /**
  * Updates the total_transcriptions and total_words counts for a given session.
@@ -43,7 +44,7 @@ export async function updateSessionStats(sessionId: string) {
 
   const totalTranscriptions = transcriptions.length
   const totalWords = transcriptions.reduce((sum, t) => {
-    return sum + (t.text?.trim().split(/\s+/).length || 0)
+    return sum + countWords(t.text)
   }, 0)
 
   // Update the session record

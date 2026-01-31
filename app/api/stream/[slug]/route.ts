@@ -1,5 +1,6 @@
 import type { NextRequest } from "next/server"
 import { createClient } from "@/lib/supabase/server"
+import { countWords } from "@/lib/utils/word-count"
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params
@@ -153,7 +154,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       return Response.json({ error: "Failed to save transcription", details: insertError.message }, { status: 500 })
     }
 
-    const wordCount = text.trim().split(/\s+/).length
+    const wordCount = countWords(text)
 
     const rpcPromises = [
       supabase.rpc("increment", {
