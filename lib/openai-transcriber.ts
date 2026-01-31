@@ -381,8 +381,13 @@ Your output must be clean, literal, and faithful to the spoken audio.
   private arrayBufferToBase64(buffer: ArrayBufferLike): string {
     let binary = ""
     const bytes = new Uint8Array(buffer)
-    for (let i = 0; i < bytes.byteLength; i++) {
-      binary += String.fromCharCode(bytes[i])
+    const len = bytes.byteLength
+    const chunkSize = 0x8000 // 32768
+    for (let i = 0; i < len; i += chunkSize) {
+      binary += String.fromCharCode.apply(
+        null,
+        bytes.subarray(i, i + chunkSize) as unknown as number[],
+      )
     }
     return btoa(binary)
   }
